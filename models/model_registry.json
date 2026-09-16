@@ -74,6 +74,23 @@
       "num_classes": 102,
       "size_bytes": 3377619,
       "evaluation_report": "models/finetuned_evaluation_report.json"
+    },
+    "baseline_synthetic_uppercase39": {
+      "weights": "models/baseline_synthetic_uppercase39.pth",
+      "num_classes": 39,
+      "epochs": 15,
+      "val_accuracy": 99.72,
+      "report": "models/synthetic_uppercase_report.json"
+    },
+    "finetuned_uppercase39_advanced": {
+      "weights": "models/finetuned_uppercase39.pth",
+      "num_classes": 39,
+      "epochs": 12,
+      "baseline_real_accuracy": 69.7,
+      "finetuned_real_accuracy": 94.28,
+      "top3_accuracy": 98.65,
+      "strip2_score": "4/6",
+      "report": "models/finetuned_uppercase39_report.json"
     }
   }
 }
