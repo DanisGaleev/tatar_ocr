@@ -1,0 +1,246 @@
+{
+  "summary": {
+    "task": "39-Class Tatar Uppercase OCR Model with Advanced Augmentation Fine-Tuning",
+    "real_dataset_cells": 2040,
+    "epochs": 12,
+    "baseline_real_accuracy": 69.7,
+    "finetuned_real_accuracy": 94.28,
+    "accuracy_gain": 24.58,
+    "top3_accuracy": 98.65,
+    "strip2_score": "4/6"
+  },
+  "priority_letters": {
+    "Ә": {
+      "baseline_acc": 52.94,
+      "finetuned_acc": 100.0,
+      "gain": 47.06,
+      "count": 17
+    },
+    "Җ": {
+      "baseline_acc": 82.35,
+      "finetuned_acc": 100.0,
+      "gain": 17.65,
+      "count": 17
+    },
+    "Ң": {
+      "baseline_acc": 41.18,
+      "finetuned_acc": 94.12,
+      "gain": 52.94,
+      "count": 17
+    },
+    "Ө": {
+      "baseline_acc": 64.71,
+      "finetuned_acc": 100.0,
+      "gain": 35.29,
+      "count": 17
+    },
+    "Ү": {
+      "baseline_acc": 83.33,
+      "finetuned_acc": 100.0,
+      "gain": 16.67,
+      "count": 12
+    },
+    "Һ": {
+      "baseline_acc": 66.67,
+      "finetuned_acc": 100.0,
+      "gain": 33.33,
+      "count": 12
+    },
+    "Щ": {
+      "baseline_acc": 100.0,
+      "finetuned_acc": 100.0,
+      "gain": 0.0,
+      "count": 10
+    },
+    "Ц": {
+      "baseline_acc": 80.0,
+      "finetuned_acc": 80.0,
+      "gain": 0.0,
+      "count": 10
+    },
+    "Ч": {
+      "baseline_acc": 50.0,
+      "finetuned_acc": 100.0,
+      "gain": 50.0,
+      "count": 10
+    },
+    "Ш": {
+      "baseline_acc": 80.0,
+      "finetuned_acc": 100.0,
+      "gain": 20.0,
+      "count": 10
+    },
+    "Д": {
+      "baseline_acc": 70.0,
+      "finetuned_acc": 100.0,
+      "gain": 30.0,
+      "count": 10
+    },
+    "Ю": {
+      "baseline_acc": 80.0,
+      "finetuned_acc": 100.0,
+      "gain": 20.0,
+      "count": 10
+    },
+    "Б": {
+      "baseline_acc": 70.0,
+      "finetuned_acc": 100.0,
+      "gain": 30.0,
+      "count": 10
+    },
+    "Э": {
+      "baseline_acc": 70.0,
+      "finetuned_acc": 100.0,
+      "gain": 30.0,
+      "count": 10
+    }
+  },
+  "strip2_predictions": [
+    {
+      "cell": 1,
+      "expected": "Ә",
+      "pred": "Ә",
+      "conf": 84.11,
+      "exp_conf": 84.11,
+      "match": true
+    },
+    {
+      "cell": 2,
+      "expected": "А",
+      "pred": "А",
+      "conf": 49.05,
+      "exp_conf": 49.05,
+      "match": true
+    },
+    {
+      "cell": 3,
+      "expected": "Б",
+      "pred": "Б",
+      "conf": 94.47,
+      "exp_conf": 94.47,
+      "match": true
+    },
+    {
+      "cell": 4,
+      "expected": "Җ",
+      "pred": "Л",
+      "conf": 34.08,
+      "exp_conf": 4.55,
+      "match": false
+    },
+    {
+      "cell": 5,
+      "expected": "Щ",
+      "pred": "Ц",
+      "conf": 83.99,
+      "exp_conf": 13.17,
+      "match": false
+    },
+    {
+      "cell": 6,
+      "expected": "Ч",
+      "pred": "Ч",
+      "conf": 97.97,
+      "exp_conf": 97.97,
+      "match": true
+    }
+  ],
+  "history": [
+    {
+      "epoch": 1,
+      "train_loss": 1.1236707011106297,
+      "train_acc": 61.10154905335629,
+      "val_loss": 0.6932656678687844,
+      "val_acc": 78.78787878787878,
+      "elapsed_s": 26.710654258728027
+    },
+    {
+      "epoch": 2,
+      "train_loss": 0.7213701388306544,
+      "train_acc": 74.18244406196214,
+      "val_loss": 0.5236447258830472,
+      "val_acc": 85.52188552188552,
+      "elapsed_s": 25.648051261901855
+    },
+    {
+      "epoch": 3,
+      "train_loss": 0.6001144555267491,
+      "train_acc": 78.65748709122204,
+      "val_loss": 0.43665285192756137,
+      "val_acc": 89.56228956228956,
+      "elapsed_s": 25.56021738052368
+    },
+    {
+      "epoch": 4,
+      "train_loss": 0.526981047837131,
+      "train_acc": 80.6081468732071,
+      "val_loss": 0.37245431241362986,
+      "val_acc": 92.5925925925926,
+      "elapsed_s": 25.72339916229248
+    },
+    {
+      "epoch": 5,
+      "train_loss": 0.4671071613409433,
+      "train_acc": 82.84566838783705,
+      "val_loss": 0.3585822936461028,
+      "val_acc": 92.25589225589226,
+      "elapsed_s": 25.58479881286621
+    },
+    {
+      "epoch": 6,
+      "train_loss": 0.3974339557802,
+      "train_acc": 85.59954102122776,
+      "val_loss": 0.3063740067510091,
+      "val_acc": 93.26599326599326,
+      "elapsed_s": 25.68021869659424
+    },
+    {
+      "epoch": 7,
+      "train_loss": 0.3685718324939478,
+      "train_acc": 86.74698795180723,
+      "val_loss": 0.3127660139742925,
+      "val_acc": 92.5925925925926,
+      "elapsed_s": 25.33464241027832
+    },
+    {
+      "epoch": 8,
+      "train_loss": 0.3521879536457193,
+      "train_acc": 88.06655192197361,
+      "val_loss": 0.2971719548056021,
+      "val_acc": 93.60269360269359,
+      "elapsed_s": 25.316087007522583
+    },
+    {
+      "epoch": 9,
+      "train_loss": 0.3618926567998482,
+      "train_acc": 87.09122203098106,
+      "val_loss": 0.29108166363504195,
+      "val_acc": 94.27609427609428,
+      "elapsed_s": 25.492594718933105
+    },
+    {
+      "epoch": 10,
+      "train_loss": 0.3256836013416415,
+      "train_acc": 89.1566265060241,
+      "val_loss": 0.292482759113665,
+      "val_acc": 93.93939393939394,
+      "elapsed_s": 25.423956394195557
+    },
+    {
+      "epoch": 11,
+      "train_loss": 0.3300454861223185,
+      "train_acc": 88.06655192197361,
+      "val_loss": 0.287861346746936,
+      "val_acc": 94.27609427609428,
+      "elapsed_s": 25.55489683151245
+    },
+    {
+      "epoch": 12,
+      "train_loss": 0.3245082762278296,
+      "train_acc": 88.64027538726333,
+      "val_loss": 0.2900232104741363,
+      "val_acc": 94.27609427609428,
+      "elapsed_s": 25.509660005569458
+    }
+  ]
+}
