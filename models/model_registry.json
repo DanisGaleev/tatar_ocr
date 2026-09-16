@@ -1,0 +1,79 @@
+{
+  "project": "tatar_ocr",
+  "dvc_status": "DVC not installed in environment; tracking via git-tracked model registry manifest",
+  "alphabet": {
+    "uppercase_classes_count": 39,
+    "classes": [
+      "А",
+      "Ә",
+      "Б",
+      "В",
+      "Г",
+      "Д",
+      "Е",
+      "Ё",
+      "Ж",
+      "Җ",
+      "З",
+      "И",
+      "Й",
+      "К",
+      "Л",
+      "М",
+      "Н",
+      "Ң",
+      "О",
+      "Ө",
+      "П",
+      "Р",
+      "С",
+      "Т",
+      "У",
+      "Ү",
+      "Ф",
+      "Х",
+      "Һ",
+      "Ц",
+      "Ч",
+      "Ш",
+      "Щ",
+      "Ъ",
+      "Ы",
+      "Ь",
+      "Э",
+      "Ю",
+      "Я"
+    ]
+  },
+  "datasets": {
+    "realdataset": {
+      "path": "realdataset/metadata.csv",
+      "total_cells": 2040,
+      "classes_count": 39,
+      "cell_resolution": [
+        64,
+        64
+      ],
+      "source": "5 handwritten collection sheets (24x17 grid)"
+    },
+    "synthetic_uppercase": {
+      "mode": "in_memory_online_cached",
+      "classes_count": 39,
+      "canvas_size": 64
+    }
+  },
+  "models": {
+    "baseline_synthetic_102classes": {
+      "weights": "models/baseline_synthetic_20ep.pth",
+      "num_classes": 102,
+      "size_bytes": 3377213,
+      "train_val_report": "models/baseline_evaluation_report.json"
+    },
+    "finetuned_real_102classes": {
+      "weights": "models/finetuned_real_tatar_ocr.pth",
+      "num_classes": 102,
+      "size_bytes": 3377619,
+      "evaluation_report": "models/finetuned_evaluation_report.json"
+    }
+  }
+}
