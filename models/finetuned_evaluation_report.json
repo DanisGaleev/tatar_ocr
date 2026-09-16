@@ -1,0 +1,266 @@
+{
+  "fine_tuning_summary": {
+    "dataset": "2,040 Real Handwritten Cells",
+    "train_samples": 1743,
+    "val_samples": 297,
+    "epochs": 12,
+    "best_val_accuracy": 82.83,
+    "baseline_accuracy": 52.53,
+    "accuracy_gain": 30.3,
+    "top3_accuracy": 93.6
+  },
+  "priority_letters": {
+    "Ә": {
+      "baseline_acc": 35.29,
+      "finetuned_acc": 94.12,
+      "gain": 58.82,
+      "count": 17
+    },
+    "Җ": {
+      "baseline_acc": 76.47,
+      "finetuned_acc": 88.24,
+      "gain": 11.76,
+      "count": 17
+    },
+    "Ң": {
+      "baseline_acc": 58.82,
+      "finetuned_acc": 88.24,
+      "gain": 29.41,
+      "count": 17
+    },
+    "Ө": {
+      "baseline_acc": 58.82,
+      "finetuned_acc": 70.59,
+      "gain": 11.76,
+      "count": 17
+    },
+    "Ү": {
+      "baseline_acc": 58.33,
+      "finetuned_acc": 91.67,
+      "gain": 33.33,
+      "count": 12
+    },
+    "Һ": {
+      "baseline_acc": 16.67,
+      "finetuned_acc": 66.67,
+      "gain": 50.0,
+      "count": 12
+    },
+    "Щ": {
+      "baseline_acc": 70.0,
+      "finetuned_acc": 80.0,
+      "gain": 10.0,
+      "count": 10
+    },
+    "Ц": {
+      "baseline_acc": 80.0,
+      "finetuned_acc": 60.0,
+      "gain": -20.0,
+      "count": 10
+    },
+    "Ч": {
+      "baseline_acc": 0.0,
+      "finetuned_acc": 90.0,
+      "gain": 90.0,
+      "count": 10
+    },
+    "Ш": {
+      "baseline_acc": 60.0,
+      "finetuned_acc": 80.0,
+      "gain": 20.0,
+      "count": 10
+    },
+    "Д": {
+      "baseline_acc": 70.0,
+      "finetuned_acc": 100.0,
+      "gain": 30.0,
+      "count": 10
+    },
+    "Ю": {
+      "baseline_acc": 20.0,
+      "finetuned_acc": 80.0,
+      "gain": 60.0,
+      "count": 10
+    },
+    "Б": {
+      "baseline_acc": 50.0,
+      "finetuned_acc": 90.0,
+      "gain": 40.0,
+      "count": 10
+    },
+    "Э": {
+      "baseline_acc": 30.0,
+      "finetuned_acc": 90.0,
+      "gain": 60.0,
+      "count": 10
+    }
+  },
+  "calibration": {
+    "Threshold_0.5": {
+      "accuracy_on_accepted": 89.69,
+      "flagged_for_teacher": 11.78
+    },
+    "Threshold_0.7": {
+      "accuracy_on_accepted": 94.78,
+      "flagged_for_teacher": 22.56
+    },
+    "Threshold_0.8": {
+      "accuracy_on_accepted": 96.67,
+      "flagged_for_teacher": 29.29
+    },
+    "Threshold_0.85": {
+      "accuracy_on_accepted": 96.45,
+      "flagged_for_teacher": 33.67
+    },
+    "Threshold_0.9": {
+      "accuracy_on_accepted": 98.89,
+      "flagged_for_teacher": 39.39
+    },
+    "Threshold_0.95": {
+      "accuracy_on_accepted": 99.3,
+      "flagged_for_teacher": 51.85
+    }
+  },
+  "strip_2_predictions": [
+    {
+      "cell": 1,
+      "expected": "Ә",
+      "pred": "Э",
+      "conf": 67.50926375389099,
+      "exp_conf": 31.949633359909058
+    },
+    {
+      "cell": 2,
+      "expected": "А",
+      "pred": "А",
+      "conf": 69.43289041519165,
+      "exp_conf": 69.43289041519165
+    },
+    {
+      "cell": 3,
+      "expected": "Б",
+      "pred": "Б",
+      "conf": 94.52180862426758,
+      "exp_conf": 94.52180862426758
+    },
+    {
+      "cell": 4,
+      "expected": "Җ",
+      "pred": "Т",
+      "conf": 57.75136947631836,
+      "exp_conf": 2.825138159096241
+    },
+    {
+      "cell": 5,
+      "expected": "Щ",
+      "pred": "Ц",
+      "conf": 72.59379029273987,
+      "exp_conf": 20.17347812652588
+    },
+    {
+      "cell": 6,
+      "expected": "Ч",
+      "pred": "Ч",
+      "conf": 95.57620882987976,
+      "exp_conf": 95.57620882987976
+    }
+  ],
+  "history": [
+    {
+      "epoch": 1,
+      "train_loss": 2.948716512850763,
+      "train_acc": 42.168674698795186,
+      "val_loss": 2.026643985449666,
+      "val_acc": 53.198653198653204,
+      "elapsed_s": 15.30449390411377
+    },
+    {
+      "epoch": 2,
+      "train_loss": 1.8846395319382212,
+      "train_acc": 57.20022948938611,
+      "val_loss": 1.3117014121527624,
+      "val_acc": 70.70707070707071,
+      "elapsed_s": 14.130287170410156
+    },
+    {
+      "epoch": 3,
+      "train_loss": 1.3672096725174974,
+      "train_acc": 66.89615605278256,
+      "val_loss": 1.0336475721513383,
+      "val_acc": 75.42087542087542,
+      "elapsed_s": 13.986280679702759
+    },
+    {
+      "epoch": 4,
+      "train_loss": 1.0571495758276592,
+      "train_acc": 72.92025243832472,
+      "val_loss": 0.8521201771116417,
+      "val_acc": 78.45117845117845,
+      "elapsed_s": 13.952056169509888
+    },
+    {
+      "epoch": 5,
+      "train_loss": 0.9469928094113755,
+      "train_acc": 74.92828456683878,
+      "val_loss": 0.7791266054015369,
+      "val_acc": 78.78787878787878,
+      "elapsed_s": 15.046976566314697
+    },
+    {
+      "epoch": 6,
+      "train_loss": 0.7811795726495437,
+      "train_acc": 78.37062535857716,
+      "val_loss": 0.7088809049490726,
+      "val_acc": 80.8080808080808,
+      "elapsed_s": 13.883568286895752
+    },
+    {
+      "epoch": 7,
+      "train_loss": 0.6960268851606858,
+      "train_acc": 81.23924268502581,
+      "val_loss": 0.6665549864271273,
+      "val_acc": 81.14478114478115,
+      "elapsed_s": 13.903687477111816
+    },
+    {
+      "epoch": 8,
+      "train_loss": 0.6301978113524065,
+      "train_acc": 83.07515777395295,
+      "val_loss": 0.6520716034202062,
+      "val_acc": 81.81818181818183,
+      "elapsed_s": 13.811280250549316
+    },
+    {
+      "epoch": 9,
+      "train_loss": 0.6258971104318222,
+      "train_acc": 82.78829604130809,
+      "val_loss": 0.6274441912118032,
+      "val_acc": 82.49158249158249,
+      "elapsed_s": 14.20979928970337
+    },
+    {
+      "epoch": 10,
+      "train_loss": 0.5806888211614704,
+      "train_acc": 83.93574297188755,
+      "val_loss": 0.6338677039050092,
+      "val_acc": 82.49158249158249,
+      "elapsed_s": 13.485488414764404
+    },
+    {
+      "epoch": 11,
+      "train_loss": 0.5677968935588962,
+      "train_acc": 84.22260470453242,
+      "val_loss": 0.6314223346485434,
+      "val_acc": 82.82828282828282,
+      "elapsed_s": 12.169451236724854
+    },
+    {
+      "epoch": 12,
+      "train_loss": 0.5525487555694252,
+      "train_acc": 84.56683878370626,
+      "val_loss": 0.6261478522008517,
+      "val_acc": 82.49158249158249,
+      "elapsed_s": 13.48151969909668
+    }
+  ]
+}
