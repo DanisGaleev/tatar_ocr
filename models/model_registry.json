@@ -48,6 +48,8 @@
   "datasets": {
     "realdataset": {
       "path": "realdataset/metadata.csv",
+      "size_bytes": 247095,
+      "sha256": "0e56a7f56f671934e527e6249414cb56a98b983bca309da40e18c6af266f9e0d",
       "total_cells": 2040,
       "classes_count": 39,
       "cell_resolution": [
@@ -67,17 +69,21 @@
       "weights": "models/baseline_synthetic_20ep.pth",
       "num_classes": 102,
       "size_bytes": 3377213,
+      "sha256": "de8e166d989ea206f441f1f96bf979d97d20185df7a2c61029234538b3f6b640",
       "train_val_report": "models/baseline_evaluation_report.json"
     },
     "finetuned_real_102classes": {
       "weights": "models/finetuned_real_tatar_ocr.pth",
       "num_classes": 102,
       "size_bytes": 3377619,
+      "sha256": "6d4caa701c01ccd83b767493147b913e9d913defe0a318135266efbeab28d770",
       "evaluation_report": "models/finetuned_evaluation_report.json"
     },
     "baseline_synthetic_uppercase39": {
       "weights": "models/baseline_synthetic_uppercase39.pth",
       "num_classes": 39,
+      "size_bytes": 3313193,
+      "sha256": "d41a187d943a408051c63a1a934685e916d24e4c4335f294cacdc504e9fb3e2a",
       "epochs": 15,
       "val_accuracy": 99.72,
       "report": "models/synthetic_uppercase_report.json"
@@ -85,6 +91,8 @@
     "finetuned_uppercase39_advanced": {
       "weights": "models/finetuned_uppercase39.pth",
       "num_classes": 39,
+      "size_bytes": 3312616,
+      "sha256": "b55481b407751ece8237c77bbfa6270cc3a271d73d04b3ef58a4c25ee01361d3",
       "epochs": 12,
       "baseline_real_accuracy": 69.7,
       "finetuned_real_accuracy": 94.28,
