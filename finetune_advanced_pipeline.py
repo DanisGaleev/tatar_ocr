@@ -19,6 +19,7 @@ from tatar_ocr_augmentation import (
     get_available_fonts,
     render_base_char,
     generate_augmented_cell_image,
+    apply_elastic_wobble,
 )
 from tatar_ocr_dataset import TatarOCRNet
 
@@ -89,7 +90,11 @@ def advanced_augment_real_cell(img_arr, is_train=True):
             x = random.randint(w - 4, w - 1)
             cv2.line(aug, (x, 0), (x, h - 1), line_col, thick)
 
-    # 4. Cutout / ink-skip starvation (partial dry pen stroke)
+    # 4. Elastic muscle tremor / wobble
+    if random.random() < 0.35:
+        aug = apply_elastic_wobble(aug, alpha=random.uniform(2.5, 5.5), sigma=random.uniform(2.5, 4.0))
+
+    # 5. Cutout / ink-skip starvation (partial dry pen stroke)
     if random.random() < 0.25:
         cx = random.randint(8, w - 8)
         cy = random.randint(8, h - 8)
@@ -97,11 +102,11 @@ def advanced_augment_real_cell(img_arr, is_train=True):
         ry = random.randint(3, 7)
         cv2.circle(aug, (cx, cy), rx, 245, -1)
 
-    # 5. Defocus blur
+    # 6. Defocus blur
     if random.random() < 0.25:
         aug = cv2.GaussianBlur(aug, (3, 3), random.uniform(0.4, 0.8))
 
-    # 6. Contrast & brightness stretch
+    # 7. Contrast & brightness stretch
     p_lo = np.percentile(aug, 2)
     p_hi = np.percentile(aug, 98)
     norm = np.clip((aug.astype(np.float32) - p_lo) / (p_hi - p_lo + 1e-5) * 240.0 + random.uniform(5.0, 15.0), 0, 255).astype(np.uint8)
