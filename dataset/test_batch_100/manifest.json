@@ -1,0 +1,802 @@
+[
+  {
+    "index": 0,
+    "character": "Ң",
+    "unicode": "U+04A2",
+    "font": "Pangolin.ttf",
+    "style": "pencil",
+    "filename": "char_000_04A2.png"
+  },
+  {
+    "index": 1,
+    "character": "Ә",
+    "unicode": "U+04D8",
+    "font": "Podkova.ttf",
+    "style": "standard_pen",
+    "filename": "char_001_04D8.png"
+  },
+  {
+    "index": 2,
+    "character": "К",
+    "unicode": "U+041A",
+    "font": "Kurale.ttf",
+    "style": "pencil",
+    "filename": "char_002_041A.png"
+  },
+  {
+    "index": 3,
+    "character": "В",
+    "unicode": "U+0412",
+    "font": "Comfortaa.ttf",
+    "style": "pencil",
+    "filename": "char_003_0412.png"
+  },
+  {
+    "index": 4,
+    "character": "җ",
+    "unicode": "U+0497",
+    "font": "BadScript.ttf",
+    "style": "ink_bleed",
+    "filename": "char_004_0497.png"
+  },
+  {
+    "index": 5,
+    "character": "һ",
+    "unicode": "U+04BB",
+    "font": "Pangolin.ttf",
+    "style": "standard_pen",
+    "filename": "char_005_04BB.png"
+  },
+  {
+    "index": 6,
+    "character": "Ү",
+    "unicode": "U+04AE",
+    "font": "Podkova.ttf",
+    "style": "standard_pen",
+    "filename": "char_006_04AE.png"
+  },
+  {
+    "index": 7,
+    "character": ")",
+    "unicode": "U+0029",
+    "font": "Podkova.ttf",
+    "style": "pencil",
+    "filename": "char_007_0029.png"
+  },
+  {
+    "index": 8,
+    "character": "Ң",
+    "unicode": "U+04A2",
+    "font": "Kurale.ttf",
+    "style": "standard_pen",
+    "filename": "char_008_04A2.png"
+  },
+  {
+    "index": 9,
+    "character": "9",
+    "unicode": "U+0039",
+    "font": "Caveat.ttf",
+    "style": "pencil",
+    "filename": "char_009_0039.png"
+  },
+  {
+    "index": 10,
+    "character": "т",
+    "unicode": "U+0442",
+    "font": "Kurale.ttf",
+    "style": "ink_bleed",
+    "filename": "char_010_0442.png"
+  },
+  {
+    "index": 11,
+    "character": "Ү",
+    "unicode": "U+04AE",
+    "font": "Comfortaa.ttf",
+    "style": "standard_pen",
+    "filename": "char_011_04AE.png"
+  },
+  {
+    "index": 12,
+    "character": "Ө",
+    "unicode": "U+04E8",
+    "font": "Kurale.ttf",
+    "style": "standard_pen",
+    "filename": "char_012_04E8.png"
+  },
+  {
+    "index": 13,
+    "character": "Һ",
+    "unicode": "U+04BA",
+    "font": "Kurale.ttf",
+    "style": "standard_pen",
+    "filename": "char_013_04BA.png"
+  },
+  {
+    "index": 14,
+    "character": "ө",
+    "unicode": "U+04E9",
+    "font": "Pangolin.ttf",
+    "style": "standard_pen",
+    "filename": "char_014_04E9.png"
+  },
+  {
+    "index": 15,
+    "character": "һ",
+    "unicode": "U+04BB",
+    "font": "PlaypenSans.ttf",
+    "style": "standard_pen",
+    "filename": "char_015_04BB.png"
+  },
+  {
+    "index": 16,
+    "character": "«",
+    "unicode": "U+00AB",
+    "font": "Caveat.ttf",
+    "style": "standard_pen",
+    "filename": "char_016_00AB.png"
+  },
+  {
+    "index": 17,
+    "character": "8",
+    "unicode": "U+0038",
+    "font": "Kurale.ttf",
+    "style": "standard_pen",
+    "filename": "char_017_0038.png"
+  },
+  {
+    "index": 18,
+    "character": "1",
+    "unicode": "U+0031",
+    "font": "Pangolin.ttf",
+    "style": "pencil",
+    "filename": "char_018_0031.png"
+  },
+  {
+    "index": 19,
+    "character": "ү",
+    "unicode": "U+04AF",
+    "font": "PlaypenSans.ttf",
+    "style": "pencil",
+    "filename": "char_019_04AF.png"
+  },
+  {
+    "index": 20,
+    "character": "2",
+    "unicode": "U+0032",
+    "font": "Podkova.ttf",
+    "style": "standard_pen",
+    "filename": "char_020_0032.png"
+  },
+  {
+    "index": 21,
+    "character": "с",
+    "unicode": "U+0441",
+    "font": "PlaypenSans.ttf",
+    "style": "standard_pen",
+    "filename": "char_021_0441.png"
+  },
+  {
+    "index": 22,
+    "character": "ү",
+    "unicode": "U+04AF",
+    "font": "PlaypenSans.ttf",
+    "style": "standard_pen",
+    "filename": "char_022_04AF.png"
+  },
+  {
+    "index": 23,
+    "character": "ш",
+    "unicode": "U+0448",
+    "font": "Podkova.ttf",
+    "style": "pencil",
+    "filename": "char_023_0448.png"
+  },
+  {
+    "index": 24,
+    "character": "Л",
+    "unicode": "U+041B",
+    "font": "Caveat.ttf",
+    "style": "ink_bleed",
+    "filename": "char_024_041B.png"
+  },
+  {
+    "index": 25,
+    "character": "Ө",
+    "unicode": "U+04E8",
+    "font": "PlaypenSans.ttf",
+    "style": "standard_pen",
+    "filename": "char_025_04E8.png"
+  },
+  {
+    "index": 26,
+    "character": "ң",
+    "unicode": "U+04A3",
+    "font": "Comfortaa.ttf",
+    "style": "standard_pen",
+    "filename": "char_026_04A3.png"
+  },
+  {
+    "index": 27,
+    "character": "0",
+    "unicode": "U+0030",
+    "font": "PlaypenSans.ttf",
+    "style": "standard_pen",
+    "filename": "char_027_0030.png"
+  },
+  {
+    "index": 28,
+    "character": "Э",
+    "unicode": "U+042D",
+    "font": "PlaypenSans.ttf",
+    "style": "standard_pen",
+    "filename": "char_028_042D.png"
+  },
+  {
+    "index": 29,
+    "character": ";",
+    "unicode": "U+003B",
+    "font": "Kurale.ttf",
+    "style": "standard_pen",
+    "filename": "char_029_003B.png"
+  },
+  {
+    "index": 30,
+    "character": "җ",
+    "unicode": "U+0497",
+    "font": "BadScript.ttf",
+    "style": "standard_pen",
+    "filename": "char_030_0497.png"
+  },
+  {
+    "index": 31,
+    "character": "5",
+    "unicode": "U+0035",
+    "font": "Kurale.ttf",
+    "style": "standard_pen",
+    "filename": "char_031_0035.png"
+  },
+  {
+    "index": 32,
+    "character": "Ы",
+    "unicode": "U+042B",
+    "font": "Caveat.ttf",
+    "style": "pencil",
+    "filename": "char_032_042B.png"
+  },
+  {
+    "index": 33,
+    "character": "3",
+    "unicode": "U+0033",
+    "font": "Literata.ttf",
+    "style": "ink_bleed",
+    "filename": "char_033_0033.png"
+  },
+  {
+    "index": 34,
+    "character": "6",
+    "unicode": "U+0036",
+    "font": "Caveat.ttf",
+    "style": "pencil",
+    "filename": "char_034_0036.png"
+  },
+  {
+    "index": 35,
+    "character": "ә",
+    "unicode": "U+04D9",
+    "font": "Podkova.ttf",
+    "style": "standard_pen",
+    "filename": "char_035_04D9.png"
+  },
+  {
+    "index": 36,
+    "character": "Ә",
+    "unicode": "U+04D8",
+    "font": "BadScript.ttf",
+    "style": "pencil",
+    "filename": "char_036_04D8.png"
+  },
+  {
+    "index": 37,
+    "character": "җ",
+    "unicode": "U+0497",
+    "font": "Comfortaa.ttf",
+    "style": "ink_bleed",
+    "filename": "char_037_0497.png"
+  },
+  {
+    "index": 38,
+    "character": "?",
+    "unicode": "U+003F",
+    "font": "Comfortaa.ttf",
+    "style": "standard_pen",
+    "filename": "char_038_003F.png"
+  },
+  {
+    "index": 39,
+    "character": "ү",
+    "unicode": "U+04AF",
+    "font": "PlaypenSans.ttf",
+    "style": "pencil",
+    "filename": "char_039_04AF.png"
+  },
+  {
+    "index": 40,
+    "character": "С",
+    "unicode": "U+0421",
+    "font": "Comfortaa.ttf",
+    "style": "standard_pen",
+    "filename": "char_040_0421.png"
+  },
+  {
+    "index": 41,
+    "character": "җ",
+    "unicode": "U+0497",
+    "font": "Caveat.ttf",
+    "style": "standard_pen",
+    "filename": "char_041_0497.png"
+  },
+  {
+    "index": 42,
+    "character": "н",
+    "unicode": "U+043D",
+    "font": "Podkova.ttf",
+    "style": "ink_bleed",
+    "filename": "char_042_043D.png"
+  },
+  {
+    "index": 43,
+    "character": "Һ",
+    "unicode": "U+04BA",
+    "font": "PlaypenSans.ttf",
+    "style": "standard_pen",
+    "filename": "char_043_04BA.png"
+  },
+  {
+    "index": 44,
+    "character": "г",
+    "unicode": "U+0433",
+    "font": "Kurale.ttf",
+    "style": "standard_pen",
+    "filename": "char_044_0433.png"
+  },
+  {
+    "index": 45,
+    "character": "ң",
+    "unicode": "U+04A3",
+    "font": "Pangolin.ttf",
+    "style": "ink_bleed",
+    "filename": "char_045_04A3.png"
+  },
+  {
+    "index": 46,
+    "character": "И",
+    "unicode": "U+0418",
+    "font": "Caveat.ttf",
+    "style": "pencil",
+    "filename": "char_046_0418.png"
+  },
+  {
+    "index": 47,
+    "character": "Җ",
+    "unicode": "U+0496",
+    "font": "Kurale.ttf",
+    "style": "standard_pen",
+    "filename": "char_047_0496.png"
+  },
+  {
+    "index": 48,
+    "character": ";",
+    "unicode": "U+003B",
+    "font": "PlaypenSans.ttf",
+    "style": "standard_pen",
+    "filename": "char_048_003B.png"
+  },
+  {
+    "index": 49,
+    "character": "Ң",
+    "unicode": "U+04A2",
+    "font": "Kurale.ttf",
+    "style": "standard_pen",
+    "filename": "char_049_04A2.png"
+  },
+  {
+    "index": 50,
+    "character": "7",
+    "unicode": "U+0037",
+    "font": "Comfortaa.ttf",
+    "style": "standard_pen",
+    "filename": "char_050_0037.png"
+  },
+  {
+    "index": 51,
+    "character": "ө",
+    "unicode": "U+04E9",
+    "font": "Caveat.ttf",
+    "style": "ink_bleed",
+    "filename": "char_051_04E9.png"
+  },
+  {
+    "index": 52,
+    "character": "р",
+    "unicode": "U+0440",
+    "font": "Pangolin.ttf",
+    "style": "standard_pen",
+    "filename": "char_052_0440.png"
+  },
+  {
+    "index": 53,
+    "character": "Ф",
+    "unicode": "U+0424",
+    "font": "Caveat.ttf",
+    "style": "standard_pen",
+    "filename": "char_053_0424.png"
+  },
+  {
+    "index": 54,
+    "character": "У",
+    "unicode": "U+0423",
+    "font": "PlaypenSans.ttf",
+    "style": "standard_pen",
+    "filename": "char_054_0423.png"
+  },
+  {
+    "index": 55,
+    "character": "ң",
+    "unicode": "U+04A3",
+    "font": "BadScript.ttf",
+    "style": "pencil",
+    "filename": "char_055_04A3.png"
+  },
+  {
+    "index": 56,
+    "character": "Н",
+    "unicode": "U+041D",
+    "font": "PlaypenSans.ttf",
+    "style": "ink_bleed",
+    "filename": "char_056_041D.png"
+  },
+  {
+    "index": 57,
+    "character": "Ә",
+    "unicode": "U+04D8",
+    "font": "Podkova.ttf",
+    "style": "ink_bleed",
+    "filename": "char_057_04D8.png"
+  },
+  {
+    "index": 58,
+    "character": "а",
+    "unicode": "U+0430",
+    "font": "Kurale.ttf",
+    "style": "standard_pen",
+    "filename": "char_058_0430.png"
+  },
+  {
+    "index": 59,
+    "character": "8",
+    "unicode": "U+0038",
+    "font": "PlaypenSans.ttf",
+    "style": "standard_pen",
+    "filename": "char_059_0038.png"
+  },
+  {
+    "index": 60,
+    "character": "ю",
+    "unicode": "U+044E",
+    "font": "Caveat.ttf",
+    "style": "pencil",
+    "filename": "char_060_044E.png"
+  },
+  {
+    "index": 61,
+    "character": "Ш",
+    "unicode": "U+0428",
+    "font": "Literata.ttf",
+    "style": "ink_bleed",
+    "filename": "char_061_0428.png"
+  },
+  {
+    "index": 62,
+    "character": "Һ",
+    "unicode": "U+04BA",
+    "font": "Pangolin.ttf",
+    "style": "standard_pen",
+    "filename": "char_062_04BA.png"
+  },
+  {
+    "index": 63,
+    "character": "и",
+    "unicode": "U+0438",
+    "font": "Caveat.ttf",
+    "style": "standard_pen",
+    "filename": "char_063_0438.png"
+  },
+  {
+    "index": 64,
+    "character": "ф",
+    "unicode": "U+0444",
+    "font": "PlaypenSans.ttf",
+    "style": "standard_pen",
+    "filename": "char_064_0444.png"
+  },
+  {
+    "index": 65,
+    "character": "ц",
+    "unicode": "U+0446",
+    "font": "Podkova.ttf",
+    "style": "pencil",
+    "filename": "char_065_0446.png"
+  },
+  {
+    "index": 66,
+    "character": "й",
+    "unicode": "U+0439",
+    "font": "Literata.ttf",
+    "style": "standard_pen",
+    "filename": "char_066_0439.png"
+  },
+  {
+    "index": 67,
+    "character": ":",
+    "unicode": "U+003A",
+    "font": "Podkova.ttf",
+    "style": "standard_pen",
+    "filename": "char_067_003A.png"
+  },
+  {
+    "index": 68,
+    "character": "ч",
+    "unicode": "U+0447",
+    "font": "BadScript.ttf",
+    "style": "ink_bleed",
+    "filename": "char_068_0447.png"
+  },
+  {
+    "index": 69,
+    "character": "4",
+    "unicode": "U+0034",
+    "font": "Kurale.ttf",
+    "style": "ink_bleed",
+    "filename": "char_069_0034.png"
+  },
+  {
+    "index": 70,
+    "character": "ы",
+    "unicode": "U+044B",
+    "font": "PlaypenSans.ttf",
+    "style": "pencil",
+    "filename": "char_070_044B.png"
+  },
+  {
+    "index": 71,
+    "character": "Х",
+    "unicode": "U+0425",
+    "font": "BadScript.ttf",
+    "style": "ink_bleed",
+    "filename": "char_071_0425.png"
+  },
+  {
+    "index": 72,
+    "character": "у",
+    "unicode": "U+0443",
+    "font": "Caveat.ttf",
+    "style": "standard_pen",
+    "filename": "char_072_0443.png"
+  },
+  {
+    "index": 73,
+    "character": "Ү",
+    "unicode": "U+04AE",
+    "font": "PlaypenSans.ttf",
+    "style": "ink_bleed",
+    "filename": "char_073_04AE.png"
+  },
+  {
+    "index": 74,
+    "character": "һ",
+    "unicode": "U+04BB",
+    "font": "Podkova.ttf",
+    "style": "standard_pen",
+    "filename": "char_074_04BB.png"
+  },
+  {
+    "index": 75,
+    "character": "-",
+    "unicode": "U+002D",
+    "font": "Comfortaa.ttf",
+    "style": "ink_bleed",
+    "filename": "char_075_002D.png"
+  },
+  {
+    "index": 76,
+    "character": ")",
+    "unicode": "U+0029",
+    "font": "Podkova.ttf",
+    "style": "standard_pen",
+    "filename": "char_076_0029.png"
+  },
+  {
+    "index": 77,
+    "character": "ң",
+    "unicode": "U+04A3",
+    "font": "Pangolin.ttf",
+    "style": "standard_pen",
+    "filename": "char_077_04A3.png"
+  },
+  {
+    "index": 78,
+    "character": "Ц",
+    "unicode": "U+0426",
+    "font": "Pangolin.ttf",
+    "style": "standard_pen",
+    "filename": "char_078_0426.png"
+  },
+  {
+    "index": 79,
+    "character": "Җ",
+    "unicode": "U+0496",
+    "font": "BadScript.ttf",
+    "style": "standard_pen",
+    "filename": "char_079_0496.png"
+  },
+  {
+    "index": 80,
+    "character": ",",
+    "unicode": "U+002C",
+    "font": "Caveat.ttf",
+    "style": "ink_bleed",
+    "filename": "char_080_002C.png"
+  },
+  {
+    "index": 81,
+    "character": "Җ",
+    "unicode": "U+0496",
+    "font": "Literata.ttf",
+    "style": "standard_pen",
+    "filename": "char_081_0496.png"
+  },
+  {
+    "index": 82,
+    "character": "щ",
+    "unicode": "U+0449",
+    "font": "Pangolin.ttf",
+    "style": "ink_bleed",
+    "filename": "char_082_0449.png"
+  },
+  {
+    "index": 83,
+    "character": "ө",
+    "unicode": "U+04E9",
+    "font": "Podkova.ttf",
+    "style": "standard_pen",
+    "filename": "char_083_04E9.png"
+  },
+  {
+    "index": 84,
+    "character": "Ю",
+    "unicode": "U+042E",
+    "font": "Kurale.ttf",
+    "style": "standard_pen",
+    "filename": "char_084_042E.png"
+  },
+  {
+    "index": 85,
+    "character": "4",
+    "unicode": "U+0034",
+    "font": "BadScript.ttf",
+    "style": "pencil",
+    "filename": "char_085_0034.png"
+  },
+  {
+    "index": 86,
+    "character": "э",
+    "unicode": "U+044D",
+    "font": "Caveat.ttf",
+    "style": "standard_pen",
+    "filename": "char_086_044D.png"
+  },
+  {
+    "index": 87,
+    "character": "к",
+    "unicode": "U+043A",
+    "font": "BadScript.ttf",
+    "style": "standard_pen",
+    "filename": "char_087_043A.png"
+  },
+  {
+    "index": 88,
+    "character": ",",
+    "unicode": "U+002C",
+    "font": "Literata.ttf",
+    "style": "ink_bleed",
+    "filename": "char_088_002C.png"
+  },
+  {
+    "index": 89,
+    "character": "9",
+    "unicode": "U+0039",
+    "font": "Comfortaa.ttf",
+    "style": "standard_pen",
+    "filename": "char_089_0039.png"
+  },
+  {
+    "index": 90,
+    "character": "һ",
+    "unicode": "U+04BB",
+    "font": "Kurale.ttf",
+    "style": "pencil",
+    "filename": "char_090_04BB.png"
+  },
+  {
+    "index": 91,
+    "character": "7",
+    "unicode": "U+0037",
+    "font": "BadScript.ttf",
+    "style": "ink_bleed",
+    "filename": "char_091_0037.png"
+  },
+  {
+    "index": 92,
+    "character": "е",
+    "unicode": "U+0435",
+    "font": "Podkova.ttf",
+    "style": "ink_bleed",
+    "filename": "char_092_0435.png"
+  },
+  {
+    "index": 93,
+    "character": "Ң",
+    "unicode": "U+04A2",
+    "font": "Pangolin.ttf",
+    "style": "pencil",
+    "filename": "char_093_04A2.png"
+  },
+  {
+    "index": 94,
+    "character": "-",
+    "unicode": "U+002D",
+    "font": "Literata.ttf",
+    "style": "pencil",
+    "filename": "char_094_002D.png"
+  },
+  {
+    "index": 95,
+    "character": "җ",
+    "unicode": "U+0497",
+    "font": "Podkova.ttf",
+    "style": "standard_pen",
+    "filename": "char_095_0497.png"
+  },
+  {
+    "index": 96,
+    "character": "О",
+    "unicode": "U+041E",
+    "font": "BadScript.ttf",
+    "style": "standard_pen",
+    "filename": "char_096_041E.png"
+  },
+  {
+    "index": 97,
+    "character": "м",
+    "unicode": "U+043C",
+    "font": "PlaypenSans.ttf",
+    "style": "standard_pen",
+    "filename": "char_097_043C.png"
+  },
+  {
+    "index": 98,
+    "character": "Җ",
+    "unicode": "U+0496",
+    "font": "Kurale.ttf",
+    "style": "standard_pen",
+    "filename": "char_098_0496.png"
+  },
+  {
+    "index": 99,
+    "character": "б",
+    "unicode": "U+0431",
+    "font": "BadScript.ttf",
+    "style": "pencil",
+    "filename": "char_099_0431.png"
+  }
+]

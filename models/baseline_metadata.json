@@ -1,0 +1,26 @@
+{
+  "model_name": "TatarOCRNet",
+  "checkpoint": "baseline_synthetic_20ep.pth",
+  "checkpoint_size_bytes": 3377213,
+  "trained_date": "2026-09-15T22:15:13",
+  "epochs": 20,
+  "dataset_scope": "Synthetic 102 Classes (Tatar Upper, Lower, Punctuation, Digits)",
+  "budget_per_epoch": 18360,
+  "validation_accuracy_top1": 96.26,
+  "validation_accuracy_top3": 99.93,
+  "special_tatar_accuracy": {
+    "Ү": 100.0,
+    "ә": 100.0,
+    "ү": 100.0,
+    "һ": 100.0,
+    "ң": 97.14,
+    "Ө": 95.83,
+    "Җ": 95.65,
+    "Һ": 95.65,
+    "ө": 94.12,
+    "җ": 93.94,
+    "Ң": 92.86,
+    "Ә": 90.62
+  },
+  "description": "Base synthetic feature extractor trained on 20 epochs of heavily augmented vector fonts before real-data fine-tuning."
+}

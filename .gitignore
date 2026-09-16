@@ -1,0 +1,19 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv/
+
+# Scratch & debug artifacts
+debug_*.png
+full_rotated_cw.png
+strip2_rot90_cw.png
+test_tatar.pdf
+debug_rectify/
+previews/
+__marimo__/
