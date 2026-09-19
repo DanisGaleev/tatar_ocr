@@ -299,18 +299,23 @@ class BlankOCRScanner:
 
         annotated_img = rectified.copy() if annotate else None
 
-        try:
-            font_badge = ImageFont.truetype(str(WORKSPACE_DIR / "fonts" / "Rubik-Regular.ttf"), 36)
-            font_badge_small = ImageFont.truetype(str(WORKSPACE_DIR / "fonts" / "Rubik-Regular.ttf"), 22)
-        except Exception:
+        draw = None
+        annotated_pil = None
+        font_badge = None
+        font_badge_small = None
+        if annotate:
             try:
-                font_badge = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", 36)
-                font_badge_small = ImageFont.truetype("C:/Windows/Fonts/arial.ttf", 22)
+                font_badge = ImageFont.truetype(str(WORKSPACE_DIR / "fonts" / "Rubik-Regular.ttf"), 36)
+                font_badge_small = ImageFont.truetype(str(WORKSPACE_DIR / "fonts" / "Rubik-Regular.ttf"), 22)
             except Exception:
-                font_badge = font_badge_small = ImageFont.load_default()
+                try:
+                    font_badge = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", 36)
+                    font_badge_small = ImageFont.truetype("C:/Windows/Fonts/arial.ttf", 22)
+                except Exception:
+                    font_badge = font_badge_small = ImageFont.load_default()
 
-        annotated_pil = Image.fromarray(cv2.cvtColor(annotated_img, cv2.COLOR_BGR2RGB))
-        draw = ImageDraw.Draw(annotated_pil, "RGBA")
+            annotated_pil = Image.fromarray(cv2.cvtColor(annotated_img, cv2.COLOR_BGR2RGB))
+            draw = ImageDraw.Draw(annotated_pil, "RGBA")
 
         # 1. Process Student Name
         student_name_chars = []
@@ -330,7 +335,8 @@ class BlankOCRScanner:
 
             if not res["is_empty"]:
                 student_name_chars.append(res["char"])
-                self._draw_cell_badge(draw, x, y, w, h, res, font_badge)
+                if draw:
+                    self._draw_cell_badge(draw, x, y, w, h, res, font_badge)
 
         student_name_str = "".join(student_name_chars).strip()
 
@@ -359,7 +365,8 @@ class BlankOCRScanner:
                     q_chars.append(res["char"])
                     total_recognized_letters += 1
                     conf_sum += res["confidence"]
-                    self._draw_cell_badge(draw, x, y, w, h, res, font_badge)
+                    if draw:
+                        self._draw_cell_badge(draw, x, y, w, h, res, font_badge)
 
             q_text = "".join(q_chars)
             questions_results.append({
@@ -369,11 +376,12 @@ class BlankOCRScanner:
             })
 
         avg_conf = (conf_sum / max(1, total_recognized_letters)) if total_recognized_letters > 0 else 0.0
-        draw.rectangle([(0, 0), (CANVAS_W, 50)], fill=(15, 23, 42, 230))
-        banner_text = f"Tatar OCR Scanner • Name: '{student_name_str or 'N/A'}' • Recognized {total_recognized_letters} letters • Avg Confidence: {avg_conf:.1f}% • Alignment: {method}"
-        draw.text((30, 8), banner_text, fill=(255, 255, 255), font=font_badge_small)
-
-        final_annotated_bgr = cv2.cvtColor(np.array(annotated_pil), cv2.COLOR_RGB2BGR)
+        final_annotated_bgr = None
+        if draw and annotated_pil:
+            draw.rectangle([(0, 0), (CANVAS_W, 50)], fill=(15, 23, 42, 230))
+            banner_text = f"Tatar OCR Scanner • Name: '{student_name_str or 'N/A'}' • Recognized {total_recognized_letters} letters • Avg Confidence: {avg_conf:.1f}% • Alignment: {method}"
+            draw.text((30, 8), banner_text, fill=(255, 255, 255), font=font_badge_small)
+            final_annotated_bgr = cv2.cvtColor(np.array(annotated_pil), cv2.COLOR_RGB2BGR)
 
         return {
             "status": "success",
