@@ -1,0 +1,1380 @@
+openapi: 3.0.3
+info:
+  title: «Дәресханә» (Tatar OCR) — API Contract Specification
+  version: 1.0.0
+  description: |
+    This document provides the definitive API contracts and architectural design for **«Дәресханә»**, built around two foundational principles:
+    1. **Zero-Photo Transmission**: Camera images never leave the teacher's phone. All ArUco perspective rectifications, cell cropping, and TFLite neural network character recognitions happen 100% locally on the device in memory.
+    2. **Backend Analytical Processing**: The phone uploads only lightweight structured verification results (1–2 KB JSON per sheet). The backend performs all heavy historical data aggregation, student learning curve analysis, class heatmaps, error categorizations, and gradebook exports.
+servers:
+  - url: /
+    description: Base Server URL
+
+components:
+  securitySchemes:
+    TeacherUUID:
+      type: apiKey
+      in: header
+      name: X-Teacher-UUID
+      description: Teacher UUID v4 generated upon first install
+
+  parameters:
+    HeaderTeacherUUIDRequired:
+      name: X-Teacher-UUID
+      in: header
+      required: true
+      description: Teacher UUID v4 generated upon first install
+      schema:
+        type: string
+        format: uuid
+        example: "c56a4180-65aa-42ec-a945-5fd21dec0538"
+    HeaderTeacherUUID:
+      name: X-Teacher-UUID
+      in: header
+      required: false
+      description: Teacher UUID v4
+      schema:
+        type: string
+        format: uuid
+        example: "c56a4180-65aa-42ec-a945-5fd21dec0538"
+
+  schemas:
+    GradingScale:
+      type: object
+      properties:
+        grade_5_min_pct:
+          type: integer
+          example: 85
+        grade_4_min_pct:
+          type: integer
+          example: 70
+        grade_3_min_pct:
+          type: integer
+          example: 50
+
+    DeviceHandshakeRequest:
+      type: object
+      required:
+        - device_os
+        - app_version
+        - teacher_name
+        - school_name
+        - grading_scale
+      properties:
+        device_os:
+          type: string
+          example: "android"
+        app_version:
+          type: string
+          example: "1.0.4"
+        teacher_name:
+          type: string
+          example: "Каримова Гөлнара Илдар кызы"
+        school_name:
+          type: string
+          example: "Гимназия №2 им. Ш. Марджани"
+        grading_scale:
+          $ref: '#/components/schemas/GradingScale'
+
+    TeacherPreferences:
+      type: object
+      properties:
+        grading_scale:
+          $ref: '#/components/schemas/GradingScale'
+        confidence_flag_threshold:
+          type: number
+          format: float
+          example: 0.65
+
+    DeviceHandshakeResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "active"
+        teacher_uuid:
+          type: string
+          format: uuid
+          example: "c56a4180-65aa-42ec-a945-5fd21dec0538"
+        teacher_name:
+          type: string
+          example: "Каримова Гөлнара Илдар кызы"
+        preferences:
+          $ref: '#/components/schemas/TeacherPreferences'
+
+    ClassItem:
+      type: object
+      properties:
+        class_id:
+          type: string
+          example: "cls_7a_2026"
+        name:
+          type: string
+          example: "7-А"
+        subject:
+          type: string
+          example: "tatar_language"
+        academic_year:
+          type: string
+          example: "2026-2027"
+        student_count:
+          type: integer
+          example: 25
+
+    ClassesListResponse:
+      type: object
+      properties:
+        classes:
+          type: array
+          items:
+            $ref: '#/components/schemas/ClassItem'
+
+    StudentRosterItem:
+      type: object
+      properties:
+        student_id:
+          type: string
+          example: "stu_01"
+        last_name:
+          type: string
+          example: "Галиев"
+        first_name:
+          type: string
+          example: "Амир"
+        middle_name:
+          type: string
+          example: "Рустемович"
+        full_name:
+          type: string
+          example: "Галиев Амир Рустемович"
+        short_name:
+          type: string
+          example: "Галиев А."
+
+    ClassStudentsResponse:
+      type: object
+      properties:
+        class_id:
+          type: string
+          example: "cls_7a_2026"
+        class_name:
+          type: string
+          example: "7-А"
+        students:
+          type: array
+          items:
+            $ref: '#/components/schemas/StudentRosterItem'
+
+    BulkImportStudentsRequest:
+      type: object
+      required:
+        - raw_text
+      properties:
+        raw_text:
+          type: string
+          example: "Галиев Амир Рустемович\nЗакирова Ләйсән Ильдаровна\nХабибуллин Тимур Маратович"
+
+    ImportedStudentItem:
+      type: object
+      properties:
+        student_id:
+          type: string
+          example: "stu_01"
+        full_name:
+          type: string
+          example: "Галиев Амир Рустемович"
+
+    BulkImportStudentsResponse:
+      type: object
+      properties:
+        added_count:
+          type: integer
+          example: 3
+        students:
+          type: array
+          items:
+            $ref: '#/components/schemas/ImportedStudentItem'
+
+    AssignmentMetadataResponse:
+      type: object
+      description: Metadata, title, grade level, topic tags, points.
+      properties:
+        assignment_id:
+          type: string
+          example: "TAT-2026-Q1"
+        title:
+          type: string
+          example: "Татар теле. 7 сыйныф. Исем килешләре"
+        grade_level:
+          type: integer
+          example: 7
+        topic_tags:
+          type: array
+          items:
+            type: string
+          example: ["case_dative", "case_ablative"]
+        points:
+          type: number
+          example: 8.0
+
+    TemplateCellDimensions:
+      type: object
+      properties:
+        width:
+          type: number
+          example: 10.0
+        height:
+          type: number
+          example: 10.0
+
+    TemplateGeometry:
+      type: object
+      properties:
+        format:
+          type: string
+          example: "A4"
+        corner_aruco_dict:
+          type: string
+          example: "DICT_4X4_50"
+        corner_aruco_ids:
+          type: array
+          items:
+            type: integer
+          example: [0, 1, 2, 3]
+        cell_dimensions_mm:
+          $ref: '#/components/schemas/TemplateCellDimensions'
+
+    ExpectedCell:
+      type: object
+      properties:
+        index:
+          type: integer
+          example: 0
+        char:
+          type: string
+          example: "К"
+        unicode:
+          type: string
+          example: "U+041A"
+        is_empty_allowed:
+          type: boolean
+          example: true
+
+    OfflineBundleQuestion:
+      type: object
+      properties:
+        question_number:
+          type: integer
+          example: 1
+        marker_id:
+          type: integer
+          example: 11
+        prompt:
+          type: string
+          example: "Куегыз сүзне юнәлеш килешендә: китап ->"
+        topic_tag:
+          type: string
+          example: "case_dative"
+        topic_name_tt:
+          type: string
+          example: "Юнәлеш килеше"
+        cell_count:
+          type: integer
+          example: 8
+        expected_answer:
+          type: string
+          example: "КИТАПКА"
+        expected_cells:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExpectedCell'
+
+    OfflineBundleVariant:
+      type: object
+      properties:
+        variant_id:
+          type: integer
+          example: 1
+        qr_signature:
+          type: string
+          example: "{\"tid\":\"TAT-2026-Q1\",\"var\":1,\"page\":1,\"tot\":1,\"n_q\":8}"
+        template_geometry:
+          $ref: '#/components/schemas/TemplateGeometry'
+        questions:
+          type: array
+          items:
+            $ref: '#/components/schemas/OfflineBundleQuestion'
+
+    OfflineBundleResponse:
+      type: object
+      properties:
+        assignment_id:
+          type: string
+          example: "TAT-2026-Q1"
+        title:
+          type: string
+          example: "Татар теле. 7 сыйныф. Исем килешләре"
+        total_variants:
+          type: integer
+          example: 2
+        variants:
+          type: array
+          items:
+            $ref: '#/components/schemas/OfflineBundleVariant'
+
+    TaskBankItem:
+      type: object
+      properties:
+        task_id:
+          type: string
+          example: "tsk_8201"
+        prompt_tt:
+          type: string
+          example: "Сүзгә күплек сан кушымчасын ялгагыз: дус ->"
+        expected_answer:
+          type: string
+          example: "ДУСЛАР"
+        cell_count:
+          type: integer
+          example: 6
+        grade_level:
+          type: integer
+          example: 5
+        topic_tag:
+          type: string
+          example: "plural_affixes"
+        topic_name_tt:
+          type: string
+          example: "Күплек сан"
+        is_public_in_bank:
+          type: boolean
+          example: false
+
+    CreateTaskRequest:
+      type: object
+      required:
+        - prompt_tt
+        - expected_answer
+        - cell_count
+        - grade_level
+        - topic_tag
+        - topic_name_tt
+      properties:
+        prompt_tt:
+          type: string
+          example: "Сүзгә күплек сан кушымчасын ялгагыз: дус ->"
+        expected_answer:
+          type: string
+          example: "ДУСЛАР"
+        cell_count:
+          type: integer
+          example: 6
+        grade_level:
+          type: integer
+          example: 5
+        topic_tag:
+          type: string
+          example: "plural_affixes"
+        topic_name_tt:
+          type: string
+          example: "Күплек сан"
+        is_public_in_bank:
+          type: boolean
+          example: false
+
+    ReadyTestItem:
+      type: object
+      description: Curated 8-question sheet with pre-configured A4 template
+      properties:
+        test_id:
+          type: string
+          example: "test_curated_01"
+        title:
+          type: string
+          example: "7 сыйныф. Исем килешләре"
+        grade_level:
+          type: integer
+          example: 7
+        questions_count:
+          type: integer
+          example: 8
+
+    ConstructorTaskRef:
+      type: object
+      required:
+        - task_id
+        - order
+      properties:
+        task_id:
+          type: string
+          example: "tsk_8201"
+        order:
+          type: integer
+          example: 1
+
+    AssembleTestRequest:
+      type: object
+      required:
+        - title
+        - grade_level
+        - generate_variants_count
+        - task_items
+      properties:
+        title:
+          type: string
+          example: "7 сыйныф. 1 нче чирек контроль эше"
+        grade_level:
+          type: integer
+          example: 7
+        generate_variants_count:
+          type: integer
+          example: 2
+        task_items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ConstructorTaskRef'
+        shuffle_questions_in_variants:
+          type: boolean
+          example: true
+
+    ForkTestResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "cloned"
+        new_test_id:
+          type: string
+          example: "test_curated_01_copy"
+
+    SubmissionCellResult:
+      type: object
+      properties:
+        cell_index:
+          type: integer
+          example: 0
+        expected_char:
+          type: string
+          example: "К"
+        predicted_char:
+          type: string
+          example: "К"
+        confidence:
+          type: number
+          format: float
+          example: 0.96
+        status:
+          type: string
+          example: "MATCH"
+        teacher_override:
+          type: string
+          example: "WRONG"
+
+    SubmissionQuestionResult:
+      type: object
+      properties:
+        question_number:
+          type: integer
+          example: 1
+        marker_id:
+          type: integer
+          example: 11
+        topic_tag:
+          type: string
+          example: "case_dative"
+        is_correct:
+          type: boolean
+          example: true
+        points_earned:
+          type: number
+          example: 1.0
+        cells:
+          type: array
+          items:
+            $ref: '#/components/schemas/SubmissionCellResult'
+
+    SubmissionItem:
+      type: object
+      properties:
+        client_submission_uuid:
+          type: string
+          format: uuid
+          example: "d290f1ee-6c54-4b01-90e6-d701748f0851"
+        student_id:
+          type: string
+          example: "stu_01"
+        student_name:
+          type: string
+          example: "Галиев Амир Рустемович"
+        variant:
+          type: integer
+          example: 1
+        checked_at:
+          type: string
+          format: date-time
+          example: "2026-09-18T12:20:10Z"
+        overall_score:
+          type: number
+          example: 7.0
+        max_score:
+          type: number
+          example: 8.0
+        final_grade:
+          type: integer
+          example: 4
+        teacher_reviewed_flags:
+          type: integer
+          example: 1
+        questions_results:
+          type: array
+          items:
+            $ref: '#/components/schemas/SubmissionQuestionResult'
+
+    BatchSyncSubmissionsRequest:
+      type: object
+      required:
+        - assignment_id
+        - class_id
+        - synced_at
+        - submissions
+      properties:
+        assignment_id:
+          type: string
+          example: "TAT-2026-Q1"
+        class_id:
+          type: string
+          example: "cls_7a_2026"
+        synced_at:
+          type: string
+          format: date-time
+          example: "2026-09-18T13:00:00Z"
+        submissions:
+          type: array
+          items:
+            $ref: '#/components/schemas/SubmissionItem'
+
+    BatchSyncSubmissionsResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "synced"
+        received_count:
+          type: integer
+          example: 1
+        inserted_count:
+          type: integer
+          example: 1
+        updated_count:
+          type: integer
+          example: 0
+        analytics_recalculated:
+          type: boolean
+          example: true
+
+    SingleSubmissionSaveRequest:
+      type: object
+      properties:
+        assignment_id:
+          type: string
+          example: "TAT-2026-Q1"
+        class_id:
+          type: string
+          example: "cls_7a_2026"
+        submission:
+          $ref: '#/components/schemas/SubmissionItem'
+
+    SingleSubmissionSaveResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "saved"
+        submission_id:
+          type: string
+          example: "sub_8f23a"
+
+    FrequentWeakTopic:
+      type: object
+      properties:
+        topic_code:
+          type: string
+          example: "case_locative"
+        topic_name_tt:
+          type: string
+          example: "Урын-вакыт килеше (-да/-дә, -та/-тә)"
+        total_questions:
+          type: integer
+          example: 10
+        wrong_count:
+          type: integer
+          example: 4
+        accuracy_pct:
+          type: number
+          format: float
+          example: 60.0
+
+    ProblematicLetter:
+      type: object
+      properties:
+        letter:
+          type: string
+          example: "Ң"
+        total_occurrences:
+          type: integer
+          example: 14
+        misrecognized_or_wrong:
+          type: integer
+          example: 4
+        accuracy_pct:
+          type: number
+          format: float
+          example: 71.4
+        common_confusions:
+          type: array
+          items:
+            type: string
+          example: ["Н"]
+
+    StudentHistoryItem:
+      type: object
+      properties:
+        submission_id:
+          type: string
+          example: "sub_8f23a"
+        assignment_id:
+          type: string
+          example: "TAT-2026-Q1"
+        assignment_title:
+          type: string
+          example: "Исем килешләре"
+        date:
+          type: string
+          format: date-time
+          example: "2026-09-17T09:30:00Z"
+        score:
+          type: number
+          example: 7
+        max_score:
+          type: number
+          example: 8
+        grade:
+          type: integer
+          example: 4
+
+    StudentAnalyticsResponse:
+      type: object
+      properties:
+        student_id:
+          type: string
+          example: "stu_01"
+        full_name:
+          type: string
+          example: "Галиев Амир Рустемович"
+        class_name:
+          type: string
+          example: "7-А"
+        total_tests_completed:
+          type: integer
+          example: 12
+        average_score_pct:
+          type: number
+          format: float
+          example: 82.5
+        average_grade:
+          type: number
+          format: float
+          example: 4.3
+        grade_distribution:
+          type: object
+          additionalProperties:
+            type: integer
+          example:
+            "5": 5
+            "4": 5
+            "3": 2
+            "2": 0
+        frequent_weak_topics:
+          type: array
+          items:
+            $ref: '#/components/schemas/FrequentWeakTopic'
+        problematic_letters:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProblematicLetter'
+        history:
+          type: array
+          items:
+            $ref: '#/components/schemas/StudentHistoryItem'
+
+    TopClassMistake:
+      type: object
+      properties:
+        topic_code:
+          type: string
+          example: "case_ablative"
+        topic_name_tt:
+          type: string
+          example: "Чыгыш килешендә сингармонизм ялгышлары (-дан/-дән, -тан/-тән)"
+        failure_rate_pct:
+          type: number
+          format: float
+          example: 42.3
+        affected_students_count:
+          type: integer
+          example: 11
+
+    DifficultCharacter:
+      type: object
+      properties:
+        letter:
+          type: string
+          example: "Ң"
+        error_rate_pct:
+          type: number
+          format: float
+          example: 36.5
+
+    StudentPerformanceRow:
+      type: object
+      properties:
+        student_id:
+          type: string
+          example: "stu_02"
+        full_name:
+          type: string
+          example: "Закирова Ләйсән Ильдаровна"
+        average_score_pct:
+          type: number
+          format: float
+          example: 94.0
+        average_grade:
+          type: number
+          format: float
+          example: 4.8
+        tests_completed:
+          type: integer
+          example: 8
+
+    ClassAnalyticsResponse:
+      type: object
+      properties:
+        class_id:
+          type: string
+          example: "cls_7a_2026"
+        class_name:
+          type: string
+          example: "7-А"
+        students_count:
+          type: integer
+          example: 25
+        average_class_score_pct:
+          type: number
+          format: float
+          example: 81.2
+        grade_distribution:
+          type: object
+          additionalProperties:
+            type: integer
+          example:
+            "5": 9
+            "4": 11
+            "3": 4
+            "2": 1
+        top_class_mistakes:
+          type: array
+          items:
+            $ref: '#/components/schemas/TopClassMistake'
+        difficult_characters_across_class:
+          type: array
+          items:
+            $ref: '#/components/schemas/DifficultCharacter'
+        students_performance_table:
+          type: array
+          items:
+            $ref: '#/components/schemas/StudentPerformanceRow'
+
+    WrongSubmissionItem:
+      type: object
+      properties:
+        student_id:
+          type: string
+          example: "stu_03"
+        student_name:
+          type: string
+          example: "Хабибуллин Тимур"
+        written_answer:
+          type: string
+          example: "КИТАПГА"
+
+    QuestionAnalyticsItem:
+      type: object
+      properties:
+        question_number:
+          type: integer
+          example: 1
+        marker_id:
+          type: integer
+          example: 11
+        prompt:
+          type: string
+          example: "Куегыз сүзне юнәлеш килешендә: китап ->"
+        expected_answer:
+          type: string
+          example: "КИТАПКА"
+        accuracy_pct:
+          type: number
+          format: float
+          example: 92.0
+        wrong_submissions:
+          type: array
+          items:
+            $ref: '#/components/schemas/WrongSubmissionItem'
+
+    AssignmentAnalyticsResponse:
+      type: object
+      properties:
+        assignment_id:
+          type: string
+          example: "TAT-2026-Q1"
+        title:
+          type: string
+          example: "Исем килешләре һәм кушымчалар"
+        total_submissions:
+          type: integer
+          example: 25
+        average_score_pct:
+          type: number
+          format: float
+          example: 83.2
+        questions_analytics:
+          type: array
+          items:
+            $ref: '#/components/schemas/QuestionAnalyticsItem'
+
+paths:
+  /api/v1/auth/device-handshake:
+    post:
+      tags:
+        - Teacher Identity
+      summary: Registers or verifies the teacher device UUID generated upon first install.
+      description: Registers or verifies the teacher device UUID generated upon first install.
+      parameters:
+        - $ref: '#/components/parameters/HeaderTeacherUUIDRequired'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeviceHandshakeRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceHandshakeResponse'
+
+  /api/v1/classes:
+    get:
+      tags:
+        - Classes & Students
+      summary: List all classes belonging to the teacher.
+      description: List all classes belonging to the teacher.
+      parameters:
+        - $ref: '#/components/parameters/HeaderTeacherUUID'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClassesListResponse'
+
+  /api/v1/classes/{class_id}/students:
+    get:
+      tags:
+        - Classes & Students
+      summary: Returns the student roster for caching on the mobile device.
+      description: Returns the student roster for caching on the mobile device.
+      parameters:
+        - name: class_id
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "cls_7a_2026"
+        - $ref: '#/components/parameters/HeaderTeacherUUID'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClassStudentsResponse'
+
+  /api/v1/classes/{class_id}/students/bulk-import:
+    post:
+      tags:
+        - Classes & Students
+      summary: Batch import students from a pasted plain-text list (from school journal or Excel).
+      description: Batch import students from a pasted plain-text list (from school journal or Excel).
+      parameters:
+        - name: class_id
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "cls_7a_2026"
+        - $ref: '#/components/parameters/HeaderTeacherUUID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BulkImportStudentsRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkImportStudentsResponse'
+
+  /api/v1/assignments/{assignment_id}:
+    get:
+      tags:
+        - Assignment Delivery
+      summary: Get Assignment Metadata
+      description: Metadata, title, grade level, topic tags, points.
+      parameters:
+        - name: assignment_id
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "TAT-2026-Q1"
+      responses:
+        '200':
+          description: Metadata, title, grade level, topic tags, points.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssignmentMetadataResponse'
+
+  /api/v1/assignments/{assignment_id}/blank.pdf:
+    get:
+      tags:
+        - Assignment Delivery
+      summary: Download Printable Blank PDF (Generic or Single Student)
+      description: Download Printable Blank PDF (Generic or Single Student)
+      parameters:
+        - name: assignment_id
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "TAT-2026-Q1"
+        - name: variant
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+          description: Test variant
+        - name: student_id
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Pre-prints student name in header boxes.
+      responses:
+        '200':
+          description: application/pdf binary stream.
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+
+  /api/v1/assignments/{assignment_id}/batch-blanks.pdf:
+    get:
+      tags:
+        - Assignment Delivery
+      summary: Download Batch Blank PDFs for Class
+      description: Download Batch Blank PDFs for Class where each sheet is pre-printed with the student's name and personalized QR code.
+      parameters:
+        - name: assignment_id
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "TAT-2026-Q1"
+        - name: class_id
+          in: query
+          required: true
+          schema:
+            type: string
+          example: "cls_7a_2026"
+        - name: alternate_variants
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: true
+      responses:
+        '200':
+          description: application/pdf where each sheet is pre-printed with the student's name and personalized QR code.
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+
+  /api/v1/assignments/{assignment_id}/offline-bundle:
+    get:
+      tags:
+        - Assignment Delivery
+      summary: Download Offline Verification Bundle (Ground-Truth Answer Key)
+      description: Downloads everything the mobile app needs to perform 100% offline grading and answer validation on the phone.
+      parameters:
+        - name: assignment_id
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "TAT-2026-Q1"
+        - $ref: '#/components/parameters/HeaderTeacherUUID'
+        - name: variant
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OfflineBundleResponse'
+
+  /api/v1/constructor/tasks:
+    get:
+      tags:
+        - Assignment Constructor
+      summary: Search Task Bank
+      description: Search Task Bank
+      parameters:
+        - name: query
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: topic_tag
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: grade_level
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 5
+            maximum: 9
+          description: 5–9
+        - name: max_cells
+          in: query
+          required: false
+          schema:
+            type: integer
+            maximum: 12
+          description: <= 12
+        - name: scope
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - all
+              - my_tasks
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TaskBankItem'
+    post:
+      tags:
+        - Assignment Constructor
+      summary: Create Custom Single Task
+      description: Create Custom Single Task
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTaskRequest'
+      responses:
+        '201':
+          description: Task created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskBankItem'
+
+  /api/v1/constructor/ready-tests:
+    get:
+      tags:
+        - Assignment Constructor
+      summary: Browse Ready-Made Complete Tests
+      description: Curated 8-question sheets with pre-configured A4 templates.
+      responses:
+        '200':
+          description: Curated 8-question sheets with pre-configured A4 templates.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ReadyTestItem'
+
+  /api/v1/constructor/tests:
+    post:
+      tags:
+        - Assignment Constructor
+      summary: Assemble Modular Test
+      description: Composes a new test from selected task IDs with A4 physical limit validation (maximum 8 modular question blocks).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssembleTestRequest'
+      responses:
+        '201':
+          description: Test created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  test_id:
+                    type: string
+                    example: "test_8201_assembled"
+                  title:
+                    type: string
+                    example: "7 сыйныф. 1 нче чирек контроль эше"
+                  variants_count:
+                    type: integer
+                    example: 2
+
+  /api/v1/constructor/tests/{test_id}/fork:
+    post:
+      tags:
+        - Assignment Constructor
+      summary: Fork / Clone Test
+      description: Fork / Clone Test
+      parameters:
+        - name: test_id
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "test_curated_01"
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ForkTestResponse'
+
+  /api/v1/submissions/batch-sync:
+    post:
+      tags:
+        - Submissions Ingestion
+      summary: Batch Sync Graded Submissions (Class Upload)
+      description: |
+        Transmits the entire set of graded papers once the teacher is back online. Average payload for a class of 25 students is **only ~35 KB**.
+        Zero-Photo Policy: Photos remain on the phone. Only structured results (characters, booleans, scores, overrides) are ingested here.
+      parameters:
+        - $ref: '#/components/parameters/HeaderTeacherUUID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchSyncSubmissionsRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchSyncSubmissionsResponse'
+
+  /api/v1/submissions:
+    get:
+      tags:
+        - Submissions Ingestion
+      summary: Query Submissions
+      description: Query Submissions
+      parameters:
+        - name: class_id
+          in: query
+          required: false
+          schema:
+            type: string
+          example: "cls_7a_2026"
+        - name: assignment_id
+          in: query
+          required: false
+          schema:
+            type: string
+          example: "TAT-2026-Q1"
+        - name: student_id
+          in: query
+          required: false
+          schema:
+            type: string
+          example: "stu_01"
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SubmissionItem'
+    post:
+      tags:
+        - Submissions Ingestion
+      summary: Save Single Graded Submission
+      description: Used for live upload when checking while online.
+      parameters:
+        - $ref: '#/components/parameters/HeaderTeacherUUID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SingleSubmissionSaveRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SingleSubmissionSaveResponse'
+
+  /api/v1/analytics/students/{student_id}:
+    get:
+      tags:
+        - Backend Analytics Engine
+      summary: Student Analytics (Individual)
+      description: Computes learning curves, error frequencies by topic, and specific letter confusions for an individual student.
+      parameters:
+        - name: student_id
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "stu_01"
+        - $ref: '#/components/parameters/HeaderTeacherUUID'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudentAnalyticsResponse'
+
+  /api/v1/analytics/classes/{class_id}:
+    get:
+      tags:
+        - Backend Analytics Engine
+      summary: Class Aggregated Analytics & Student Leaderboard
+      description: Class heatmap identifies which grammar rules the teacher must re-explain on the next lesson, plus a full pupil performance table.
+      parameters:
+        - name: class_id
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "cls_7a_2026"
+        - $ref: '#/components/parameters/HeaderTeacherUUID'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClassAnalyticsResponse'
+
+  /api/v1/analytics/assignments/{assignment_id}:
+    get:
+      tags:
+        - Backend Analytics Engine
+      summary: Assignment Analytics
+      description: Item analysis per question across all completed sheets.
+      parameters:
+        - name: assignment_id
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "TAT-2026-Q1"
+        - $ref: '#/components/parameters/HeaderTeacherUUID'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssignmentAnalyticsResponse'
+
+  /api/v1/reports/assignments/{assignment_id}/gradebook.xlsx:
+    get:
+      tags:
+        - Gradebook Exports
+      summary: Export Electronic Gradebook
+      description: Downloads an Excel spreadsheet ready for direct upload into school electronic gradebooks (e.g., edu.tatar.ru or МЭШ). Columns include Student Full Name, Variant, Points Earned, Max Points, Grade (2–5), Date.
+      parameters:
+        - name: assignment_id
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "TAT-2026-Q1"
+        - $ref: '#/components/parameters/HeaderTeacherUUID'
+        - name: class_id
+          in: query
+          required: true
+          schema:
+            type: string
+          example: "cls_7a_2026"
+        - name: format
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - xlsx
+              - csv
+            default: xlsx
+      responses:
+        '200':
+          description: OK
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+            text/csv:
+              schema:
+                type: string

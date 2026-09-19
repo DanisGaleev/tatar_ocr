@@ -14,6 +14,9 @@ debug_*.png
 full_rotated_cw.png
 strip2_rot90_cw.png
 test_tatar.pdf
+test_blank_sample.*
+*.db
 debug_rectify/
 previews/
 __marimo__/
+

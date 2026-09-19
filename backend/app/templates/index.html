@@ -1,0 +1,1416 @@
+<!DOCTYPE html>
+<html lang="tt">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>«Дәресханә» (Tatar OCR) — Teacher & Analytics Portal</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      margin: 0; padding: 20px; background: #f8fafc; color: #0f172a; line-height: 1.4;
+    }
+    header { margin-bottom: 20px; border-bottom: 2px solid #e2e8f0; padding-bottom: 12px; }
+    h1 { margin: 0 0 6px 0; font-size: 22px; color: #1e293b; }
+    .subtitle { color: #64748b; font-size: 14px; margin: 0; }
+    
+    .nav-tabs { display: flex; gap: 8px; margin-bottom: 20px; border-bottom: 1px solid #cbd5e1; flex-wrap: wrap; }
+    .nav-btn {
+      padding: 10px 16px; border: 1px solid #cbd5e1; border-bottom: none;
+      background: #e2e8f0; cursor: pointer; font-size: 13px; font-weight: 600;
+      border-top-left-radius: 6px; border-top-right-radius: 6px;
+    }
+    .nav-btn.active { background: #ffffff; border-bottom: 1px solid #ffffff; color: #16a34a; }
+    
+    .tab-content { display: none; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 20px; }
+    .tab-content.active { display: block; }
+    
+    .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-bottom: 16px; }
+    .form-group { display: flex; flex-direction: column; gap: 6px; }
+    label { font-size: 13px; font-weight: 600; color: #334155; }
+    input, select, textarea {
+      padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 14px;
+    }
+    input:focus, select:focus, textarea:focus { outline: 2px solid #16a34a; border-color: transparent; }
+    
+    .btn-row { display: flex; gap: 10px; margin-top: 10px; align-items: center; flex-wrap: wrap; }
+    .btn {
+      padding: 9px 18px; border: none; border-radius: 4px; font-size: 14px; font-weight: 600;
+      cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+    }
+    .btn-primary { background: #2563eb; color: #ffffff; }
+    .btn-primary:hover { background: #1d4ed8; }
+    .btn-success { background: #16a34a; color: #ffffff; }
+    .btn-success:hover { background: #15803d; }
+    .btn-secondary { background: #64748b; color: #ffffff; }
+    .btn-secondary:hover { background: #475569; }
+    .btn-purple { background: #7c3aed; color: #ffffff; }
+    .btn-purple:hover { background: #6d28d9; }
+    
+    .card {
+      border: 1px solid #e2e8f0; border-radius: 6px; padding: 16px; margin-top: 16px; background: #fdfdfe;
+    }
+    .card-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
+    .badge {
+      padding: 3px 8px; border-radius: 12px; font-size: 12px; font-weight: 600;
+      background: #e0f2fe; color: #0369a1; display: inline-block;
+    }
+    .badge-tatar { background: #dcfce7; color: #15803d; border: 1px solid #86efac; }
+    
+    /* 10x10 cell preview boxes */
+    .cell-strip { display: flex; gap: 4px; margin: 10px 0; overflow-x: auto; padding-bottom: 4px; }
+    .cell-box {
+      width: 34px; height: 34px; border: 2px solid #000000; display: flex; align-items: center;
+      justify-content: center; font-weight: bold; font-size: 18px; background: #ffffff;
+      text-transform: uppercase;
+    }
+    .cell-box.empty { border: 1.5px dashed #94a3b8; color: #94a3b8; }
+    .cell-label { font-size: 11px; color: #64748b; text-align: center; }
+    
+    .verify-box {
+      background: #f1f5f9; padding: 12px; border-radius: 6px; margin-top: 12px;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .status-pill {
+      font-size: 12px; font-weight: 600; padding: 2px 6px; border-radius: 4px; display: inline-block; margin-right: 4px;
+    }
+    .status-match { background: #dcfce7; color: #15803d; border: 1px solid #86efac; }
+    .status-mismatch { background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; }
+    .status-empty { background: #e2e8f0; color: #475569; }
+    
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin: 16px 0; }
+    .stat-card {
+      background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 14px; text-align: center;
+    }
+    .stat-val { font-size: 24px; font-weight: 700; color: #1e293b; }
+    .stat-lbl { font-size: 12px; color: #64748b; margin-top: 4px; }
+    
+    .bar-container { background: #e2e8f0; border-radius: 4px; height: 12px; width: 100%; overflow: hidden; margin-top: 4px; }
+    .bar-fill { background: #16a34a; height: 100%; }
+    .bar-fill-warn { background: #ef4444; height: 100%; }
+    
+    table { width: 100%; border-collapse: collapse; margin-top: 14px; font-size: 13px; }
+    th, td { border: 1px solid #e2e8f0; padding: 8px 10px; text-align: left; }
+    th { background: #f8fafc; font-weight: 600; }
+    pre { background: #0f172a; color: #f8fafc; padding: 12px; border-radius: 6px; font-size: 12px; overflow-x: auto; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>«Дәресханә» (Tatar OCR) — Teacher & Analytics Portal</h1>
+    <p class="subtitle">Deterministic Task Generator, Zero-Photo Batch Sync Ingestion, Classroom Heatmaps & Gradebook Export</p>
+    <div style="margin-top: 14px; display: flex; gap: 10px; justify-content: center; align-items: center; flex-wrap: wrap;">
+      <span style="font-size: 13px; font-weight: 600; color: #334155;">⚡ Тиз хәрәкәтләр (Быстрый экспорт бланка):</span>
+      <a href="/api/v1/assignments/TAT-2026-Q1/blank.pdf?variant=1" target="_blank" class="btn btn-success" style="font-size: 13px; padding: 6px 14px; text-decoration: none; font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+        📄 Скачать PDF бланк (Вар. 1)
+      </a>
+      <a href="/api/v1/assignments/TAT-2026-Q1/blank.pdf?variant=2" target="_blank" class="btn btn-success" style="font-size: 13px; padding: 6px 14px; text-decoration: none; font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+        📄 Скачать PDF бланк (Вар. 2)
+      </a>
+      <button type="button" class="btn btn-secondary" style="font-size: 13px; padding: 6px 14px;" onclick="switchTab('tab-assemble')">
+        🛠 Собрать новый вариант бланка
+      </button>
+    </div>
+  </header>
+
+  <!-- Navigation Tabs -->
+  <div class="nav-tabs">
+    <button class="nav-btn active" onclick="switchTab('tab-generate')">1. Generate Tasks</button>
+    <button class="nav-btn" onclick="switchTab('tab-assemble')" style="border-bottom: 3px solid #16a34a; font-weight: 700;">2. 📄 Экспорт PDF / Сборка (A4)</button>
+    <button class="nav-btn" onclick="switchTab('tab-custom')">3. Create Custom Task</button>
+    <button class="nav-btn" onclick="switchTab('tab-bank')">4. Task Bank Explorer</button>
+    <button class="nav-btn" onclick="switchTab('tab-classes')">5. Classes & Rosters</button>
+    <button class="nav-btn" onclick="switchTab('tab-submissions')">6. Zero-Photo Submissions Sync</button>
+    <button class="nav-btn" onclick="switchTab('tab-analytics')">7. Analytics & Heatmap</button>
+    <button class="nav-btn" onclick="switchTab('tab-reports')">8. Gradebook Export</button>
+  </div>
+
+  <!-- TAB 1: TASK GENERATOR -->
+  <div id="tab-generate" class="tab-content active">
+    <h3>Deterministic Task Generator</h3>
+    <form id="genForm" onsubmit="handleGenerate(event)">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Task Type:</label>
+          <select id="genType" onchange="toggleCaseCodeField()">
+            <optgroup label="1. Морфология (Morphology)">
+              <option value="case_inflection">1.1. Noun Cases (Исем килешләре)</option>
+              <option value="plural_affixes">1.2. Plural Affixes (Күплек сан -лар/-нәр)</option>
+              <option value="possessive_affixes">1.3. Possessive Affixes (Тартым I/II/III зат)</option>
+              <option value="possessive_case">1.4. Possessive + Case (Тартым + килеш)</option>
+              <option value="verb_negation">1.5. Verb Negation (Юклык фигыль -мый/-ми)</option>
+              <option value="verb_imperative">1.6. Verb Imperative (Боерык фигыль -гыз/-гез)</option>
+              <option value="comparative_degree">1.7. Comparative Degree (Чагыштыру -рак/-рәк)</option>
+              <option value="ordinal_numerals">1.8. Ordinal Numerals (Тәртип саннары -ынчы/-енче)</option>
+            </optgroup>
+            <optgroup label="2. Сүз ясалышы (Word Formation)">
+              <option value="noun_profession">2.1. Profession Nouns (Һөнәр -чы/-че)</option>
+              <option value="abstract_noun">2.2. Abstract Nouns (Абстракт исем -лык/-лек)</option>
+              <option value="consonant_voicing">2.3. Consonant Voicing (Тартык алмашу)</option>
+            </optgroup>
+            <optgroup label="3. Лексика (Lexicon)">
+              <option value="antonyms">3.1. Antonyms (Сыйфат антонимнары)</option>
+              <option value="synonyms">3.2. Synonyms (Синонимнар)</option>
+              <option value="compound_words">3.3. Compound Words (Кушма сүзләр)</option>
+              <option value="odd_one_out">3.4. Odd One Out (Артыгын тап)</option>
+              <option value="translation">3.5. Translation (Русча-татарча тәрҗемә)</option>
+            </optgroup>
+            <optgroup label="4. Фонетика һәм орфография (Phonetics & Gaps)">
+              <option value="vowel_harmony_gap">4.1. Vowel Harmony Gap (Сузык гармониясе)</option>
+              <option value="tatar_letters_gap">4.2. Tatar Specific Letters (Ә, Ө, Ү, Җ, Ң, Һ)</option>
+            </optgroup>
+            <optgroup label="5. Җөмлә һәм синтаксис (Sentence & Syntax)">
+              <option value="sentence_mc_cloze">5.1. Multiple Choice Cloze (Дөрес кушымча)</option>
+              <option value="true_false_grammar">5.2. True/False Rule (Дөрес яки ялгыш)</option>
+              <option value="find_error_sentence">5.3. Find Error in Sentence (Хатаны тап)</option>
+              <option value="word_order">5.4. Word Order (Җөмлә төзе)</option>
+            </optgroup>
+            <optgroup label="6. Уку һәм текст (Reading Comprehension)">
+              <option value="text_comprehension">6.1. Reading Comprehension (Текстны аңлау)</option>
+              <option value="text_title_main_idea">6.2. Main Idea / Title (Текстның исеме)</option>
+            </optgroup>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Count (1-8):</label>
+          <input type="number" id="genCount" min="1" max="8" value="3">
+        </div>
+
+        <div class="form-group">
+          <label>Seed (Deterministic Random):</label>
+          <div style="display:flex; gap:6px;">
+            <input type="number" id="genSeed" value="42" placeholder="e.g. 42">
+            <button type="button" class="btn btn-secondary" onclick="randomizeSeed()" title="Pick random seed">🎲</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Grade Level (5-9):</label>
+          <input type="number" id="genGrade" min="5" max="9" value="7">
+        </div>
+
+        <div class="form-group" id="caseCodeGroup">
+          <label>Specific Case (Optional):</label>
+          <select id="genCaseCode">
+            <option value="">Any (Random Case)</option>
+            <option value="case_dative">Юнәлеш (-ка/-кә, -га/-гә)</option>
+            <option value="case_ablative">Чыгыш (-дан/-дән, -тан/-тән, -нан/-нән)</option>
+            <option value="case_locative">Урын-вакыт (-да/-дә, -та/-тә)</option>
+            <option value="case_accusative">Төшем (-ны/-не)</option>
+            <option value="case_genitive">Иялек (-ның/-нең)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Custom Stems (comma-separated):</label>
+          <input type="text" id="genCustomStems" placeholder="e.g. китап, өстәл, урман">
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button type="submit" class="btn btn-primary">⚡ Generate Tasks</button>
+        <label style="display:inline-flex; align-items:center; gap:6px; cursor:pointer; font-size:13px;">
+          <input type="checkbox" id="genSaveBank" checked> Save generated tasks to SQLite Task Bank
+        </label>
+      </div>
+    </form>
+
+    <div id="genResultsContainer"></div>
+  </div>
+
+  <!-- TAB 2: ASSEMBLE MODULAR TEST & EXPORT BLANKS -->
+  <div id="tab-assemble" class="tab-content">
+    <h3>2. Модульле контроль эшне җыю һәм PDF бланк экспортлау (Assemble & Export A4 Blank PDF)</h3>
+
+    <!-- PROMINENT DIRECT PDF EXPORT CARD -->
+    <div class="card" style="border: 2px solid #16a34a; background: #f0fdf4; margin-bottom: 20px;">
+      <div class="card-header">
+        <h4 style="margin:0; color:#166534; font-size:16px;">
+          📄 Бланкны PDF форматында экспортлау (Экспорт бланка в PDF A4)
+        </h4>
+        <span class="badge" style="background:#bbf7d0; color:#14532d;">Басмага әзер (Print Ready)</span>
+      </div>
+      <p style="font-size:13px; color:#15803d; margin:4px 0 14px 0;">
+        Тест бланкларын турыдан-туры PDF форматында ачыгыз яки бастырыгыз (ArUco маркерлар һәм 10×10 мм шакмаклар белән):
+      </p>
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Контроль эш коды (Assignment ID):</label>
+          <input type="text" id="pdfExportAssignmentId" value="TAT-2026-Q1" placeholder="мәсәлән: TAT-2026-Q1">
+        </div>
+        <div class="form-group">
+          <label>Вариант (Variant 1-4):</label>
+          <select id="pdfExportVariant">
+            <option value="1">1 нче вариант (Variant 1)</option>
+            <option value="2">2 нче вариант (Variant 2)</option>
+            <option value="3">3 нче вариант (Variant 3)</option>
+            <option value="4">4 нче вариант (Variant 4)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Укучы (Опционально ID студента для персонализации):</label>
+          <input type="text" id="pdfExportStudentId" placeholder="мәсәлән: stu_01 (исеме шакмакларга языла)">
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button type="button" class="btn btn-success" style="font-size:15px; padding:10px 20px;" onclick="downloadBlankPdfDirect()">
+          📥 Бланкны PDF форматында ачарга / йөкләргә (Open / Download PDF Blank)
+        </button>
+        <button type="button" class="btn btn-secondary" onclick="loadRecentTests()">
+          📋 Җыелган барлык тестларны күрсәтү (Show All Assembled Tests)
+        </button>
+      </div>
+
+      <div id="recentTestsContainer" style="margin-top:12px;"></div>
+    </div>
+
+    <!-- TEST ASSEMBLER FORM -->
+    <div class="card">
+      <h4>Яңа контроль эш җыю (Assemble New Test from Bank)</h4>
+      <form id="assembleForm" onsubmit="handleAssembleTest(event)">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Test Title:</label>
+          <input type="text" id="asmTitle" value="7 сыйныф. 1 нче чирек контроль эше" required>
+        </div>
+        <div class="form-group">
+          <label>Grade Level (5-9):</label>
+          <input type="number" id="asmGrade" min="5" max="9" value="7">
+        </div>
+        <div class="form-group">
+          <label>Variants Count (1-4):</label>
+          <input type="number" id="asmVariants" min="1" max="4" value="2">
+        </div>
+        <div class="form-group">
+          <label>Shuffle in Variants:</label>
+          <select id="asmShuffle">
+            <option value="true">Yes (Shuffle Order)</option>
+            <option value="false">No (Preserve Order)</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="margin-bottom: 12px;">
+        <label>Select Tasks from Bank (Max 8):</label>
+        <div id="asmTaskSelector" style="max-height: 200px; overflow-y: auto; border: 1px solid #cbd5e1; border-radius: 4px; padding: 10px; margin-top: 6px;">
+          <p>Loading available tasks...</p>
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button type="submit" class="btn btn-primary">📄 Assemble & Save Modular Test</button>
+      </div>
+    </form>
+
+    <div id="assembleResult" style="margin-top: 16px;"></div>
+    </div>
+  </div>
+
+  <!-- TAB 3: CREATE CUSTOM TASK -->
+  <div id="tab-custom" class="tab-content">
+    <h3>Create Custom Single Task</h3>
+    <form id="customTaskForm" onsubmit="handleCreateCustomTask(event)">
+      <div class="form-grid">
+        <div class="form-group" style="grid-column: 1 / -1;">
+          <label>Prompt (Tatar question):</label>
+          <input type="text" id="custPrompt" value="Сүзгә чыгыш килеше кушымчасын ялгагыз: дус ->" required>
+        </div>
+        <div class="form-group">
+          <label>Expected Answer (CAPITAL TATAR):</label>
+          <input type="text" id="custAnswer" value="ДУСТАН" required>
+        </div>
+        <div class="form-group">
+          <label>Cell Count (1-12):</label>
+          <input type="number" id="custCells" min="1" max="12" value="8" required>
+        </div>
+        <div class="form-group">
+          <label>Grade Level (5-9):</label>
+          <input type="number" id="custGrade" min="5" max="9" value="7" required>
+        </div>
+        <div class="form-group">
+          <label>Topic Tag:</label>
+          <input type="text" id="custTopicTag" value="case_ablative" required>
+        </div>
+        <div class="form-group">
+          <label>Topic Name (tt):</label>
+          <input type="text" id="custTopicName" value="Чыгыш килеше" required>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button type="submit" class="btn btn-success">💾 Save Custom Task to SQLite</button>
+      </div>
+    </form>
+    <div id="customTaskResult" style="margin-top: 14px;"></div>
+  </div>
+
+  <!-- TAB 4: TASK BANK EXPLORER -->
+  <div id="tab-bank" class="tab-content">
+    <h3>Task Bank Explorer (SQLite)</h3>
+    <div class="btn-row" style="margin-bottom: 14px;">
+      <input type="text" id="bankQuery" placeholder="Search prompt or answer..." style="flex:1;">
+      <button class="btn btn-secondary" onclick="loadTaskBank()">🔍 Search Bank</button>
+    </div>
+    <div id="bankTableContainer"></div>
+  </div>
+
+  <!-- TAB 5: CLASSES & ROSTERS -->
+  <div id="tab-classes" class="tab-content">
+    <h3>Сыйныфлар һәм Укучылар (Classes & Rosters)</h3>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Сыйныф (Class):</label>
+        <select id="classSelect" onchange="loadClassStudents()">
+          <option value="cls_7a_2026">7-А (2026-2027)</option>
+        </select>
+      </div>
+    </div>
+
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:14px;">
+      <h4 style="margin:0;">Укучылар исемлеге (Student Roster)</h4>
+      <button class="btn btn-secondary" onclick="loadClassStudents()">Яңартырга (Refresh)</button>
+    </div>
+    <div id="rosterContainer" style="margin-top:10px;"></div>
+
+    <div class="card" style="margin-top:20px;">
+      <h4>Укучыларны күпләп өстәү (Bulk Import Plain-Text)</h4>
+      <p style="font-size:12px; color:#64748b;">Paste student full names line-by-line (e.g. copied from edu.tatar.ru or Excel):</p>
+      <form onsubmit="handleBulkImport(event)">
+        <textarea id="bulkImportText" rows="4" style="width:100%; font-family:inherit;" placeholder="Сөләйманов Илдар Марат улы&#10;Фәттахова Айгөл Рәмил кызы"></textarea>
+        <div class="btn-row">
+          <button type="submit" class="btn btn-success">📥 Исемлекне йөкләргә (Import Students)</button>
+        </div>
+      </form>
+      <div id="bulkImportResult" style="margin-top:10px;"></div>
+    </div>
+  </div>
+
+  <!-- TAB 6: ZERO-PHOTO SUBMISSIONS SYNC -->
+  <div id="tab-submissions" class="tab-content">
+    <h3>Zero-Photo Submissions Ingestion & Batch Sync</h3>
+    <p style="font-size:13px; color:#64748b;">
+      <strong>Zero-Photo Transmission Policy:</strong> Photos never leave the phone. The mobile client rectifies ArUco corners, runs TFLite OCR on 10x10mm cells, allows teacher overrides, and uploads compact structured JSON (~1.5 KB per sheet).
+    </p>
+
+    <div class="card">
+      <h4>⚡ Simulate Teacher Phone Batch Sync</h4>
+      <p style="font-size:13px;">Simulate mobile app grading 5 student sheets from class <strong>7-А</strong> with realistic Tatar linguistic nuances (vowel harmony error, Ң vs Н character confusion, and teacher HITL override):</p>
+      <div class="btn-row">
+        <button class="btn btn-purple" onclick="handleSimulateBatchSync()">📱 Simulate Batch Sync Upload (35 KB)</button>
+        <button class="btn btn-secondary" onclick="loadSubmissions()">🔍 View Submissions in DB</button>
+      </div>
+      <div id="syncResult" style="margin-top:12px;"></div>
+    </div>
+
+    <div id="submissionsTableContainer" style="margin-top:20px;"></div>
+  </div>
+
+  <!-- TAB 7: ANALYTICS & HEATMAP -->
+  <div id="tab-analytics" class="tab-content">
+    <h3>Backend Analytics Engine & Classroom Heatmap</h3>
+    <div class="btn-row" style="margin-bottom:14px;">
+      <select id="analyticsClassSelect" style="min-width:180px;">
+        <option value="cls_7a_2026">7-А сыйныфы</option>
+      </select>
+      <button class="btn btn-primary" onclick="loadClassAnalytics()">📊 Аналитиканы исәпләргә (Load Heatmap)</button>
+    </div>
+
+    <div id="analyticsOverviewContainer"></div>
+    <div id="analyticsMistakesContainer"></div>
+    <div id="analyticsCharsContainer"></div>
+    <div id="analyticsLeaderboardContainer"></div>
+
+    <div id="studentDetailModal" class="card" style="display:none; margin-top:20px; border-left: 4px solid #16a34a;">
+      <div class="card-header">
+        <h4 id="studentModalTitle" style="margin:0;">Укучы аналитикасы</h4>
+        <button class="btn btn-secondary" style="padding:4px 8px; font-size:12px;" onclick="closeStudentModal()">Ябу (Close)</button>
+      </div>
+      <div id="studentModalContent"></div>
+    </div>
+  </div>
+
+  <!-- TAB 8: GRADEBOOK EXPORT -->
+  <div id="tab-reports" class="tab-content">
+    <h3>Билгеләр журналы (Electronic Gradebook Export)</h3>
+    <p style="font-size:13px; color:#64748b;">
+      Official spreadsheet download formatted for electronic school journals (edu.tatar.ru / МЭШ):
+    </p>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Контроль эш (Assignment ID):</label>
+        <input type="text" id="reportAssignmentId" value="TAT-2026-Q1">
+      </div>
+      <div class="form-group">
+        <label>Сыйныф (Class ID):</label>
+        <input type="text" id="reportClassId" value="cls_7a_2026">
+      </div>
+      <div class="form-group">
+        <label>Формат (Format):</label>
+        <select id="reportFormat">
+          <option value="xlsx">Excel (.xlsx)</option>
+          <option value="csv">CSV (UTF-8 with BOM)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-success" onclick="handleDownloadGradebook()">📥 Журналны йөкләргә (Download Gradebook)</button>
+      <button class="btn btn-secondary" onclick="loadGradebookPreview()">👁️ Алдан карау (Preview)</button>
+      <button class="btn btn-secondary" onclick="downloadBlankPdfFromReports()">📄 Скачать PDF бланк заданий</button>
+    </div>
+
+    <div id="gradebookPreviewContainer" style="margin-top:20px;"></div>
+  </div>
+
+  <script>
+    function downloadBlankPdfFromReports() {
+      const aid = document.getElementById('reportAssignmentId').value.trim() || 'TAT-2026-Q1';
+      window.open(`/api/v1/assignments/${encodeURIComponent(aid)}/blank.pdf?variant=1`, '_blank');
+    }
+
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
+      const targetContent = document.getElementById(tabId);
+      if (targetContent) targetContent.classList.add('active');
+      document.querySelectorAll('.nav-btn').forEach(btn => {
+        const oc = btn.getAttribute('onclick') || '';
+        if (oc.includes(`'${tabId}'`)) {
+          btn.classList.add('active');
+        }
+      });
+      if (tabId === 'tab-assemble') {
+        loadTasksForAssembler();
+        loadRecentTests();
+      }
+      if (tabId === 'tab-bank') loadTaskBank();
+      if (tabId === 'tab-classes') loadClassStudents();
+      if (tabId === 'tab-submissions') loadSubmissions();
+      if (tabId === 'tab-analytics') loadClassAnalytics();
+    }
+
+    function randomizeSeed() {
+      document.getElementById('genSeed').value = Math.floor(Math.random() * 100000);
+    }
+
+    function toggleCaseCodeField() {
+      const type = document.getElementById('genType').value;
+      document.getElementById('caseCodeGroup').style.display = (type === 'case_inflection' || type === 'possessive_case') ? 'flex' : 'none';
+    }
+
+    // TAB 1: GENERATE
+    async function handleGenerate(e) {
+      e.preventDefault();
+      const container = document.getElementById('genResultsContainer');
+      container.innerHTML = '<p>⏳ Generating tasks...</p>';
+
+      const stemsRaw = document.getElementById('genCustomStems').value.trim();
+      const stems = stemsRaw ? stemsRaw.split(',').map(s => s.trim()).filter(Boolean) : null;
+      const seedVal = document.getElementById('genSeed').value;
+
+      const payload = {
+        task_type: document.getElementById('genType').value,
+        count: parseInt(document.getElementById('genCount').value, 10),
+        seed: seedVal ? parseInt(seedVal, 10) : null,
+        grade_level: parseInt(document.getElementById('genGrade').value, 10),
+        case_code: document.getElementById('genCaseCode').value || null,
+        custom_stems: stems,
+        save_to_bank: document.getElementById('genSaveBank').checked
+      };
+
+      try {
+        const res = await fetch('/api/v1/constructor/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          container.innerHTML = `<p style="color:red;">Error: ${JSON.stringify(err.detail)}</p>`;
+          return;
+        }
+        const data = await res.json();
+        renderGeneratedTasks(data.tasks, data.seed);
+      } catch (err) {
+        container.innerHTML = `<p style="color:red;">Network error: ${err.message}</p>`;
+      }
+    }
+
+    let lastGeneratedTasks = [];
+
+    async function assembleGeneratedIntoPdf() {
+      if (!lastGeneratedTasks || lastGeneratedTasks.length === 0) {
+        alert('Биремнәр табылмады!');
+        return;
+      }
+      try {
+        const payload = {
+          title: `Контроль эш (${lastGeneratedTasks.length} бирем)`,
+          grade_level: lastGeneratedTasks[0].grade_level || 7,
+          task_items: lastGeneratedTasks.slice(0, 8).map(t => ({ task_id: t.task_id })),
+          generate_variants_count: 2,
+          shuffle_questions_in_variants: true
+        };
+        const res = await fetch('/api/v1/constructor/tests', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const testId = data.test_id || data.assignment_id;
+          window.open(`/api/v1/assignments/${testId}/blank.pdf?variant=1`, '_blank');
+        } else {
+          switchTab('tab-assemble');
+        }
+      } catch (err) {
+        switchTab('tab-assemble');
+      }
+    }
+
+    function renderGeneratedTasks(tasks, seed) {
+      lastGeneratedTasks = tasks || [];
+      const container = document.getElementById('genResultsContainer');
+      let html = `<div class="card" style="background:#f0fdf4; border-color:#86efac; margin-bottom:12px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+          <div>
+            <strong>✅ Сгенерировано ${tasks.length} заданий</strong> | Seed: <code>${seed}</code>
+          </div>
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button type="button" class="btn btn-success" onclick="assembleGeneratedIntoPdf()" style="font-size:13px; font-weight:600;">
+              📄 Скачать эти задания в PDF бланке (A4) 📥
+            </button>
+            <button type="button" class="btn btn-secondary" onclick="switchTab('tab-assemble')" style="font-size:13px;">
+              ⚙ Перейти в сборщик бланков
+            </button>
+          </div>
+        </div>
+      </div>`;
+
+      tasks.forEach((t, idx) => {
+        const letters = t.expected_answer.split('');
+        const totalCells = t.cell_count;
+
+        let cellsHtml = '';
+        for (let i = 0; i < totalCells; i++) {
+          const ch = letters[i] || '';
+          if (ch) {
+            cellsHtml += `<div class="cell-box">${ch}</div>`;
+          } else {
+            cellsHtml += `<div class="cell-box empty">·</div>`;
+          }
+        }
+
+        html += `
+          <div class="card">
+            <div class="card-header">
+              <span class="badge badge-tatar">${t.topic_name_tt}</span>
+              <span style="font-size:12px; color:#64748b;">ID: <code>${t.task_id}</code> | ${t.grade_level} сыйныф</span>
+            </div>
+            <div style="font-size:16px; font-weight:600; margin-bottom:6px;">${t.prompt_tt}</div>
+            <div style="font-size:13px; color:#475569;">
+              Expected: <strong>${t.expected_answer}</strong> (${t.expected_answer.length} chars) | Total grid cells: <strong>${t.cell_count}</strong>
+            </div>
+            <div class="cell-strip">
+              ${cellsHtml}
+            </div>
+          </div>
+        `;
+      });
+      container.innerHTML = html;
+    }
+
+    // TAB 2: ASSEMBLE
+    async function loadTasksForAssembler() {
+      const selector = document.getElementById('asmTaskSelector');
+      try {
+        const res = await fetch('/api/v1/constructor/tasks');
+        const tasks = await res.json();
+        if (tasks.length === 0) {
+          selector.innerHTML = '<p>No tasks found. Generate some in Tab 1!</p>';
+          return;
+        }
+        selector.innerHTML = tasks.map(t => `
+          <div style="margin-bottom:6px; font-size:13px;">
+            <label style="font-weight:normal; cursor:pointer;">
+              <input type="checkbox" name="asmTaskItem" value="${t.task_id}" checked>
+              <strong>${t.expected_answer}</strong> — ${t.prompt_tt} <em>(${t.topic_name_tt})</em>
+            </label>
+          </div>
+        `).join('');
+      } catch (err) {
+        selector.innerHTML = `<p style="color:red;">Error loading tasks: ${err.message}</p>`;
+      }
+    }
+
+    async function handleAssembleTest(e) {
+      e.preventDefault();
+      const resDiv = document.getElementById('assembleResult');
+      resDiv.innerHTML = '<p>⏳ Assembling test...</p>';
+
+      const selected = Array.from(document.querySelectorAll('input[name="asmTaskItem"]:checked')).map(el => el.value);
+      if (selected.length === 0) {
+        resDiv.innerHTML = '<p style="color:red;">Please select at least 1 task!</p>';
+        return;
+      }
+      if (selected.length > 8) {
+        resDiv.innerHTML = '<p style="color:red;">Maximum 8 tasks allowed on A4 sheet!</p>';
+        return;
+      }
+
+      const payload = {
+        title: document.getElementById('asmTitle').value,
+        grade_level: parseInt(document.getElementById('asmGrade').value, 10),
+        generate_variants_count: parseInt(document.getElementById('asmVariants').value, 10),
+        shuffle_questions_in_variants: document.getElementById('asmShuffle').value === 'true',
+        task_items: selected.map((tid, idx) => ({ task_id: tid, order: idx + 1 }))
+      };
+
+      try {
+        const res = await fetch('/api/v1/constructor/tests', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          resDiv.innerHTML = `<p style="color:red;">Error: ${JSON.stringify(err.detail)}</p>`;
+          return;
+        }
+        const created = await res.json();
+        const testId = created.test_id || created.assignment_id;
+        const variantsCount = created.variants_count || created.total_variants || 1;
+        
+        // Auto-fill the direct PDF export form with newly created test ID
+        document.getElementById('pdfExportAssignmentId').value = testId;
+
+        let variantsButtons = '';
+        for (let v = 1; v <= variantsCount; v++) {
+          variantsButtons += `
+            <a href="/api/v1/assignments/${testId}/blank.pdf?variant=${v}" target="_blank" class="btn btn-success" style="text-decoration:none; margin-right:8px; margin-top:8px; font-weight:bold;">
+              📄 Бланк PDF (Вариант ${v}) 📥
+            </a>
+          `;
+        }
+        resDiv.innerHTML = `
+          <div style="background:#f0fdf4; border:2px solid #86efac; border-radius:6px; padding:16px; margin-top:10px;">
+            <p style="color:#15803d; margin:0 0 10px 0; font-size:16px;">
+              ✅ <strong>Тест уңышлы җыелды! Бланк әзер (Test Assembled & Ready to Print):</strong><br>
+              ID: <code>${testId}</code> | Вариантлар: <strong>${variantsCount}</strong>
+            </p>
+            <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center;">
+              ${variantsButtons}
+              <a href="/api/v1/assignments/${testId}/offline-bundle" target="_blank" class="btn btn-secondary" style="text-decoration:none; margin-top:8px;">
+                📦 Offline Bundle (JSON)
+              </a>
+            </div>
+          </div>
+        `;
+      } catch (err) {
+        resDiv.innerHTML = `<p style="color:red;">Network error: ${err.message}</p>`;
+      }
+    }
+
+    function downloadBlankPdfDirect() {
+      const assignmentId = document.getElementById('pdfExportAssignmentId').value.trim() || 'TAT-2026-Q1';
+      const variant = document.getElementById('pdfExportVariant').value;
+      const studentId = document.getElementById('pdfExportStudentId').value.trim();
+
+      let url = `/api/v1/assignments/${encodeURIComponent(assignmentId)}/blank.pdf?variant=${variant}`;
+      if (studentId) {
+        url += `&student_id=${encodeURIComponent(studentId)}`;
+      }
+      window.open(url, '_blank');
+    }
+
+    async function loadRecentTests() {
+      const container = document.getElementById('recentTestsContainer');
+      container.innerHTML = '<p>⏳ Тестлар исемлеге йөкләнә...</p>';
+      try {
+        const res = await fetch('/api/v1/constructor/ready-tests');
+        const tests = await res.json();
+        if (tests.length === 0) {
+          container.innerHTML = '<p>Җыелган тестлар әлегә юк. Түбәндәге форма аша яңа тест җыегыз!</p>';
+          return;
+        }
+        let html = `
+          <div style="margin-top:10px; border-top:1px solid #86efac; padding-top:10px;">
+            <strong style="font-size:13px; color:#166534;">Җыелган тестлар һәм бланклар (Собранные тесты в базе):</strong>
+            <div style="display:flex; flex-direction:column; gap:8px; margin-top:8px;">
+              ${tests.map(t => `
+                <div style="display:flex; justify-content:space-between; align-items:center; background:#ffffff; border:1px solid #cbd5e1; border-radius:6px; padding:8px 12px; flex-wrap:wrap; gap:6px;">
+                  <div>
+                    <strong>${t.test_id}</strong> — ${t.title} <em>(${t.grade_level} сыйныф)</em>
+                  </div>
+                  <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                    <a href="/api/v1/assignments/${t.test_id}/blank.pdf?variant=1" target="_blank" class="btn btn-success" style="padding:4px 10px; font-size:12px; text-decoration:none;">
+                      📄 Вар. 1 PDF
+                    </a>
+                    <a href="/api/v1/assignments/${t.test_id}/blank.pdf?variant=2" target="_blank" class="btn btn-success" style="padding:4px 10px; font-size:12px; text-decoration:none;">
+                      📄 Вар. 2 PDF
+                    </a>
+                    <button type="button" class="btn btn-secondary" style="padding:4px 8px; font-size:11px;" onclick="selectTestForExport('${t.test_id}')">
+                      Сайларга ✏️
+                    </button>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `;
+        container.innerHTML = html;
+      } catch (err) {
+        container.innerHTML = `<p style="color:red;">Error: ${err.message}</p>`;
+      }
+    }
+
+    function selectTestForExport(testId) {
+      document.getElementById('pdfExportAssignmentId').value = testId;
+      window.scrollTo({ top: document.getElementById('pdfExportAssignmentId').offsetTop - 50, behavior: 'smooth' });
+    }
+
+    // TAB 3: CUSTOM TASK
+    async function handleCreateCustomTask(e) {
+      e.preventDefault();
+      const resDiv = document.getElementById('customTaskResult');
+      resDiv.innerHTML = '<p>⏳ Saving custom task...</p>';
+
+      const payload = {
+        prompt_tt: document.getElementById('custPrompt').value,
+        expected_answer: document.getElementById('custAnswer').value,
+        cell_count: parseInt(document.getElementById('custCells').value, 10),
+        grade_level: parseInt(document.getElementById('custGrade').value, 10),
+        topic_tag: document.getElementById('custTopicTag').value,
+        topic_name_tt: document.getElementById('custTopicName').value,
+        is_public_in_bank: true,
+        task_type: "custom"
+      };
+
+      try {
+        const res = await fetch('/api/v1/constructor/tasks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          resDiv.innerHTML = `<p style="color:red;">Error: ${JSON.stringify(err.detail)}</p>`;
+          return;
+        }
+        const saved = await res.json();
+        resDiv.innerHTML = `<p style="color:green;">✅ Task created! Task ID: <strong>${saved.task_id}</strong> (Answer: ${saved.expected_answer})</p>`;
+      } catch (err) {
+        resDiv.innerHTML = `<p style="color:red;">Network error: ${err.message}</p>`;
+      }
+    }
+
+    // TAB 4: TASK BANK
+    async function loadTaskBank() {
+      const container = document.getElementById('bankTableContainer');
+      container.innerHTML = '<p>⏳ Loading task bank...</p>';
+      const q = document.getElementById('bankQuery').value.trim();
+      const url = q ? `/api/v1/constructor/tasks?query=${encodeURIComponent(q)}` : '/api/v1/constructor/tasks';
+
+      try {
+        const res = await fetch(url);
+        const tasks = await res.json();
+        if (tasks.length === 0) {
+          container.innerHTML = '<p>No tasks found in bank.</p>';
+          return;
+        }
+
+        let tableHtml = `
+          <table>
+            <thead>
+              <tr>
+                <th>Task ID</th>
+                <th>Prompt (tt)</th>
+                <th>Answer</th>
+                <th>Cells</th>
+                <th>Grade</th>
+                <th>Topic</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${tasks.map(t => `
+                <tr>
+                  <td><code>${t.task_id}</code></td>
+                  <td>${t.prompt_tt}</td>
+                  <td><strong>${t.expected_answer}</strong></td>
+                  <td>${t.cell_count}</td>
+                  <td>${t.grade_level}</td>
+                  <td>${t.topic_name_tt}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        `;
+        container.innerHTML = tableHtml;
+      } catch (err) {
+        container.innerHTML = `<p style="color:red;">Failed to load bank: ${err.message}</p>`;
+      }
+    }
+
+    // TAB 5: CLASSES & ROSTERS
+    async function loadClassStudents() {
+      const classId = document.getElementById('classSelect').value;
+      const container = document.getElementById('rosterContainer');
+      container.innerHTML = '<p>⏳ Loading student roster...</p>';
+
+      try {
+        const res = await fetch(`/api/v1/classes/${classId}/students`);
+        if (!res.ok) {
+          container.innerHTML = '<p style="color:red;">Failed to load roster.</p>';
+          return;
+        }
+        const data = await res.json();
+        if (data.students.length === 0) {
+          container.innerHTML = '<p>No students in this class yet.</p>';
+          return;
+        }
+
+        let html = `
+          <table>
+            <thead>
+              <tr>
+                <th>Student ID</th>
+                <th>Ф.И.О. (Full Name)</th>
+                <th>Кыскартылган (Short Name)</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${data.students.map(s => `
+                <tr>
+                  <td><code>${s.student_id}</code></td>
+                  <td><strong>${s.full_name}</strong></td>
+                  <td>${s.short_name}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        `;
+        container.innerHTML = html;
+      } catch (err) {
+        container.innerHTML = `<p style="color:red;">Error: ${err.message}</p>`;
+      }
+    }
+
+    async function handleBulkImport(e) {
+      e.preventDefault();
+      const classId = document.getElementById('classSelect').value;
+      const text = document.getElementById('bulkImportText').value.trim();
+      const resDiv = document.getElementById('bulkImportResult');
+
+      if (!text) {
+        resDiv.innerHTML = '<p style="color:red;">Please enter at least one student name!</p>';
+        return;
+      }
+
+      resDiv.innerHTML = '<p>⏳ Importing...</p>';
+      try {
+        const res = await fetch(`/api/v1/classes/${classId}/students/bulk-import`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ raw_text: text })
+        });
+        const data = await res.json();
+        resDiv.innerHTML = `<p style="color:green;">✅ Successfully added ${data.added_count} students!</p>`;
+        document.getElementById('bulkImportText').value = '';
+        loadClassStudents();
+      } catch (err) {
+        resDiv.innerHTML = `<p style="color:red;">Error: ${err.message}</p>`;
+      }
+    }
+
+    // TAB 6: ZERO-PHOTO BATCH SYNC SIMULATOR
+    async function handleSimulateBatchSync() {
+      const resDiv = document.getElementById('syncResult');
+      resDiv.innerHTML = '<p>⏳ Simulating phone upload of 5 student papers (~35 KB JSON)...</p>';
+
+      const mockPayload = {
+        assignment_id: "TAT-2026-Q1",
+        class_id: "cls_7a_2026",
+        synced_at: new Date().toISOString(),
+        submissions: [
+          {
+            client_submission_uuid: "sub-sim-001",
+            student_id: "stu_01",
+            student_name: "Галиев Амир Рустемович",
+            variant: 1,
+            checked_at: new Date().toISOString(),
+            overall_score: 8.0,
+            max_score: 8.0,
+            final_grade: 5,
+            teacher_reviewed_flags: 0,
+            questions_results: [
+              {
+                question_number: 1,
+                marker_id: 11,
+                topic_tag: "case_dative",
+                is_correct: true,
+                points_earned: 1.0,
+                cells: [
+                  { cell_index: 0, expected_char: "К", predicted_char: "К", confidence: 0.98, status: "MATCH" },
+                  { cell_index: 1, expected_char: "И", predicted_char: "И", confidence: 0.95, status: "MATCH" },
+                  { cell_index: 2, expected_char: "Т", predicted_char: "Т", confidence: 0.92, status: "MATCH" },
+                  { cell_index: 3, expected_char: "А", predicted_char: "А", confidence: 0.97, status: "MATCH" },
+                  { cell_index: 4, expected_char: "П", predicted_char: "П", confidence: 0.94, status: "MATCH" },
+                  { cell_index: 5, expected_char: "К", predicted_char: "К", confidence: 0.96, status: "MATCH" },
+                  { cell_index: 6, expected_char: "А", predicted_char: "А", confidence: 0.99, status: "MATCH" },
+                  { cell_index: 7, expected_char: " ", predicted_char: " ", confidence: 1.00, status: "MATCH" }
+                ]
+              }
+            ]
+          },
+          {
+            client_submission_uuid: "sub-sim-002",
+            student_id: "stu_02",
+            student_name: "Закирова Ләйсән Ильдаровна",
+            variant: 2,
+            checked_at: new Date().toISOString(),
+            overall_score: 8.0,
+            max_score: 8.0,
+            final_grade: 5,
+            teacher_reviewed_flags: 0,
+            questions_results: [
+              {
+                question_number: 1,
+                marker_id: 11,
+                topic_tag: "case_dative",
+                is_correct: true,
+                points_earned: 1.0,
+                cells: [
+                  { cell_index: 0, expected_char: "К", predicted_char: "К", confidence: 0.96, status: "MATCH" },
+                  { cell_index: 1, expected_char: "И", predicted_char: "И", confidence: 0.93, status: "MATCH" },
+                  { cell_index: 2, expected_char: "Т", predicted_char: "Т", confidence: 0.91, status: "MATCH" },
+                  { cell_index: 3, expected_char: "А", predicted_char: "А", confidence: 0.95, status: "MATCH" },
+                  { cell_index: 4, expected_char: "П", predicted_char: "П", confidence: 0.92, status: "MATCH" },
+                  { cell_index: 5, expected_char: "К", predicted_char: "К", confidence: 0.94, status: "MATCH" },
+                  { cell_index: 6, expected_char: "А", predicted_char: "А", confidence: 0.97, status: "MATCH" }
+                ]
+              }
+            ]
+          },
+          {
+            client_submission_uuid: "sub-sim-003",
+            student_id: "stu_03",
+            student_name: "Хабибуллин Тимур Маратович",
+            variant: 1,
+            checked_at: new Date().toISOString(),
+            overall_score: 6.0,
+            max_score: 8.0,
+            final_grade: 4,
+            teacher_reviewed_flags: 1,
+            questions_results: [
+              {
+                question_number: 1,
+                marker_id: 11,
+                topic_tag: "case_ablative",
+                is_correct: false,
+                points_earned: 0.0,
+                cells: [
+                  { cell_index: 0, expected_char: "Ө", predicted_char: "Ө", confidence: 0.91, status: "MATCH" },
+                  { cell_index: 1, expected_char: "С", predicted_char: "С", confidence: 0.93, status: "MATCH" },
+                  { cell_index: 2, expected_char: "Т", predicted_char: "Т", confidence: 0.89, status: "MATCH" },
+                  { cell_index: 3, expected_char: "Ә", predicted_char: "Ә", confidence: 0.88, status: "MATCH" },
+                  { cell_index: 4, expected_char: "Л", predicted_char: "Л", confidence: 0.94, status: "MATCH" },
+                  { cell_index: 5, expected_char: "Д", predicted_char: "Д", confidence: 0.90, status: "MATCH" },
+                  { cell_index: 6, expected_char: "Ә", predicted_char: "А", confidence: 0.82, status: "MISMATCH" },
+                  { cell_index: 7, expected_char: "Н", predicted_char: "Н", confidence: 0.91, status: "MATCH" }
+                ]
+              }
+            ]
+          },
+          {
+            client_submission_uuid: "sub-sim-004",
+            student_id: "stu_04",
+            student_name: "Сафина Дилә Нияз кызы",
+            variant: 2,
+            checked_at: new Date().toISOString(),
+            overall_score: 5.0,
+            max_score: 8.0,
+            final_grade: 3,
+            teacher_reviewed_flags: 1,
+            questions_results: [
+              {
+                question_number: 1,
+                marker_id: 11,
+                topic_tag: "plural_affixes",
+                is_correct: false,
+                points_earned: 0.0,
+                cells: [
+                  { cell_index: 0, expected_char: "У", predicted_char: "У", confidence: 0.95, status: "MATCH" },
+                  { cell_index: 1, expected_char: "Р", predicted_char: "Р", confidence: 0.92, status: "MATCH" },
+                  { cell_index: 2, expected_char: "М", predicted_char: "М", confidence: 0.90, status: "MATCH" },
+                  { cell_index: 3, expected_char: "А", predicted_char: "А", confidence: 0.94, status: "MATCH" },
+                  { cell_index: 4, expected_char: "Н", predicted_char: "Н", confidence: 0.88, status: "MATCH" },
+                  { cell_index: 5, expected_char: "Н", predicted_char: "Н", confidence: 0.85, status: "MATCH" },
+                  { cell_index: 6, expected_char: "А", predicted_char: "А", confidence: 0.91, status: "MATCH" },
+                  { cell_index: 7, expected_char: "Р", predicted_char: "Р", confidence: 0.54, status: "FLAG_OVERRIDDEN_BY_TEACHER", teacher_override: "WRONG" }
+                ]
+              }
+            ]
+          },
+          {
+            client_submission_uuid: "sub-sim-005",
+            student_id: "stu_05",
+            student_name: "Исмәгыйлев Булат Айдар улы",
+            variant: 1,
+            checked_at: new Date().toISOString(),
+            overall_score: 7.0,
+            max_score: 8.0,
+            final_grade: 4,
+            teacher_reviewed_flags: 0,
+            questions_results: [
+              {
+                question_number: 1,
+                marker_id: 11,
+                topic_tag: "case_dative",
+                is_correct: true,
+                points_earned: 1.0,
+                cells: [
+                  { cell_index: 0, expected_char: "К", predicted_char: "К", confidence: 0.95, status: "MATCH" },
+                  { cell_index: 1, expected_char: "И", predicted_char: "И", confidence: 0.92, status: "MATCH" },
+                  { cell_index: 2, expected_char: "Т", predicted_char: "Т", confidence: 0.90, status: "MATCH" },
+                  { cell_index: 3, expected_char: "А", predicted_char: "А", confidence: 0.94, status: "MATCH" },
+                  { cell_index: 4, expected_char: "П", predicted_char: "П", confidence: 0.91, status: "MATCH" },
+                  { cell_index: 5, expected_char: "К", predicted_char: "К", confidence: 0.93, status: "MATCH" },
+                  { cell_index: 6, expected_char: "А", predicted_char: "А", confidence: 0.96, status: "MATCH" }
+                ]
+              }
+            ]
+          }
+        ]
+      };
+
+      try {
+        const res = await fetch('/api/v1/submissions/batch-sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(mockPayload)
+        });
+        const data = await res.json();
+        resDiv.innerHTML = `
+          <div style="background:#f0fdf4; border:1px solid #86efac; border-radius:4px; padding:10px; color:#15803d;">
+            ✅ <strong>Batch Sync Success!</strong> Received: ${data.received_count} | Inserted: ${data.inserted_count} | Updated: ${data.updated_count} | Analytics recalculated: ${data.analytics_recalculated}
+          </div>
+        `;
+        loadSubmissions();
+      } catch (err) {
+        resDiv.innerHTML = `<p style="color:red;">Error: ${err.message}</p>`;
+      }
+    }
+
+    async function loadSubmissions() {
+      const container = document.getElementById('submissionsTableContainer');
+      container.innerHTML = '<p>⏳ Loading submissions...</p>';
+
+      try {
+        const res = await fetch('/api/v1/submissions?class_id=cls_7a_2026');
+        const list = await res.json();
+        if (list.length === 0) {
+          container.innerHTML = '<p>No submissions recorded yet. Click "Simulate Batch Sync" above!</p>';
+          return;
+        }
+
+        let html = `
+          <h4>Базадагы нәтиҗәләр (Submissions in DB: ${list.length})</h4>
+          <table>
+            <thead>
+              <tr>
+                <th>Укучы (Student)</th>
+                <th>Вар.</th>
+                <th>Балл (Score)</th>
+                <th>Билге (Grade)</th>
+                <th>Тикшерү флаглары</th>
+                <th>Вакыт (Time)</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${list.map(s => `
+                <tr>
+                  <td><strong>${s.student_name}</strong></td>
+                  <td>${s.variant}</td>
+                  <td>${s.overall_score} / ${s.max_score}</td>
+                  <td><span class="status-pill ${s.final_grade >= 4 ? 'status-match' : 'status-mismatch'}">Оценка ${s.final_grade}</span></td>
+                  <td>${s.teacher_reviewed_flags} флаг</td>
+                  <td>${s.checked_at ? new Date(s.checked_at).toLocaleTimeString() : 'N/A'}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        `;
+        container.innerHTML = html;
+      } catch (err) {
+        container.innerHTML = `<p style="color:red;">Error: ${err.message}</p>`;
+      }
+    }
+
+    // TAB 7: ANALYTICS & HEATMAP
+    async function loadClassAnalytics() {
+      const classId = document.getElementById('analyticsClassSelect').value;
+      const ovContainer = document.getElementById('analyticsOverviewContainer');
+      const mistContainer = document.getElementById('analyticsMistakesContainer');
+      const charsContainer = document.getElementById('analyticsCharsContainer');
+      const leadContainer = document.getElementById('analyticsLeaderboardContainer');
+
+      ovContainer.innerHTML = '<p>⏳ Crunching analytical data...</p>';
+      mistContainer.innerHTML = '';
+      charsContainer.innerHTML = '';
+      leadContainer.innerHTML = '';
+
+      try {
+        const res = await fetch(`/api/v1/analytics/classes/${classId}`);
+        const data = await res.json();
+
+        // 1. Overview cards
+        ovContainer.innerHTML = `
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-val">${data.average_class_score_pct}%</div>
+              <div class="stat-lbl">Сыйныф уртача үзләштерүе (Class Avg %)</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-val">${data.students_count}</div>
+              <div class="stat-lbl">Барлыгы укучылар (Total Students)</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-val" style="color:#16a34a;">${data.grade_distribution['5'] || 0}</div>
+              <div class="stat-lbl">"5"ле билгеләре ("5" Grades)</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-val" style="color:#2563eb;">${data.grade_distribution['4'] || 0}</div>
+              <div class="stat-lbl">"4"ле билгеләре ("4" Grades)</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-val" style="color:#d97706;">${data.grade_distribution['3'] || 0}</div>
+              <div class="stat-lbl">"3"ле билгеләре ("3" Grades)</div>
+            </div>
+          </div>
+        `;
+
+        // 2. Heatmap: Top Class Mistakes
+        if (data.top_class_mistakes.length > 0) {
+          mistContainer.innerHTML = `
+            <div class="card">
+              <h4 style="margin-top:0;">🔥 Сыйныф буенча төп грамматик ялгышлар (Top Grammatical Mistakes Heatmap)</h4>
+              <p style="font-size:12px; color:#64748b;">Мөгаллимгә киләсе дәрестә кабатларга киңәш ителгән темалар:</p>
+              ${data.top_class_mistakes.map(m => `
+                <div style="margin-bottom:12px;">
+                  <div style="display:flex; justify-content:space-between; font-size:13px;">
+                    <strong>${m.topic_name_tt}</strong>
+                    <span>Ялгышлык: <strong>${m.failure_rate_pct}%</strong> (${m.affected_students_count} укучы)</span>
+                  </div>
+                  <div class="bar-container">
+                    <div class="bar-fill-warn" style="width: ${m.failure_rate_pct}%;"></div>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          `;
+        } else {
+          mistContainer.innerHTML = '<p>No topic mistakes recorded.</p>';
+        }
+
+        // 3. Difficult Characters
+        if (data.difficult_characters_across_class.length > 0) {
+          charsContainer.innerHTML = `
+            <div class="card">
+              <h4 style="margin-top:0;">🔤 Төзелеше катлаулы булган татар хәрефләре (Difficult Characters Error Rate)</h4>
+              <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:8px;">
+                ${data.difficult_characters_across_class.map(c => `
+                  <div style="border:1px solid #fca5a5; background:#fef2f2; border-radius:6px; padding:6px 12px; text-align:center;">
+                    <span style="font-size:20px; font-weight:bold; color:#b91c1c;">${c.letter}</span>
+                    <div style="font-size:11px; color:#7f1d1d;">${c.error_rate_pct}% ялгыш</div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          `;
+        }
+
+        // 4. Leaderboard Table
+        leadContainer.innerHTML = `
+          <div class="card">
+            <h4 style="margin-top:0;">🏆 Укучылар рейтингы (Student Performance Leaderboard)</h4>
+            <p style="font-size:12px; color:#64748b;">Укучының шәхси аналитикасын карау өчен исеменә басыгыз:</p>
+            <table>
+              <thead>
+                <tr>
+                  <th>Укучы (Full Name)</th>
+                  <th>Үзләштерү % (Score Avg)</th>
+                  <th>Уртача билге (Avg Grade)</th>
+                  <th>Эшләнгән эшләр</th>
+                  <th>Гамәл (Action)</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${data.students_performance_table.map(s => `
+                  <tr>
+                    <td><strong>${s.full_name}</strong></td>
+                    <td>
+                      ${s.average_score_pct}%
+                      <div class="bar-container" style="height:6px; width:100px;">
+                        <div class="bar-fill" style="width: ${s.average_score_pct}%;"></div>
+                      </div>
+                    </td>
+                    <td><strong>${s.average_grade.toFixed(1)}</strong></td>
+                    <td>${s.tests_completed}</td>
+                    <td>
+                      <button class="btn btn-secondary" style="padding:4px 8px; font-size:11px;" onclick="loadStudentAnalytics('${s.student_id}')">
+                        Шәхси кәкре (Curve) 🔍
+                      </button>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        `;
+
+      } catch (err) {
+        ovContainer.innerHTML = `<p style="color:red;">Error loading analytics: ${err.message}</p>`;
+      }
+    }
+
+    async function loadStudentAnalytics(studentId) {
+      const modal = document.getElementById('studentDetailModal');
+      const title = document.getElementById('studentModalTitle');
+      const content = document.getElementById('studentModalContent');
+
+      modal.style.display = 'block';
+      title.innerText = `Укучы аналитикасы: ${studentId}`;
+      content.innerHTML = '<p>⏳ Loading individual student curve and errors...</p>';
+
+      try {
+        const res = await fetch(`/api/v1/analytics/students/${studentId}`);
+        const data = await res.json();
+        title.innerText = `Укучы: ${data.full_name} (${data.class_name})`;
+
+        content.innerHTML = `
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-val">${data.average_score_pct}%</div>
+              <div class="stat-lbl">Уртача процент</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-val">${data.average_grade.toFixed(1)}</div>
+              <div class="stat-lbl">Уртача билге</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-val">${data.total_tests_completed}</div>
+              <div class="stat-lbl">Тәмамланган тестлар</div>
+            </div>
+          </div>
+
+          <h4>Бу укучыда кыенлык тудырган темалар (Weak Topics):</h4>
+          ${data.frequent_weak_topics.length > 0 ? `
+            <table>
+              <thead>
+                <tr>
+                  <th>Тема</th>
+                  <th>Дөреслек %</th>
+                  <th>Ялгыш сораулар саны</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${data.frequent_weak_topics.map(t => `
+                  <tr>
+                    <td>${t.topic_name_tt}</td>
+                    <td><strong>${t.accuracy_pct}%</strong></td>
+                    <td>${t.wrong_count} / ${t.total_questions}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          ` : '<p>Барлык темалар да 100% дөрес!</p>'}
+
+          <h4 style="margin-top:14px;">Бу укучы бутаган хәрефләр (Problematic Letters & Confusions):</h4>
+          ${data.problematic_letters.length > 0 ? `
+            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+              ${data.problematic_letters.map(p => `
+                <div style="background:#fff7ed; border:1px solid #fdba74; border-radius:6px; padding:6px 12px;">
+                  <strong style="font-size:18px; color:#c2410c;">${p.letter}</strong>: ${p.accuracy_pct}% дөрес
+                  <div style="font-size:11px; color:#9a3412;">Бутаган: ${p.common_confusions.join(', ') || 'N/A'}</div>
+                </div>
+              `).join('')}
+            </div>
+          ` : '<p>Хәрефләр дөрес язылган.</p>'}
+        `;
+
+        modal.scrollIntoView({ behavior: 'smooth' });
+      } catch (err) {
+        content.innerHTML = `<p style="color:red;">Error: ${err.message}</p>`;
+      }
+    }
+
+    function closeStudentModal() {
+      document.getElementById('studentDetailModal').style.display = 'none';
+    }
+
+    // TAB 8: GRADEBOOK EXPORT
+    function handleDownloadGradebook() {
+      const assignmentId = document.getElementById('reportAssignmentId').value.trim() || 'TAT-2026-Q1';
+      const classId = document.getElementById('reportClassId').value.trim() || 'cls_7a_2026';
+      const format = document.getElementById('reportFormat').value;
+
+      const url = `/api/v1/reports/assignments/${encodeURIComponent(assignmentId)}/gradebook.xlsx?class_id=${encodeURIComponent(classId)}&format=${format}`;
+      window.open(url, '_blank');
+    }
+
+    async function loadGradebookPreview() {
+      const classId = document.getElementById('reportClassId').value.trim() || 'cls_7a_2026';
+      const assignmentId = document.getElementById('reportAssignmentId').value.trim() || 'TAT-2026-Q1';
+      const container = document.getElementById('gradebookPreviewContainer');
+      container.innerHTML = '<p>⏳ Loading preview...</p>';
+
+      try {
+        const res = await fetch(`/api/v1/submissions?class_id=${classId}&assignment_id=${assignmentId}`);
+        const list = await res.json();
+        if (list.length === 0) {
+          container.innerHTML = '<p>No submissions found for this assignment and class.</p>';
+          return;
+        }
+
+        container.innerHTML = `
+          <h4>Билгеләр ведомосте (Gradebook Preview: ${classId} | ${assignmentId})</h4>
+          <table>
+            <thead>
+              <tr>
+                <th>Укучының Ф.И.О. / ФИО Ученика</th>
+                <th>Вариант</th>
+                <th>Җыелган балл</th>
+                <th>Макс. балл</th>
+                <th>Билге / Оценка</th>
+                <th>Дата</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${list.map(s => `
+                <tr>
+                  <td><strong>${s.student_name}</strong></td>
+                  <td>${s.variant}</td>
+                  <td>${s.overall_score}</td>
+                  <td>${s.max_score}</td>
+                  <td><strong>${s.final_grade}</strong></td>
+                  <td>${s.checked_at ? new Date(s.checked_at).toLocaleDateString() : ''}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        `;
+      } catch (err) {
+        container.innerHTML = `<p style="color:red;">Error: ${err.message}</p>`;
+      }
+    }
+
+    // Initial setup
+    toggleCaseCodeField();
+    loadTasksForAssembler();
+    loadRecentTests();
+  </script>
+</body>
+</html>
