@@ -234,6 +234,52 @@ class TestClassesAndStudentsAPI:
         res2 = await client.get("/api/v1/classes/cls_7a_2026/students")
         assert len(res2.json()["students"]) == 4
 
+    @pytest.mark.asyncio
+    async def test_assign_test_to_class_and_batch_blanks(self, client: AsyncClient):
+        # 1. Assign test to class
+        res_assign = await client.post(
+            "/api/v1/classes/cls_7a_2026/assignments",
+            json={"assignment_id": "TAT-2026-Q1", "status": "active"},
+        )
+        assert res_assign.status_code == 201
+        assign_data = res_assign.json()
+        assert assign_data["class_id"] == "cls_7a_2026"
+        assert assign_data["assignment_id"] == "TAT-2026-Q1"
+        assert assign_data["total_variants"] == 2
+
+        # 2. List class assignments
+        res_list = await client.get("/api/v1/classes/cls_7a_2026/assignments")
+        assert res_list.status_code == 200
+        list_data = res_list.json()
+        assert list_data["class_id"] == "cls_7a_2026"
+        assert len(list_data["assignments"]) >= 1
+        a0 = list_data["assignments"][0]
+        assert a0["assignment_id"] == "TAT-2026-Q1"
+        assert a0["total_students"] >= 2
+
+        # 3. List teacher assignments endpoint
+        res_teacher_asm = await client.get("/api/v1/assignments?class_id=cls_7a_2026")
+        assert res_teacher_asm.status_code == 200
+        teacher_asm_list = res_teacher_asm.json()
+        assert len(teacher_asm_list) >= 1
+        assert teacher_asm_list[0]["assignment_id"] == "TAT-2026-Q1"
+        assert len(teacher_asm_list[0]["assigned_classes"]) >= 1
+        assert teacher_asm_list[0]["assigned_classes"][0]["class_id"] == "cls_7a_2026"
+
+        # 4. Download batch blanks PDF for class
+        res_batch_pdf = await client.get("/api/v1/classes/cls_7a_2026/assignments/TAT-2026-Q1/batch-blanks.pdf")
+        assert res_batch_pdf.status_code == 200
+        assert "application/pdf" in res_batch_pdf.headers["content-type"]
+        assert res_batch_pdf.content.startswith(b"%PDF")
+        assert len(res_batch_pdf.content) > 1000
+
+        # 5. Download batch blanks PDF via assignment alias
+        res_batch_alias = await client.get("/api/v1/assignments/TAT-2026-Q1/batch-blanks.pdf?class_id=cls_7a_2026")
+        assert res_batch_alias.status_code == 200
+        assert "application/pdf" in res_batch_alias.headers["content-type"]
+        assert res_batch_alias.content.startswith(b"%PDF")
+
+
 
 class TestSubmissionsAndAnalyticsAPI:
     """Tests for Router 4 (Submissions) & Router 5 (Analytics) & Router 6 (Reports)"""

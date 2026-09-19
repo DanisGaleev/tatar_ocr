@@ -10,6 +10,84 @@ from app.schemas.test import OfflineBundleResponse
 
 router = APIRouter(prefix="/assignments", tags=["Assignment Delivery"])
 
+@router.get("", summary="List Teacher Assignments")
+async def list_assignments(
+    class_id: Optional[str] = Query(None, description="Filter assignments by class ID"),
+    status: Optional[str] = Query(None, description="Filter assignments by status"),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.models.school import ClassModel, ClassAssignmentModel, StudentModel
+    from app.models.submission import SubmissionModel
+    from sqlalchemy import func
+
+    stmt = select(AssembledTestModel).order_by(AssembledTestModel.created_at.desc())
+    res = await db.execute(stmt)
+    tests = res.scalars().all()
+
+    results = []
+    for t in tests:
+        # Check linked classes
+        ca_stmt = select(ClassAssignmentModel, ClassModel).join(
+            ClassModel, ClassAssignmentModel.class_id == ClassModel.class_id
+        ).where(ClassAssignmentModel.assignment_id == t.test_id)
+
+        if class_id:
+            ca_stmt = ca_stmt.where(ClassAssignmentModel.class_id == class_id)
+        if status:
+            ca_stmt = ca_stmt.where(ClassAssignmentModel.status == status)
+
+        ca_res = await db.execute(ca_stmt)
+        ca_rows = ca_res.all()
+
+        if (class_id or status) and not ca_rows:
+            continue
+
+        assigned_classes_list = []
+        for ca_obj, cls_obj in ca_rows:
+            stu_stmt = select(func.count(StudentModel.student_id)).where(StudentModel.class_id == cls_obj.class_id)
+            total_students = (await db.execute(stu_stmt)).scalar() or 0
+
+            sub_stmt = select(func.count(SubmissionModel.submission_id)).where(
+                (SubmissionModel.class_id == cls_obj.class_id) & (SubmissionModel.assignment_id == t.test_id)
+            )
+            checked_count = (await db.execute(sub_stmt)).scalar() or 0
+
+            assigned_classes_list.append({
+                "class_id": cls_obj.class_id,
+                "class_name": cls_obj.name,
+                "assigned_at": ca_obj.assigned_at.isoformat() if ca_obj.assigned_at else None,
+                "due_date": ca_obj.due_date.isoformat() if ca_obj.due_date else None,
+                "status": ca_obj.status,
+                "total_students": total_students,
+                "checked_submissions_count": checked_count,
+            })
+
+        results.append({
+            "assignment_id": t.test_id,
+            "title": t.title,
+            "grade_level": t.grade_level,
+            "total_variants": t.total_variants,
+            "created_at": t.created_at.isoformat() if t.created_at else None,
+            "assigned_classes": assigned_classes_list,
+        })
+
+    return results
+
+
+@router.get(
+    "/{assignment_id}/batch-blanks.pdf",
+    summary="Download Batch Printable Blanks PDF (Alias)",
+    description="Generates a multi-page PDF containing personalized test blanks for all students in the specified class.",
+)
+async def get_assignment_batch_blanks_pdf(
+    assignment_id: str,
+    class_id: str = Query(..., description="Class ID whose students to generate blanks for"),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.routers.classes import get_class_batch_blanks_pdf
+    return await get_class_batch_blanks_pdf(class_id=class_id, assignment_id=assignment_id, db=db)
+
+
 @router.get("/{assignment_id}/offline-bundle", response_model=OfflineBundleResponse, summary="Download Offline Verification Bundle")
 async def get_offline_bundle(
     assignment_id: str,

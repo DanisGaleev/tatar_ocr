@@ -34,3 +34,31 @@ class ImportedStudentItem(BaseModel):
 class BulkImportStudentsResponse(BaseModel):
     added_count: int
     students: List[ImportedStudentItem]
+
+
+class AssignTestToClassRequest(BaseModel):
+    assignment_id: str
+    due_date: Optional[str] = None
+    status: Optional[str] = "active"
+
+
+class ClassAssignmentItem(BaseModel):
+    id: str
+    class_id: str
+    assignment_id: str
+    assignment_title: str
+    total_variants: int = 1
+    assigned_at: Optional[str] = None
+    due_date: Optional[str] = None
+    status: str = "active"
+    total_students: int = 0
+    checked_submissions_count: int = 0
+    pending_submissions_count: int = 0
+    average_score_pct: float = 0.0
+
+
+class ClassAssignmentsResponse(BaseModel):
+    class_id: str
+    class_name: str
+    assignments: List[ClassAssignmentItem]
+
