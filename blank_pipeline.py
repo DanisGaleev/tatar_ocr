@@ -187,29 +187,47 @@ class BlankOCRScanner:
 
         return name_cells, question_rows
 
-    def classify_cell(self, cell_bgr, margin_trim_pct=4):
+    def classify_cell(self, cell_bgr, margin_trim_pct=8):
         ch, cw = cell_bgr.shape[:2]
         if ch < 10 or cw < 10:
             return {"is_empty": True, "char": " ", "confidence": 100.0, "top3": [(" ", 100.0)]}
 
         gray = cv2.cvtColor(cell_bgr, cv2.COLOR_BGR2GRAY)
 
-        # Empty cell check: inspect central 70% region
-        cx1, cx2 = int(cw * 0.15), int(cw * 0.85)
-        cy1, cy2 = int(ch * 0.15), int(ch * 0.85)
-        center_area = gray[cy1:cy2, cx1:cx2]
+        # 1. Suppress printed cell borders via margin trimming
+        my = max(1, int(round(ch * (margin_trim_pct / 100.0))))
+        mx = max(1, int(round(cw * (margin_trim_pct / 100.0))))
+        inner_gray = gray[my:ch - my, mx:cw - mx]
+        ih, iw = inner_gray.shape[:2]
 
-        bg_val = float(np.median(center_area))
-        ink_mask = (center_area < (bg_val - 25)).astype(np.uint8)
-        ink_pixels = np.sum(ink_mask)
-        total_center_pixels = center_area.size
-        ink_ratio = ink_pixels / float(total_center_pixels + 1e-5)
+        if ih < 8 or iw < 8:
+            return {"is_empty": True, "char": " ", "confidence": 100.0, "top3": [(" ", 100.0)]}
+
+        # 2. Ink segmentation & connected components
+        bg_val = float(np.median(inner_gray))
+        ink_mask = (inner_gray < (bg_val - 22)).astype(np.uint8)
 
         num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(ink_mask)
-        max_comp = max([s[cv2.CC_STAT_AREA] for s in stats[1:]], default=0)
+        if num_labels <= 1:
+            return {"is_empty": True, "char": " ", "confidence": 100.0, "top3": [(" ", 100.0)]}
+
+        valid_ink = np.zeros_like(ink_mask)
+        total_ink_pixels = 0
+        for i in range(1, num_labels):
+            area = stats[i, cv2.CC_STAT_AREA]
+            bx = stats[i, cv2.CC_STAT_LEFT]
+            by = stats[i, cv2.CC_STAT_TOP]
+            bw = stats[i, cv2.CC_STAT_WIDTH]
+            bh = stats[i, cv2.CC_STAT_HEIGHT]
+
+            # Filter out line artifacts (grid border remnants touching the outer perimeter)
+            is_edge_line = (bw > 0.88 * iw and bh <= 3) or (bh > 0.88 * ih and bw <= 3)
+            if area >= 18 and not is_edge_line:
+                valid_ink[labels == i] = 1
+                total_ink_pixels += area
 
         # Mark empty if stroke component is tiny or ink ratio is negligible
-        if ink_ratio < 0.02 or max_comp < 35:
+        if total_ink_pixels < 30:
             return {
                 "is_empty": True,
                 "char": " ",
@@ -217,35 +235,46 @@ class BlankOCRScanner:
                 "top3": [(" ", 100.0)]
             }
 
-        # 1. Margin trim
-        trim_y = int(ch * (margin_trim_pct / 100.0))
-        trim_x = int(cw * (margin_trim_pct / 100.0))
-        trimmed = cell_bgr[trim_y:ch - trim_y, trim_x:cw - trim_x]
+        # 3. Ink Bounding-Box Extraction
+        ys, xs = np.where(valid_ink > 0)
+        if len(xs) == 0 or len(ys) == 0:
+            return {"is_empty": True, "char": " ", "confidence": 100.0, "top3": [(" ", 100.0)]}
 
-        # 2. Square padding
-        th, tw = trimmed.shape[:2]
-        sq_size = max(th, tw)
-        edge_pix = np.concatenate([
-            trimmed[0, :, :], trimmed[-1, :, :],
-            trimmed[:, 0, :], trimmed[:, -1, :]
-        ], axis=0)
-        bg_col = np.median(edge_pix, axis=0).astype(np.uint8)
+        x1, x2 = int(np.min(xs)), int(np.max(xs))
+        y1, y2 = int(np.min(ys)), int(np.max(ys))
 
-        padded = np.full((sq_size, sq_size, 3), bg_col, dtype=np.uint8)
-        py = (sq_size - th) // 2
-        px = (sq_size - tw) // 2
-        padded[py:py + th, px:px + tw] = trimmed
+        # Add small cushion padding
+        pad = 2
+        x1 = max(0, x1 - pad)
+        y1 = max(0, y1 - pad)
+        x2 = min(iw - 1, x2 + pad)
+        y2 = min(ih - 1, y2 + pad)
 
-        # 3. Grayscale + Percentile contrast normalization
-        gray_p = cv2.cvtColor(padded, cv2.COLOR_BGR2GRAY)
-        p_lo = np.percentile(gray_p, 2)
-        p_hi = np.percentile(gray_p, 98)
-        norm_gray = np.clip((gray_p.astype(np.float32) - p_lo) / (p_hi - p_lo + 1e-5) * 240.0 + 10.0, 0, 255).astype(np.uint8)
+        glyph_crop = inner_gray[y1:y2 + 1, x1:x2 + 1]
+        gh, gw = glyph_crop.shape[:2]
 
-        # 4. Resize to 64x64
-        inp_64 = cv2.resize(norm_gray, (64, 64), interpolation=cv2.INTER_AREA)
+        # 4. Aspect-ratio preserving scaling to canonical ~72% occupancy (46px out of 64px)
+        max_dim = max(gh, gw)
+        target_dim = 46.0
+        scale = target_dim / float(max_dim + 1e-5)
+        new_w = max(1, min(60, int(round(gw * scale))))
+        new_h = max(1, min(60, int(round(gh * scale))))
 
-        # 5. Tensor inference
+        interp = cv2.INTER_AREA if scale < 1.0 else cv2.INTER_LANCZOS4
+        resized_glyph = cv2.resize(glyph_crop, (new_w, new_h), interpolation=interp)
+
+        # 5. Percentile contrast normalization
+        p_lo = np.percentile(resized_glyph, 2)
+        p_hi = np.percentile(resized_glyph, 98)
+        norm_glyph = np.clip((resized_glyph.astype(np.float32) - p_lo) / (p_hi - p_lo + 1e-5) * 240.0 + 10.0, 0, 255).astype(np.uint8)
+
+        # 6. Center on 64x64 canvas
+        inp_64 = np.full((64, 64), 250, dtype=np.uint8)
+        off_x = (64 - new_w) // 2
+        off_y = (64 - new_h) // 2
+        inp_64[off_y:off_y + new_h, off_x:off_x + new_w] = norm_glyph
+
+        # 7. Tensor inference
         t = ((inp_64.astype(np.float32) / 255.0) - 0.5) / 0.5
         tensor = torch.from_numpy(t).unsqueeze(0).unsqueeze(0).to(self.device)
 
