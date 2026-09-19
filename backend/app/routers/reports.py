@@ -47,12 +47,12 @@ async def export_gradebook(
     submissions = res_sub.scalars().all()
 
     headers = [
-        "Укучының Ф.И.О. / ФИО Ученика",
+        "ФИО ученика",
         "Вариант",
-        "Җыелган балл / Баллы",
+        "Набранный балл",
         "Макс. балл",
-        "Билге / Оценка",
-        "Тикшерелгән көн / Дата",
+        "Оценка",
+        "Дата проверки",
     ]
 
     rows = []
@@ -72,7 +72,7 @@ async def export_gradebook(
         # UTF-8 BOM for Excel compatibility with Tatar Cyrillic
         output.write("\ufeff")
         writer = csv.writer(output, delimiter=";")
-        writer.writerow([f"Контроль эш: {test_title} | Сыйныф: {class_name}"])
+        writer.writerow([f"Контрольная работа: {test_title} | Класс: {class_name}"])
         writer.writerow([])
         writer.writerow(headers)
         for r in rows:
@@ -95,7 +95,7 @@ async def export_gradebook(
     # Document Header Title
     title_font = Font(name="Calibri", size=14, bold=True, color="1B5E20")
     ws.merge_cells("A1:F1")
-    ws["A1"] = f"«Дәресханә» — Билгеләр ведомосте: {test_title} ({class_name})"
+    ws["A1"] = f"«Дәресханә» — Ведомость оценок: {test_title} ({class_name})"
     ws["A1"].font = title_font
     ws["A1"].alignment = Alignment(vertical="center")
     ws.row_dimensions[1].height = 28
