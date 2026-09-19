@@ -10,7 +10,7 @@ from app.models.task import TaskBankModel
 from app.models.test import AssembledTestModel
 from app.models.teacher import TeacherModel
 from app.models.school import ClassModel, StudentModel
-from app.routers import constructor, assignments, auth, classes, submissions, analytics, reports, web
+from app.routers import constructor, assignments, auth, classes, submissions, analytics, reports, web, ocr
 from app.generators.registry import registry
 
 INITIAL_BANK_TASKS = [
@@ -211,6 +211,8 @@ app.include_router(classes.router, prefix=settings.API_V1_STR)
 app.include_router(submissions.router, prefix=settings.API_V1_STR)
 app.include_router(analytics.router, prefix=settings.API_V1_STR)
 app.include_router(reports.router, prefix=settings.API_V1_STR)
+app.include_router(ocr.router, prefix=settings.API_V1_STR)
+app.include_router(ocr.legacy_router)
 
 @app.get("/health", tags=["System"])
 async def health_check():
