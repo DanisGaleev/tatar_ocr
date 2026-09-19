@@ -317,6 +317,14 @@ class TestSubmissionsAndAnalyticsAPI:
         assert stu_data["total_tests_completed"] == 1
         assert stu_data["average_score_pct"] == 50.0
         assert stu_data["average_grade"] == 3.0
+        # Verify handwriting metrics (low confidence 0.52 + teacher override drops percentage)
+        assert "handwriting_quality_pct" in stu_data
+        assert stu_data["handwriting_quality_pct"] == 63.2
+        assert stu_data["handwriting_status"] == "NEEDS_ATTENTION"
+        assert stu_data["handwriting_metrics"]["teacher_correction_rate_pct"] == 50.0
+        assert stu_data["handwriting_metrics"]["low_confidence_rate_pct"] == 50.0
+        assert "Ң" in stu_data["handwriting_metrics"]["unclear_characters"]
+
         # Verify problematic letters picked up Ң vs Н confusion
         assert len(stu_data["problematic_letters"]) >= 1
         prob = stu_data["problematic_letters"][0]
@@ -329,6 +337,8 @@ class TestSubmissionsAndAnalyticsAPI:
         cls_data = res_cls.json()
         assert cls_data["class_id"] == "cls_7a_2026"
         assert cls_data["average_class_score_pct"] == 75.0  # (100% + 50%) / 2
+        assert cls_data["average_handwriting_quality_pct"] == 80.5
+        assert "Закирова Ләйсән Ильдаровна" in cls_data["students_needing_handwriting_attention"]
         assert cls_data["grade_distribution"]["5"] == 1
         assert cls_data["grade_distribution"]["3"] == 1
         # Top mistakes should show case_ablative with 100% failure rate
@@ -340,6 +350,9 @@ class TestSubmissionsAndAnalyticsAPI:
         leaderboard = cls_data["students_performance_table"]
         assert leaderboard[0]["student_id"] == "stu_01"
         assert leaderboard[0]["average_score_pct"] == 100.0
+        assert leaderboard[0]["handwriting_quality_pct"] == 97.9
+        assert leaderboard[1]["student_id"] == "stu_02"
+        assert leaderboard[1]["handwriting_quality_pct"] == 63.2
 
         # 5. Test Assignment Analytics
         res_asm = await client.get("/api/v1/analytics/assignments/TAT-2026-Q1")

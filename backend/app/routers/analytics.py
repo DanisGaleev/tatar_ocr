@@ -21,11 +21,90 @@ from app.schemas.analytics import (
     AssignmentAnalyticsResponse,
     QuestionAnalyticsItem,
     WrongSubmissionItem,
+    HandwritingMetrics,
 )
 
 from app.generators.registry import registry
 
 router = APIRouter(prefix="/analytics", tags=["Backend Analytics Engine"])
+
+def compute_handwriting_metrics(cells_data: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """
+    Computes student handwriting quality percentage and legibility metrics:
+    - Base confidence score (60% weight)
+    - Teacher non-intervention/correction rate (25% weight)
+    - Consistent confidence / lack of low-confidence outliers (15% weight)
+    """
+    if not cells_data:
+        return {
+            "quality_pct": 100.0,
+            "status": "EXCELLENT",
+            "average_confidence": 1.0,
+            "teacher_correction_rate_pct": 0.0,
+            "low_confidence_rate_pct": 0.0,
+            "total_characters_analyzed": 0,
+            "unclear_characters": [],
+        }
+
+    total = len(cells_data)
+    conf_sum = 0.0
+    low_conf_count = 0
+    teacher_corrected_count = 0
+    unclear_chars_count = defaultdict(int)
+
+    for c in cells_data:
+        raw_conf = c.get("confidence")
+        if raw_conf is None:
+            raw_conf = 0.95 if c.get("status") == "MATCH" else 0.50
+        elif raw_conf > 1.0:
+            raw_conf = raw_conf / 100.0
+        conf = max(0.0, min(1.0, float(raw_conf)))
+        conf_sum += conf
+
+        is_low_conf = conf < 0.70
+        if is_low_conf:
+            low_conf_count += 1
+
+        override = c.get("teacher_override")
+        status = c.get("status", "MATCH")
+        is_corrected = bool(override) or status in ("FLAG_OVERRIDDEN_BY_TEACHER", "FLAGGED")
+        if is_corrected:
+            teacher_corrected_count += 1
+
+        if is_low_conf or is_corrected:
+            ch = (c.get("expected_char") or c.get("predicted_char") or "").strip().upper()
+            if ch and ch.isalpha():
+                unclear_chars_count[ch] += 1
+
+    avg_conf = conf_sum / total
+    corr_rate = teacher_corrected_count / total
+    low_conf_rate = low_conf_count / total
+
+    # Formula:
+    # 60% avg confidence + 25% (1 - correction rate) + 15% (1 - low confidence rate)
+    quality = (avg_conf * 100.0 * 0.60) + ((1.0 - corr_rate) * 100.0 * 0.25) + ((1.0 - low_conf_rate) * 100.0 * 0.15)
+    quality_pct = round(max(0.0, min(100.0, quality)), 1)
+
+    if quality_pct >= 85.0:
+        handwriting_status = "EXCELLENT"
+    elif quality_pct >= 70.0:
+        handwriting_status = "GOOD"
+    elif quality_pct >= 50.0:
+        handwriting_status = "NEEDS_ATTENTION"
+    else:
+        handwriting_status = "POOR"
+
+    sorted_unclear = sorted(unclear_chars_count.keys(), key=lambda ch: -unclear_chars_count[ch])
+
+    return {
+        "quality_pct": quality_pct,
+        "status": handwriting_status,
+        "average_confidence": round(avg_conf, 3),
+        "teacher_correction_rate_pct": round(corr_rate * 100.0, 1),
+        "low_confidence_rate_pct": round(low_conf_rate * 100.0, 1),
+        "total_characters_analyzed": total,
+        "unclear_characters": sorted_unclear[:5],
+    }
 
 # Topic code to human Tatar display name mapping (pure Tatar)
 TOPIC_NAMES = {
@@ -84,6 +163,9 @@ async def get_student_analytics(
             frequent_weak_topics=[],
             problematic_letters=[],
             history=[],
+            handwriting_quality_pct=100.0,
+            handwriting_status="EXCELLENT",
+            handwriting_metrics=None,
         )
 
     total_tests = len(submissions)
@@ -94,6 +176,7 @@ async def get_student_analytics(
 
     topic_stats = defaultdict(lambda: {"total": 0, "wrong": 0})
     letter_stats = defaultdict(lambda: {"total": 0, "wrong": 0, "confusions": set()})
+    all_student_cells = []
 
     for s in submissions:
         pct = (s.overall_score / s.max_score * 100.0) if s.max_score > 0 else 0.0
@@ -128,6 +211,7 @@ async def get_student_analytics(
                 topic_stats[tag]["wrong"] += 1
 
             for c in q.get("cells", []):
+                all_student_cells.append(c)
                 exp = c.get("expected_char", "").strip().upper()
                 pred = c.get("predicted_char", "").strip().upper()
                 status_cell = c.get("status", "MATCH")
@@ -173,6 +257,9 @@ async def get_student_analytics(
             )
     prob_letters.sort(key=lambda x: (x.accuracy_pct, -x.misrecognized_or_wrong))
 
+    hw = compute_handwriting_metrics(all_student_cells)
+    hw_metrics = HandwritingMetrics(**hw)
+
     return StudentAnalyticsResponse(
         student_id=student_id,
         full_name=student_name,
@@ -184,6 +271,9 @@ async def get_student_analytics(
         frequent_weak_topics=weak_topics,
         problematic_letters=prob_letters,
         history=history,
+        handwriting_quality_pct=hw["quality_pct"],
+        handwriting_status=hw["status"],
+        handwriting_metrics=hw_metrics,
     )
 
 
@@ -214,6 +304,7 @@ async def get_class_analytics(
             class_name=class_name,
             students_count=students_count,
             average_class_score_pct=0.0,
+            average_handwriting_quality_pct=100.0,
             grade_distribution={"5": 0, "4": 0, "3": 0, "2": 0},
             top_class_mistakes=[],
             difficult_characters_across_class=[],
@@ -224,16 +315,20 @@ async def get_class_analytics(
                     average_score_pct=0.0,
                     average_grade=0.0,
                     tests_completed=0,
+                    handwriting_quality_pct=100.0,
+                    handwriting_status="EXCELLENT",
                 )
                 for s in all_students
             ],
+            students_needing_handwriting_attention=[],
         )
 
     pcts = []
     grade_dist = {"5": 0, "4": 0, "3": 0, "2": 0}
-    student_records = defaultdict(lambda: {"pcts": [], "grades": [], "name": ""})
+    student_records = defaultdict(lambda: {"pcts": [], "grades": [], "name": "", "cells": []})
     topic_mistakes = defaultdict(lambda: {"total": 0, "wrong": 0, "affected_students": set()})
     char_errors = defaultdict(lambda: {"total": 0, "wrong": 0})
+    all_class_cells = []
 
     for s in submissions:
         pct = (s.overall_score / s.max_score * 100.0) if s.max_score > 0 else 0.0
@@ -259,6 +354,9 @@ async def get_class_analytics(
                 topic_mistakes[tag]["affected_students"].add(s.student_id)
 
             for c in q.get("cells", []):
+                student_records[s.student_id]["cells"].append(c)
+                all_class_cells.append(c)
+
                 exp = c.get("expected_char", "").strip().upper()
                 pred = c.get("predicted_char", "").strip().upper()
                 status_cell = c.get("status", "MATCH")
@@ -298,13 +396,15 @@ async def get_class_analytics(
     name_map = {s.student_id: s.full_name for s in all_students}
 
     for stu_id in student_ids_set:
-        rec = student_records.get(stu_id, {"pcts": [], "grades": [], "name": ""})
+        rec = student_records.get(stu_id, {"pcts": [], "grades": [], "name": "", "cells": []})
         s_pcts = rec["pcts"]
         s_grades = rec["grades"]
         full_n = name_map.get(stu_id) or rec["name"] or f"Укучы {stu_id}"
 
         avg_pct = round(sum(s_pcts) / len(s_pcts), 1) if s_pcts else 0.0
         avg_g = round(sum(s_grades) / len(s_grades), 1) if s_grades else 0.0
+        stu_hw = compute_handwriting_metrics(rec.get("cells", []))
+
         perf_table.append(
             StudentPerformanceRow(
                 student_id=stu_id,
@@ -312,19 +412,29 @@ async def get_class_analytics(
                 average_score_pct=avg_pct,
                 average_grade=avg_g,
                 tests_completed=len(s_pcts),
+                handwriting_quality_pct=stu_hw["quality_pct"],
+                handwriting_status=stu_hw["status"],
             )
         )
     perf_table.sort(key=lambda x: (-x.average_score_pct, -x.average_grade, x.full_name))
+
+    class_hw = compute_handwriting_metrics(all_class_cells)
+    needing_attention = [
+        row.full_name for row in perf_table
+        if row.handwriting_status in ("NEEDS_ATTENTION", "POOR")
+    ]
 
     return ClassAnalyticsResponse(
         class_id=class_id,
         class_name=class_name,
         students_count=max(students_count, len(perf_table)),
         average_class_score_pct=avg_class_score_pct,
+        average_handwriting_quality_pct=class_hw["quality_pct"],
         grade_distribution=grade_dist,
         top_class_mistakes=top_mistakes,
         difficult_characters_across_class=difficult_chars,
         students_performance_table=perf_table,
+        students_needing_handwriting_attention=needing_attention,
     )
 
 
