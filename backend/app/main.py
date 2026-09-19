@@ -216,7 +216,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version="1.0.0",
-    description="FastAPI Backend for «Дәресханә» (Tatar OCR) with Deterministic Task Generator",
+    description="FastAPI Backend for «Кара куян» (Tatar OCR) with Deterministic Task Generator",
     lifespan=lifespan,
 )
 

@@ -229,7 +229,7 @@ class TestConstructorAndAssignmentsAPI:
         res_root = await client.get("/")
         assert res_root.status_code == 200
         assert "text/html" in res_root.headers["content-type"]
-        assert "«Дәресханә»" in res_root.text
+        assert "«Кара куян»" in res_root.text
 
         res_ui = await client.get("/ui")
         assert res_ui.status_code == 200

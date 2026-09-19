@@ -95,7 +95,7 @@ async def export_gradebook(
     # Document Header Title
     title_font = Font(name="Calibri", size=14, bold=True, color="1B5E20")
     ws.merge_cells("A1:F1")
-    ws["A1"] = f"«Дәресханә» — Ведомость оценок: {test_title} ({class_name})"
+    ws["A1"] = f"«Кара куян» — Ведомость оценок: {test_title} ({class_name})"
     ws["A1"].font = title_font
     ws["A1"].alignment = Alignment(vertical="center")
     ws.row_dimensions[1].height = 28
