@@ -23,9 +23,11 @@ from app.schemas.analytics import (
     WrongSubmissionItem,
 )
 
+from app.generators.registry import registry
+
 router = APIRouter(prefix="/analytics", tags=["Backend Analytics Engine"])
 
-# Topic code to human Tatar display name mapping
+# Topic code to human Tatar display name mapping (pure Tatar)
 TOPIC_NAMES = {
     "case_dative": "Юнәлеш килеше (-ка/-кә, -га/-гә)",
     "case_ablative": "Чыгыш килеше (-дан/-дән, -тан/-тән, -нан/-нән)",
@@ -34,11 +36,17 @@ TOPIC_NAMES = {
     "case_genitive": "Иялек килеше (-ның/-нең)",
     "case_inflection": "Исем килешләре",
     "plural_affixes": "Күплек сан кушымчалары (-лар/-ләр, -нар/-нәр)",
-    "antonyms": "Сыйфат антонимнары (кире мәгънә)",
-    "antonyms_adjectives": "Сыйфат антонимнары (кире мәгънә)",
-    "translation": "Сүзлек байлыгы (русча-татарча тәрҗемә)",
-    "vocabulary_translation": "Сүзлек байлыгы (русча-татарча тәрҗемә)",
+    "antonyms": "Сыйфат антонимнары",
+    "antonyms_adjectives": "Сыйфат антонимнары",
+    "translation": "Сүзлек байлыгы (тәрҗемә)",
+    "vocabulary_translation": "Сүзлек байлыгы (тәрҗемә)",
 }
+
+# Dynamically populate all supported generator topics in pure Tatar
+for _item in registry.list_supported_types():
+    if _item["topic_tag"] not in TOPIC_NAMES:
+        TOPIC_NAMES[_item["topic_tag"]] = _item["topic_name_tt"]
+
 
 
 @router.get("/students/{student_id}", response_model=StudentAnalyticsResponse, summary="Student Analytics (Individual)")
@@ -330,7 +338,7 @@ async def get_assignment_analytics(
     res_test = await db.execute(stmt_test)
     test_obj = res_test.scalar_one_or_none()
 
-    title = test_obj.title if test_obj else f"Контроль эш {assignment_id}"
+    title = test_obj.title if test_obj else f"Контрольная работа {assignment_id}"
 
     # Extract questions metadata from bundle if available
     bundle_questions = {}

@@ -116,86 +116,86 @@
 
   <!-- Navigation Tabs -->
   <div class="nav-tabs">
-    <button class="nav-btn active" onclick="switchTab('tab-generate')">1. Generate Tasks</button>
+    <button class="nav-btn active" onclick="switchTab('tab-generate')">1. ⚡ Генератор заданий</button>
     <button class="nav-btn" onclick="switchTab('tab-assemble')" style="border-bottom: 3px solid #16a34a; font-weight: 700;">2. 📄 Экспорт PDF / Сборка (A4)</button>
     <button class="nav-btn" onclick="switchTab('tab-scan')" style="border-bottom: 3px solid #2563eb; font-weight: 700;">3. 📸 Скан / Фото (AI)</button>
-    <button class="nav-btn" onclick="switchTab('tab-custom')">4. Create Custom Task</button>
-    <button class="nav-btn" onclick="switchTab('tab-bank')">5. Task Bank Explorer</button>
-    <button class="nav-btn" onclick="switchTab('tab-classes')">6. Classes & Rosters</button>
-    <button class="nav-btn" onclick="switchTab('tab-submissions')">7. Zero-Photo Submissions Sync</button>
-    <button class="nav-btn" onclick="switchTab('tab-analytics')">8. Analytics & Heatmap</button>
-    <button class="nav-btn" onclick="switchTab('tab-reports')">9. Gradebook Export</button>
+    <button class="nav-btn" onclick="switchTab('tab-custom')">4. ✏️ Создать задание</button>
+    <button class="nav-btn" onclick="switchTab('tab-bank')">5. 📚 Банк заданий</button>
+    <button class="nav-btn" onclick="switchTab('tab-classes')">6. 👥 Классы и ученики</button>
+    <button class="nav-btn" onclick="switchTab('tab-submissions')">7. 🔄 Синхронизация работ</button>
+    <button class="nav-btn" onclick="switchTab('tab-analytics')">8. 📊 Аналитика и тепловая карта</button>
+    <button class="nav-btn" onclick="switchTab('tab-reports')">9. 📋 Экспорт ведомости</button>
   </div>
 
   <!-- TAB 1: TASK GENERATOR -->
   <div id="tab-generate" class="tab-content active">
-    <h3>Deterministic Task Generator</h3>
+    <h3>Генератор заданий</h3>
     <form id="genForm" onsubmit="handleGenerate(event)">
       <div class="form-grid">
         <div class="form-group">
-          <label>Task Type:</label>
+          <label>Тип упражнения:</label>
           <select id="genType" onchange="toggleCaseCodeField()">
-            <optgroup label="1. Морфология (Morphology)">
-              <option value="case_inflection">1.1. Noun Cases (Исем килешләре)</option>
-              <option value="plural_affixes">1.2. Plural Affixes (Күплек сан -лар/-нәр)</option>
-              <option value="possessive_affixes">1.3. Possessive Affixes (Тартым I/II/III зат)</option>
-              <option value="possessive_case">1.4. Possessive + Case (Тартым + килеш)</option>
-              <option value="verb_negation">1.5. Verb Negation (Юклык фигыль -мый/-ми)</option>
-              <option value="verb_imperative">1.6. Verb Imperative (Боерык фигыль -гыз/-гез)</option>
-              <option value="comparative_degree">1.7. Comparative Degree (Чагыштыру -рак/-рәк)</option>
-              <option value="ordinal_numerals">1.8. Ordinal Numerals (Тәртип саннары -ынчы/-енче)</option>
+            <optgroup label="1. Морфология">
+              <option value="case_inflection">1.1. Исем килешләре</option>
+              <option value="plural_affixes">1.2. Күплек сан (-лар/-ләр)</option>
+              <option value="possessive_affixes">1.3. Тартым категориясе (I/II/III зат)</option>
+              <option value="possessive_case">1.4. Тартым һәм килеш</option>
+              <option value="verb_negation">1.5. Юклык фигыль (-мый/-ми)</option>
+              <option value="verb_imperative">1.6. Боерык фигыль (-гыз/-гез)</option>
+              <option value="comparative_degree">1.7. Чагыштыру дәрәҗәсе (-рак/-рәк)</option>
+              <option value="ordinal_numerals">1.8. Тәртип саннары (-ынчы/-енче)</option>
             </optgroup>
-            <optgroup label="2. Сүз ясалышы (Word Formation)">
-              <option value="noun_profession">2.1. Profession Nouns (Һөнәр -чы/-че)</option>
-              <option value="abstract_noun">2.2. Abstract Nouns (Абстракт исем -лык/-лек)</option>
-              <option value="consonant_voicing">2.3. Consonant Voicing (Тартык алмашу)</option>
+            <optgroup label="2. Сүз ясалышы">
+              <option value="noun_profession">2.1. Һөнәр исемнәре (-чы/-че)</option>
+              <option value="abstract_noun">2.2. Абстракт исемнәр (-лык/-лек)</option>
+              <option value="consonant_voicing">2.3. Тартык авазлар алмашынуы</option>
             </optgroup>
-            <optgroup label="3. Лексика (Lexicon)">
-              <option value="antonyms">3.1. Antonyms (Сыйфат антонимнары)</option>
-              <option value="synonyms">3.2. Synonyms (Синонимнар)</option>
-              <option value="compound_words">3.3. Compound Words (Кушма сүзләр)</option>
-              <option value="odd_one_out">3.4. Odd One Out (Артыгын тап)</option>
-              <option value="translation">3.5. Translation (Русча-татарча тәрҗемә)</option>
+            <optgroup label="3. Лексика">
+              <option value="antonyms">3.1. Антонимнар (кире мәгънә)</option>
+              <option value="synonyms">3.2. Синонимнар (якын мәгънә)</option>
+              <option value="compound_words">3.3. Кушма сүзләр</option>
+              <option value="odd_one_out">3.4. Артыгын тап</option>
+              <option value="translation">3.5. Тәрҗемә (русча-татарча)</option>
             </optgroup>
-            <optgroup label="4. Фонетика һәм орфография (Phonetics & Gaps)">
-              <option value="vowel_harmony_gap">4.1. Vowel Harmony Gap (Сузык гармониясе)</option>
-              <option value="tatar_letters_gap">4.2. Tatar Specific Letters (Ә, Ө, Ү, Җ, Ң, Һ)</option>
+            <optgroup label="4. Фонетика һәм орфография">
+              <option value="vowel_harmony_gap">4.1. Сузык авазлар гармониясе</option>
+              <option value="tatar_letters_gap">4.2. Татар хәрефләре (Ә, Ө, Ү, Җ, Ң, Һ)</option>
             </optgroup>
-            <optgroup label="5. Җөмлә һәм синтаксис (Sentence & Syntax)">
-              <option value="sentence_mc_cloze">5.1. Multiple Choice Cloze (Дөрес кушымча)</option>
-              <option value="true_false_grammar">5.2. True/False Rule (Дөрес яки ялгыш)</option>
-              <option value="find_error_sentence">5.3. Find Error in Sentence (Хатаны тап)</option>
-              <option value="word_order">5.4. Word Order (Җөмлә төзе)</option>
+            <optgroup label="5. Җөмлә һәм синтаксис">
+              <option value="sentence_mc_cloze">5.1. Дөрес кушымчаны сайлау</option>
+              <option value="true_false_grammar">5.2. Дөрес яки ялгыш</option>
+              <option value="find_error_sentence">5.3. Җөмләдә хатаны тап</option>
+              <option value="word_order">5.4. Җөмлә тәртибе (сүзләрдән җөмлә төзү)</option>
             </optgroup>
-            <optgroup label="6. Уку һәм текст (Reading Comprehension)">
-              <option value="text_comprehension">6.1. Reading Comprehension (Текстны аңлау)</option>
-              <option value="text_title_main_idea">6.2. Main Idea / Title (Текстның исеме)</option>
+            <optgroup label="6. Уку һәм текст">
+              <option value="text_comprehension">6.1. Текстны аңлау</option>
+              <option value="text_title_main_idea">6.2. Текстның төп фикере һәм исеме</option>
             </optgroup>
           </select>
         </div>
 
         <div class="form-group">
-          <label>Count (1-8):</label>
+          <label>Количество заданий (1-8):</label>
           <input type="number" id="genCount" min="1" max="8" value="3">
         </div>
 
         <div class="form-group">
-          <label>Seed (Deterministic Random):</label>
+          <label>Сид (Seed, для воспроизводимости):</label>
           <div style="display:flex; gap:6px;">
-            <input type="number" id="genSeed" value="42" placeholder="e.g. 42">
-            <button type="button" class="btn btn-secondary" onclick="randomizeSeed()" title="Pick random seed">🎲</button>
+            <input type="number" id="genSeed" value="42" placeholder="например: 42">
+            <button type="button" class="btn btn-secondary" onclick="randomizeSeed()" title="Случайный сид">🎲</button>
           </div>
         </div>
 
         <div class="form-group">
-          <label>Grade Level (5-9):</label>
+          <label>Класс (5-9):</label>
           <input type="number" id="genGrade" min="5" max="9" value="7">
         </div>
 
         <div class="form-group" id="caseCodeGroup">
-          <label>Specific Case (Optional):</label>
+          <label>Конкретный падеж (опционально):</label>
           <select id="genCaseCode">
-            <option value="">Any (Random Case)</option>
+            <option value="">Любой падеж (случайный)</option>
             <option value="case_dative">Юнәлеш (-ка/-кә, -га/-гә)</option>
             <option value="case_ablative">Чыгыш (-дан/-дән, -тан/-тән, -нан/-нән)</option>
             <option value="case_locative">Урын-вакыт (-да/-дә, -та/-тә)</option>
@@ -205,15 +205,15 @@
         </div>
 
         <div class="form-group">
-          <label>Custom Stems (comma-separated):</label>
-          <input type="text" id="genCustomStems" placeholder="e.g. китап, өстәл, урман">
+          <label>Слова для генерации (через запятую, опционально):</label>
+          <input type="text" id="genCustomStems" placeholder="например: китап, өстәл, урман">
         </div>
       </div>
 
       <div class="btn-row">
-        <button type="submit" class="btn btn-primary">⚡ Generate Tasks</button>
+        <button type="submit" class="btn btn-primary">⚡ Сгенерировать задания</button>
         <label style="display:inline-flex; align-items:center; gap:6px; cursor:pointer; font-size:13px;">
-          <input type="checkbox" id="genSaveBank" checked> Save generated tasks to SQLite Task Bank
+          <input type="checkbox" id="genSaveBank" checked> Сохранить сгенерированные задания в банк
         </label>
       </div>
     </form>
@@ -223,46 +223,46 @@
 
   <!-- TAB 2: ASSEMBLE MODULAR TEST & EXPORT BLANKS -->
   <div id="tab-assemble" class="tab-content">
-    <h3>2. Модульле контроль эшне җыю һәм PDF бланк экспортлау (Assemble & Export A4 Blank PDF)</h3>
+    <h3>2. Сборка контрольной работы и экспорт бланка в PDF (A4)</h3>
 
     <!-- PROMINENT DIRECT PDF EXPORT CARD -->
     <div class="card" style="border: 2px solid #16a34a; background: #f0fdf4; margin-bottom: 20px;">
       <div class="card-header">
         <h4 style="margin:0; color:#166534; font-size:16px;">
-          📄 Бланкны PDF форматында экспортлау (Экспорт бланка в PDF A4)
+          📄 Экспорт бланка в PDF (A4)
         </h4>
-        <span class="badge" style="background:#bbf7d0; color:#14532d;">Басмага әзер (Print Ready)</span>
+        <span class="badge" style="background:#bbf7d0; color:#14532d;">Готов к печати</span>
       </div>
       <p style="font-size:13px; color:#15803d; margin:4px 0 14px 0;">
-        Тест бланкларын турыдан-туры PDF форматында ачыгыз яки бастырыгыз (ArUco маркерлар һәм 10×10 мм шакмаклар белән):
+        Откройте или распечатайте тестовые бланки в формате PDF (с маркерами ArUco и ячейками 10×10 мм):
       </p>
 
       <div class="form-grid">
         <div class="form-group">
-          <label>Контроль эш коды (Assignment ID):</label>
-          <input type="text" id="pdfExportAssignmentId" value="TAT-2026-Q1" placeholder="мәсәлән: TAT-2026-Q1">
+          <label>Код работы (Assignment ID):</label>
+          <input type="text" id="pdfExportAssignmentId" value="TAT-2026-Q1" placeholder="например: TAT-2026-Q1">
         </div>
         <div class="form-group">
-          <label>Вариант (Variant 1-4):</label>
+          <label>Вариант:</label>
           <select id="pdfExportVariant">
-            <option value="1">1 нче вариант (Variant 1)</option>
-            <option value="2">2 нче вариант (Variant 2)</option>
-            <option value="3">3 нче вариант (Variant 3)</option>
-            <option value="4">4 нче вариант (Variant 4)</option>
+            <option value="1">1 вариант</option>
+            <option value="2">2 вариант</option>
+            <option value="3">3 вариант</option>
+            <option value="4">4 вариант</option>
           </select>
         </div>
         <div class="form-group">
-          <label>Укучы (Опционально ID студента для персонализации):</label>
-          <input type="text" id="pdfExportStudentId" placeholder="мәсәлән: stu_01 (исеме шакмакларга языла)">
+          <label>Ученик (опционально ID для персонализации бланка):</label>
+          <input type="text" id="pdfExportStudentId" placeholder="например: stu_01 (имя впечатывается в ячейки)">
         </div>
       </div>
 
       <div class="btn-row">
         <button type="button" class="btn btn-success" style="font-size:15px; padding:10px 20px;" onclick="downloadBlankPdfDirect()">
-          📥 Бланкны PDF форматында ачарга / йөкләргә (Open / Download PDF Blank)
+          📥 Открыть / скачать бланк PDF
         </button>
         <button type="button" class="btn btn-secondary" onclick="loadRecentTests()">
-          📋 Җыелган барлык тестларны күрсәтү (Show All Assembled Tests)
+          📋 Показать все собранные тесты
         </button>
       </div>
 
@@ -271,39 +271,39 @@
 
     <!-- TEST ASSEMBLER FORM -->
     <div class="card">
-      <h4>Яңа контроль эш җыю (Assemble New Test from Bank)</h4>
+      <h4>Сборка новой контрольной работы из банка заданий</h4>
       <form id="assembleForm" onsubmit="handleAssembleTest(event)">
       <div class="form-grid">
         <div class="form-group">
-          <label>Test Title:</label>
+          <label>Название работы:</label>
           <input type="text" id="asmTitle" value="7 сыйныф. 1 нче чирек контроль эше" required>
         </div>
         <div class="form-group">
-          <label>Grade Level (5-9):</label>
+          <label>Класс (5-9):</label>
           <input type="number" id="asmGrade" min="5" max="9" value="7">
         </div>
         <div class="form-group">
-          <label>Variants Count (1-4):</label>
+          <label>Количество вариантов (1-4):</label>
           <input type="number" id="asmVariants" min="1" max="4" value="2">
         </div>
         <div class="form-group">
-          <label>Shuffle in Variants:</label>
+          <label>Перемешать задания в вариантах:</label>
           <select id="asmShuffle">
-            <option value="true">Yes (Shuffle Order)</option>
-            <option value="false">No (Preserve Order)</option>
+            <option value="true">Да (перемешать)</option>
+            <option value="false">Нет (сохранить порядок)</option>
           </select>
         </div>
       </div>
 
       <div style="margin-bottom: 12px;">
-        <label>Select Tasks from Bank (Max 8):</label>
+        <label>Выберите задания из банка (максимум 8):</label>
         <div id="asmTaskSelector" style="max-height: 200px; overflow-y: auto; border: 1px solid #cbd5e1; border-radius: 4px; padding: 10px; margin-top: 6px;">
-          <p>Loading available tasks...</p>
+          <p>Загрузка заданий...</p>
         </div>
       </div>
 
       <div class="btn-row">
-        <button type="submit" class="btn btn-primary">📄 Assemble & Save Modular Test</button>
+        <button type="submit" class="btn btn-primary">📦 Собрать контрольную работу и скачать PDF</button>
       </div>
     </form>
 
@@ -652,7 +652,7 @@
             </div>
             <div style="font-size:16px; font-weight:600; margin-bottom:6px;">${t.prompt_tt}</div>
             <div style="font-size:13px; color:#475569;">
-              Expected: <strong>${t.expected_answer}</strong> (${t.expected_answer.length} chars) | Total grid cells: <strong>${t.cell_count}</strong>
+              Ожидаемый ответ: <strong>${t.expected_answer}</strong> (${t.expected_answer.length} букв) | Всего ячеек сетки: <strong>${t.cell_count}</strong>
             </div>
             <div class="cell-strip">
               ${cellsHtml}
@@ -1360,12 +1360,12 @@
           <table>
             <thead>
               <tr>
-                <th>Укучы (Student)</th>
+                <th>Укучы</th>
                 <th>Вар.</th>
-                <th>Балл (Score)</th>
-                <th>Билге (Grade)</th>
+                <th>Балл</th>
+                <th>Билге</th>
                 <th>Тикшерү флаглары</th>
-                <th>Вакыт (Time)</th>
+                <th>Вакыт</th>
               </tr>
             </thead>
             <tbody>
@@ -1374,7 +1374,7 @@
                   <td><strong>${s.student_name}</strong></td>
                   <td>${s.variant}</td>
                   <td>${s.overall_score} / ${s.max_score}</td>
-                  <td><span class="status-pill ${s.final_grade >= 4 ? 'status-match' : 'status-mismatch'}">Оценка ${s.final_grade}</span></td>
+                  <td><span class="status-pill ${s.final_grade >= 4 ? 'status-match' : 'status-mismatch'}">Билге ${s.final_grade}</span></td>
                   <td>${s.teacher_reviewed_flags} флаг</td>
                   <td>${s.checked_at ? new Date(s.checked_at).toLocaleTimeString() : 'N/A'}</td>
                 </tr>
@@ -1410,23 +1410,23 @@
           <div class="stats-grid">
             <div class="stat-card">
               <div class="stat-val">${data.average_class_score_pct}%</div>
-              <div class="stat-lbl">Сыйныф уртача үзләштерүе (Class Avg %)</div>
+              <div class="stat-lbl">Средняя успеваемость класса (%)</div>
             </div>
             <div class="stat-card">
               <div class="stat-val">${data.students_count}</div>
-              <div class="stat-lbl">Барлыгы укучылар (Total Students)</div>
+              <div class="stat-lbl">Всего учеников</div>
             </div>
             <div class="stat-card">
               <div class="stat-val" style="color:#16a34a;">${data.grade_distribution['5'] || 0}</div>
-              <div class="stat-lbl">"5"ле билгеләре ("5" Grades)</div>
+              <div class="stat-lbl">Оценки "5"</div>
             </div>
             <div class="stat-card">
               <div class="stat-val" style="color:#2563eb;">${data.grade_distribution['4'] || 0}</div>
-              <div class="stat-lbl">"4"ле билгеләре ("4" Grades)</div>
+              <div class="stat-lbl">Оценки "4"</div>
             </div>
             <div class="stat-card">
               <div class="stat-val" style="color:#d97706;">${data.grade_distribution['3'] || 0}</div>
-              <div class="stat-lbl">"3"ле билгеләре ("3" Grades)</div>
+              <div class="stat-lbl">Оценки "3"</div>
             </div>
           </div>
         `;
@@ -1435,13 +1435,13 @@
         if (data.top_class_mistakes.length > 0) {
           mistContainer.innerHTML = `
             <div class="card">
-              <h4 style="margin-top:0;">🔥 Сыйныф буенча төп грамматик ялгышлар (Top Grammatical Mistakes Heatmap)</h4>
-              <p style="font-size:12px; color:#64748b;">Мөгаллимгә киләсе дәрестә кабатларга киңәш ителгән темалар:</p>
+              <h4 style="margin-top:0;">🔥 Топ грамматических ошибок по классу</h4>
+              <p style="font-size:12px; color:#64748b;">Рекомендовано учителю повторить на следующем уроке:</p>
               ${data.top_class_mistakes.map(m => `
                 <div style="margin-bottom:12px;">
                   <div style="display:flex; justify-content:space-between; font-size:13px;">
                     <strong>${m.topic_name_tt}</strong>
-                    <span>Ялгышлык: <strong>${m.failure_rate_pct}%</strong> (${m.affected_students_count} укучы)</span>
+                    <span>Ошибочность: <strong>${m.failure_rate_pct}%</strong> (${m.affected_students_count} учеников)</span>
                   </div>
                   <div class="bar-container">
                     <div class="bar-fill-warn" style="width: ${m.failure_rate_pct}%;"></div>
@@ -1451,19 +1451,19 @@
             </div>
           `;
         } else {
-          mistContainer.innerHTML = '<p>No topic mistakes recorded.</p>';
+          mistContainer.innerHTML = '<p>Ошибок по темам пока не зафиксировано.</p>';
         }
 
         // 3. Difficult Characters
         if (data.difficult_characters_across_class.length > 0) {
           charsContainer.innerHTML = `
             <div class="card">
-              <h4 style="margin-top:0;">🔤 Төзелеше катлаулы булган татар хәрефләре (Difficult Characters Error Rate)</h4>
+              <h4 style="margin-top:0;">🔤 Ошибки в сложных татарских буквах</h4>
               <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:8px;">
                 ${data.difficult_characters_across_class.map(c => `
                   <div style="border:1px solid #fca5a5; background:#fef2f2; border-radius:6px; padding:6px 12px; text-align:center;">
                     <span style="font-size:20px; font-weight:bold; color:#b91c1c;">${c.letter}</span>
-                    <div style="font-size:11px; color:#7f1d1d;">${c.error_rate_pct}% ялгыш</div>
+                    <div style="font-size:11px; color:#7f1d1d;">${c.error_rate_pct}% ошибок</div>
                   </div>
                 `).join('')}
               </div>
@@ -1474,16 +1474,16 @@
         // 4. Leaderboard Table
         leadContainer.innerHTML = `
           <div class="card">
-            <h4 style="margin-top:0;">🏆 Укучылар рейтингы (Student Performance Leaderboard)</h4>
-            <p style="font-size:12px; color:#64748b;">Укучының шәхси аналитикасын карау өчен исеменә басыгыз:</p>
+            <h4 style="margin-top:0;">🏆 Таблица успеваемости учеников</h4>
+            <p style="font-size:12px; color:#64748b;">Нажмите на кнопку действия для просмотра персональной аналитики:</p>
             <table>
               <thead>
                 <tr>
-                  <th>Укучы (Full Name)</th>
-                  <th>Үзләштерү % (Score Avg)</th>
-                  <th>Уртача билге (Avg Grade)</th>
-                  <th>Эшләнгән эшләр</th>
-                  <th>Гамәл (Action)</th>
+                  <th>Ученик</th>
+                  <th>Успеваемость (%)</th>
+                  <th>Средняя оценка</th>
+                  <th>Проверено работ</th>
+                  <th>Действие</th>
                 </tr>
               </thead>
               <tbody>
@@ -1500,7 +1500,7 @@
                     <td>${s.tests_completed}</td>
                     <td>
                       <button class="btn btn-secondary" style="padding:4px 8px; font-size:11px;" onclick="loadStudentAnalytics('${s.student_id}')">
-                        Шәхси кәкре (Curve) 🔍
+                        Аналитика 🔍
                       </button>
                     </td>
                   </tr>
@@ -1615,16 +1615,16 @@
         }
 
         container.innerHTML = `
-          <h4>Билгеләр ведомосте (Gradebook Preview: ${classId} | ${assignmentId})</h4>
+          <h4>Билгеләр ведомосте (${classId} | ${assignmentId})</h4>
           <table>
             <thead>
               <tr>
-                <th>Укучының Ф.И.О. / ФИО Ученика</th>
+                <th>Укучының тулы исеме</th>
                 <th>Вариант</th>
                 <th>Җыелган балл</th>
                 <th>Макс. балл</th>
-                <th>Билге / Оценка</th>
-                <th>Дата</th>
+                <th>Билге</th>
+                <th>Вакыт</th>
               </tr>
             </thead>
             <tbody>
