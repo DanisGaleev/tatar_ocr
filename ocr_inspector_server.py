@@ -1,5 +1,6 @@
 import sys
 import os
+import io
 import json
 import base64
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -16,12 +17,14 @@ from PIL import Image
 
 from tatar_ocr_dataset import TatarOCRNet, ALL_CHARS
 from tatar_ocr_augmentation import TATAR_UPPERCASE
+from blank_pipeline import BlankOCRScanner
 
 PORT = 7860
 DEVICE = torch.device("cpu")
 
-print("Loading OCR models...")
-# 1. 39-Class Model
+print("Initializing Tatar OCR Inspector Server & Blank Scanner...")
+
+# 1. Models
 model_39 = TatarOCRNet(num_classes=len(TATAR_UPPERCASE)).to(DEVICE)
 weights_39_path = WORKSPACE_DIR / "models" / "finetuned_uppercase39.pth"
 if not weights_39_path.exists():
@@ -31,7 +34,6 @@ if weights_39_path.exists():
     model_39.eval()
     print(f"Loaded 39-class model from {weights_39_path}")
 
-# 2. 102-Class Model
 model_102 = TatarOCRNet(num_classes=len(ALL_CHARS)).to(DEVICE)
 weights_102_path = WORKSPACE_DIR / "models" / "finetuned_real_tatar_ocr.pth"
 if not weights_102_path.exists():
@@ -41,59 +43,29 @@ if weights_102_path.exists():
     model_102.eval()
     print(f"Loaded 102-class model from {weights_102_path}")
 
+# 2. Blank Scanner
+blank_scanner = BlankOCRScanner(model_path="models/finetuned_uppercase39.pth", device=DEVICE)
 
-def process_cropped_area(img_bytes, crop_box=None, rotation_deg=0, contrast_mode="percentile"):
-    """
-    Applies user rotation, extracts the crop box (x, y, w, h normalized or pixels),
-    pads to square, applies contrast normalization, resizes to 64x64, and runs inference.
-    """
+
+def process_cropped_area(img_bytes, contrast_mode="percentile"):
     nparr = np.frombuffer(img_bytes, np.uint8)
     img_bgr = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
     if img_bgr is None:
         raise ValueError("Could not decode image.")
 
-    h_orig, w_orig = img_bgr.shape[:2]
-
-    # 1. Rotate if specified
-    if rotation_deg != 0:
-        center = (w_orig / 2.0, h_orig / 2.0)
-        rot_mat = cv2.getRotationMatrix2D(center, rotation_deg, 1.0)
-        # Calculate new bounding dimensions
-        cos = np.abs(rot_mat[0, 0])
-        sin = np.abs(rot_mat[0, 1])
-        new_w = int((h_orig * sin) + (w_orig * cos))
-        new_h = int((h_orig * cos) + (w_orig * sin))
-        rot_mat[0, 2] += (new_w / 2.0) - center[0]
-        rot_mat[1, 2] += (new_h / 2.0) - center[1]
-        img_bgr = cv2.warpAffine(img_bgr, rot_mat, (new_w, new_h), borderMode=cv2.BORDER_REPLICATE)
-        h_orig, w_orig = img_bgr.shape[:2]
-
-    # 2. Extract Crop Box
-    if crop_box:
-        # crop_box is {x, y, width, height} in pixels of rotated image
-        x = max(0, min(w_orig - 1, int(crop_box.get('x', 0))))
-        y = max(0, min(h_orig - 1, int(crop_box.get('y', 0))))
-        cw = max(4, min(w_orig - x, int(crop_box.get('width', w_orig))))
-        ch = max(4, min(h_orig - y, int(crop_box.get('height', h_orig))))
-        cropped = img_bgr[y:y+ch, x:x+cw]
-    else:
-        cropped = img_bgr
-
-    # 3. Square Padding
-    ch, cw = cropped.shape[:2]
+    ch, cw = img_bgr.shape[:2]
     sq_size = max(ch, cw)
     edge_pixels = np.concatenate([
-        cropped[0, :, :], cropped[-1, :, :],
-        cropped[:, 0, :], cropped[:, -1, :]
+        img_bgr[0, :, :], img_bgr[-1, :, :],
+        img_bgr[:, 0, :], img_bgr[:, -1, :]
     ], axis=0)
     bg_color = np.median(edge_pixels, axis=0).astype(np.uint8)
 
     padded = np.full((sq_size, sq_size, 3), bg_color, dtype=np.uint8)
     py = (sq_size - ch) // 2
     px = (sq_size - cw) // 2
-    padded[py:py + ch, px:px + cw] = cropped
+    padded[py:py + ch, px:px + cw] = img_bgr
 
-    # 4. Grayscale & Contrast Normalization
     gray = cv2.cvtColor(padded, cv2.COLOR_BGR2GRAY)
     if contrast_mode == "clahe":
         clahe = cv2.createCLAHE(clipLimit=2.5, tileGridSize=(8, 8))
@@ -103,29 +75,19 @@ def process_cropped_area(img_bytes, crop_box=None, rotation_deg=0, contrast_mode
         p_hi = np.percentile(gray, 98)
         norm_gray = np.clip((gray.astype(np.float32) - p_lo) / (p_hi - p_lo + 1e-5) * 240.0 + 10.0, 0, 255).astype(np.uint8)
 
-    # 5. Model Input 64x64
     inp_64 = cv2.resize(norm_gray, (64, 64), interpolation=cv2.INTER_AREA)
-
-    # 6. Inference for both models
     tensor = (torch.from_numpy(inp_64.astype(np.float32) / 255.0).unsqueeze(0).unsqueeze(0) - 0.5) / 0.5
 
-    def get_top5(model, chars_list):
+    def get_top5(m, chars):
         with torch.no_grad():
-            probs = torch.softmax(model(tensor), dim=1)[0]
-        top_k = min(5, len(chars_list))
+            probs = torch.softmax(m(tensor), dim=1)[0]
+        top_k = min(5, len(chars))
         top_probs, top_indices = torch.topk(probs, k=top_k)
-        res = []
-        for idx, p in zip(top_indices.numpy(), top_probs.numpy()):
-            c = chars_list[idx]
-            res.append({
-                "char": c,
-                "unicode": f"U+{ord(c):04X}",
-                "confidence": round(float(p) * 100.0, 2)
-            })
-        return res
-
-    top5_39 = get_top5(model_39, TATAR_UPPERCASE)
-    top5_102 = get_top5(model_102, ALL_CHARS)
+        return [{
+            "char": chars[i],
+            "unicode": f"U+{ord(chars[i]):04X}",
+            "confidence": round(float(p) * 100.0, 2)
+        } for i, p in zip(top_indices.numpy(), top_probs.numpy())]
 
     def to_b64(im):
         _, buf = cv2.imencode(".png", im)
@@ -133,12 +95,12 @@ def process_cropped_area(img_bytes, crop_box=None, rotation_deg=0, contrast_mode
 
     return {
         "stages": {
-            "cropped": to_b64(cropped),
+            "cropped": to_b64(img_bgr),
             "padded": to_b64(padded),
             "normalized_64x64": to_b64(inp_64)
         },
-        "predictions_39": top5_39,
-        "predictions_102": top5_102
+        "predictions_39": get_top5(model_39, TATAR_UPPERCASE),
+        "predictions_102": get_top5(model_102, ALL_CHARS)
     }
 
 
@@ -146,8 +108,7 @@ HTML_PAGE = """<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Tatar OCR Interactive Box & Image Adjuster</title>
-    <!-- Cropper.js for full drag, resize, zoom, rotate box controls -->
+    <title>Tatar OCR Suite: Full Blank Scanner & Character Inspector</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
     <style>
@@ -160,33 +121,30 @@ HTML_PAGE = """<!DOCTYPE html>
             --text-dim: #94a3b8;
             --border: #334155;
             --success: #22c55e;
+            --warn: #eab308;
+            --danger: #ef4444;
         }
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
         body { background: var(--bg); color: var(--text); padding: 18px; min-height: 100vh; }
-        .container { max-width: 1400px; margin: 0 auto; }
-        header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+        .container { max-width: 1560px; margin: 0 auto; }
+        
+        header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; border-bottom: 1px solid var(--border); padding-bottom: 12px; }
         h1 { font-size: 22px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
-        .sub { color: var(--text-dim); font-size: 13px; }
-        
-        .layout { display: grid; grid-template-columns: 1fr 420px; gap: 20px; }
-        .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
-        
-        /* Cropper Area */
-        .canvas-container {
-            height: 520px;
-            background: #020617;
+        .nav-tabs { display: flex; gap: 8px; }
+        .nav-btn {
+            background: #0f172a;
+            color: var(--text-dim);
+            border: 1px solid var(--border);
+            padding: 8px 18px;
             border-radius: 8px;
-            overflow: hidden;
-            position: relative;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border: 1px dashed var(--border);
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
         }
-        .canvas-container img { max-width: 100%; max-height: 100%; display: block; }
-        
-        /* Toolbar */
-        .toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; align-items: center; }
+        .nav-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+        /* General UI Elements */
         .btn {
             background: #334155;
             color: var(--text);
@@ -195,7 +153,7 @@ HTML_PAGE = """<!DOCTYPE html>
             border-radius: 6px;
             font-size: 13px;
             cursor: pointer;
-            display: flex;
+            display: inline-flex;
             align-items: center;
             gap: 6px;
             transition: all 0.15s;
@@ -203,304 +161,470 @@ HTML_PAGE = """<!DOCTYPE html>
         .btn:hover { background: var(--accent); border-color: var(--accent); }
         .btn-primary { background: var(--accent); border-color: var(--accent); }
         .btn-primary:hover { background: var(--accent-hover); }
-
-        .slider-group { display: flex; align-items: center; gap: 8px; background: #0f172a; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--border); }
-        .slider-group label { font-size: 12px; color: var(--text-dim); white-space: nowrap; }
-        .slider-group input[type="range"] { width: 100px; accent-color: var(--accent); }
-        
-        /* Samples bar */
-        .samples-bar { display: flex; gap: 6px; margin-top: 10px; align-items: center; }
-        .samples-bar span { font-size: 12px; color: var(--text-dim); }
         .btn-chip { background: #1e293b; border: 1px solid var(--border); color: #cbd5e1; padding: 4px 10px; border-radius: 4px; font-size: 12px; cursor: pointer; }
         .btn-chip:hover { background: var(--accent); color: #fff; }
 
-        /* Right Column */
-        .section-title { font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-dim); margin-bottom: 10px; }
+        /* TAB 1: BLANK SCANNER STYLES */
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
         
-        .stages-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 18px; }
-        .stage-card {
+        .blank-layout { display: grid; grid-template-columns: 1fr 480px; gap: 20px; }
+        .blank-viewer {
+            background: #020617;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            height: 840px;
+            overflow: auto;
+            position: relative;
+            text-align: center;
+            padding: 12px;
+        }
+        .blank-viewer img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 6px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+            image-rendering: -webkit-optimize-contrast;
+        }
+        .blank-sidebar {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 18px;
+            height: 840px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .summary-card {
             background: #0f172a;
             border: 1px solid var(--border);
             border-radius: 8px;
-            padding: 8px;
-            text-align: center;
+            padding: 14px;
         }
-        .stage-card img {
-            width: 100%;
-            height: 90px;
-            object-fit: contain;
+        .summary-card h3 { font-size: 15px; margin-bottom: 8px; color: var(--accent); }
+        .stat-badge {
+            display: inline-block;
             background: #1e293b;
-            border-radius: 4px;
-            image-rendering: pixelated;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            margin-right: 6px;
+            margin-bottom: 6px;
+            border: 1px solid var(--border);
         }
+
+        .answers-list { display: flex; flex-direction: column; gap: 10px; }
+        .ans-item {
+            background: #0f172a;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px;
+        }
+        .ans-header { display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; color: var(--text-dim); margin-bottom: 6px; }
+        .ans-word { font-size: 20px; font-weight: 700; letter-spacing: 2px; color: #fff; margin-bottom: 6px; }
+        .chips-row { display: flex; flex-wrap: wrap; gap: 4px; }
+        .chip-letter {
+            background: #1e293b;
+            border: 1px solid var(--border);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .chip-letter.green { border-color: var(--success); color: var(--success); }
+        .chip-letter.yellow { border-color: var(--warn); color: var(--warn); }
+        .chip-letter.red { border-color: var(--danger); color: var(--danger); }
+
+        /* TAB 2: SINGLE CROP INSPECTOR */
+        .inspector-layout { display: grid; grid-template-columns: 1fr 420px; gap: 20px; }
+        .canvas-container {
+            height: 540px;
+            background: #020617;
+            border-radius: 8px;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px dashed var(--border);
+        }
+        .toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; align-items: center; }
+        .stages-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 18px; }
+        .stage-card { background: #0f172a; border: 1px solid var(--border); border-radius: 8px; padding: 8px; text-align: center; }
+        .stage-card img { width: 100%; height: 90px; object-fit: contain; background: #1e293b; border-radius: 4px; image-rendering: pixelated; }
         .stage-card .lbl { font-size: 11px; font-weight: 600; color: var(--text-dim); margin-top: 6px; }
         .stage-card.highlight { border-color: var(--accent); }
         .stage-card.highlight .lbl { color: var(--accent); }
-
-        /* Predictions */
-        .model-tab { display: flex; gap: 4px; margin-bottom: 12px; background: #0f172a; padding: 4px; border-radius: 8px; border: 1px solid var(--border); }
-        .tab-btn { flex: 1; padding: 6px; font-size: 12px; font-weight: 600; border: none; background: transparent; color: var(--text-dim); border-radius: 6px; cursor: pointer; }
-        .tab-btn.active { background: var(--card-bg); color: var(--text); }
-
-        .pred-item {
-            display: flex;
-            align-items: center;
-            gap: 14px;
-            background: #0f172a;
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 10px 14px;
-            margin-bottom: 8px;
-            transition: all 0.2s;
-        }
+        .pred-item { display: flex; align-items: center; gap: 14px; background: #0f172a; border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; margin-bottom: 8px; }
         .pred-item.top { border-color: var(--success); background: rgba(34, 197, 94, 0.08); }
         .pred-glyph { font-size: 32px; font-weight: 700; width: 44px; text-align: center; }
         .pred-item.top .pred-glyph { color: var(--success); }
         .pred-body { flex: 1; }
         .pred-header { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px; }
         .bar-wrap { background: #1e293b; height: 8px; border-radius: 4px; overflow: hidden; }
-        .bar-val { height: 100%; background: var(--accent); border-radius: 4px; transition: width 0.25s ease-out; }
+        .bar-val { height: 100%; background: var(--accent); border-radius: 4px; }
         .pred-item.top .bar-val { background: var(--success); }
+
+        .spinner {
+            display: none;
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(15, 23, 42, 0.9);
+            padding: 24px 36px;
+            border-radius: 12px;
+            border: 1px solid var(--accent);
+            text-align: center;
+            z-index: 100;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
             <div>
-                <h1>Tatar OCR: Interactive Box & Image Adjuster</h1>
-                <div class="sub">Move, resize the crop box, drag/pan the image, zoom, or rotate. Real-time preprocessing & model inference update instantly!</div>
+                <h1>«Дәресханә» Tatar OCR Test Suite</h1>
+                <div style="font-size: 12px; color: var(--text-dim);">Full Blank Auto-Scanner & Interactive Single Character Inspector</div>
             </div>
-            <div>
-                <input type="file" id="fileInput" accept="image/*" style="display:none">
-                <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">Upload Image</button>
+            <div class="nav-tabs">
+                <button class="nav-btn active" onclick="switchTab('blank')">📄 Full Blank Auto-Scanner</button>
+                <button class="nav-btn" onclick="switchTab('cropper')">🔍 Single Crop Adjuster</button>
             </div>
         </header>
 
-        <div class="layout">
-            <!-- Left: Interactive Canvas -->
-            <div class="card">
-                <div class="canvas-container">
-                    <img id="cropperImage" src="/sample/strip2_rot90_cw.png" alt="Crop Target">
+        <!-- ============================================================ -->
+        <!-- TAB 1: FULL BLANK AUTO-SCANNER & GRADER                       -->
+        <!-- ============================================================ -->
+        <div id="tab-blank" class="tab-content active">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <input type="file" id="blankFileInput" accept="image/*" style="display:none">
+                    <button class="btn btn-primary" onclick="document.getElementById('blankFileInput').click()">📁 Upload Test Blank Photo</button>
+                    <span style="font-size: 12px; color: var(--text-dim);">(or paste from clipboard Ctrl+V)</span>
                 </div>
-
-                <!-- Controls Toolbar -->
-                <div class="toolbar">
-                    <button class="btn" onclick="cropper.rotate(-90)" title="Rotate 90 Left">↺ 90°</button>
-                    <button class="btn" onclick="cropper.rotate(90)" title="Rotate 90 Right">↻ 90°</button>
-                    
-                    <div class="slider-group">
-                        <label>Fine Angle:</label>
-                        <input type="range" id="angleSlider" min="-45" max="45" value="0" oninput="onFineRotate(this.value)">
-                        <span id="angleVal" style="font-size: 11px; width: 28px; text-align: right;">0°</span>
-                    </div>
-
-                    <button class="btn" onclick="cropper.zoom(0.15)" title="Zoom In">+</button>
-                    <button class="btn" onclick="cropper.zoom(-0.15)" title="Zoom Out">−</button>
-                    <button class="btn" onclick="cropper.reset(); document.getElementById('angleSlider').value=0; document.getElementById('angleVal').innerText='0°';" title="Reset Box & Zoom">Reset</button>
-
-                    <div class="slider-group" style="margin-left: auto;">
-                        <label>Contrast:</label>
-                        <select id="contrastSelect" onchange="triggerInference()" style="background:#1e293b; color:#fff; border:none; font-size:12px; padding:2px 6px; border-radius:4px;">
-                            <option value="percentile" selected>Percentile Min/Max</option>
-                            <option value="clahe">Adaptive CLAHE</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div class="samples-bar">
-                    <span>Quick Load:</span>
-                    <button class="btn-chip" onclick="loadUrl('/sample/strip2_rot90_cw.png')">Full 6-Cell Strip</button>
-                    <button class="btn-chip" onclick="loadUrl('/sample/crop_raw_1.png')">Ә (Cell 1)</button>
-                    <button class="btn-chip" onclick="loadUrl('/sample/crop_raw_2.png')">А (Cell 2)</button>
-                    <button class="btn-chip" onclick="loadUrl('/sample/crop_raw_3.png')">Б (Cell 3)</button>
-                    <button class="btn-chip" onclick="loadUrl('/sample/crop_raw_4.png')">Җ (Cell 4)</button>
-                    <button class="btn-chip" onclick="loadUrl('/sample/crop_raw_5.png')">Щ (Cell 5)</button>
-                    <button class="btn-chip" onclick="loadUrl('/sample/crop_raw_6.png')">Ч (Cell 6)</button>
+                <div style="display: flex; gap: 6px;">
+                    <span style="font-size: 12px; color: var(--text-dim); align-self: center;">Samples:</span>
+                    <button class="btn-chip" onclick="loadBlankSample('scratch/test_blank_phone_photo.jpg')">📱 Phone Photo (Tilted)</button>
+                    <button class="btn-chip" onclick="loadBlankSample('scratch/test_blank_filled.png')">✍️ Filled Scan (Flat)</button>
+                    <button class="btn-chip" onclick="loadBlankSample('test_blank_sample.png')">📄 Empty Template</button>
                 </div>
             </div>
 
-            <!-- Right: Exact Preprocessing Stages & Predictions -->
-            <div class="card">
-                <div class="section-title">Exact Preprocessed Input to Model</div>
-                <div class="stages-row">
-                    <div class="stage-card">
-                        <img id="imgCropped" src="" alt="Cropped">
-                        <div class="lbl">1. User Crop Box</div>
+            <div class="blank-layout">
+                <!-- Left: Full Annotated Sheet View -->
+                <div class="blank-viewer" id="blankViewer">
+                    <div id="blankSpinner" class="spinner">
+                        <div style="font-size: 18px; font-weight: bold; margin-bottom: 8px; color: var(--accent);">Processing Blank...</div>
+                        <div style="font-size: 13px; color: var(--text-dim);">Detecting ArUco corners • Rectifying • Batch OCR</div>
                     </div>
-                    <div class="stage-card">
-                        <img id="imgPadded" src="" alt="Padded">
-                        <div class="lbl">2. Square Padded</div>
-                    </div>
-                    <div class="stage-card highlight">
-                        <img id="imgNorm64" src="" alt="64x64">
-                        <div class="lbl">3. CNN Inp 64x64</div>
+                    <img id="annotatedBlankImg" src="" alt="Upload a blank to see annotated results" style="display:none;">
+                    <div id="blankPlaceholder" style="padding: 120px 20px; color: var(--text-dim);">
+                        <div style="font-size: 48px; margin-bottom: 12px;">📄</div>
+                        <div style="font-size: 16px; font-weight: 600;">Upload an Exam Blank to run the full pipeline</div>
+                        <div style="font-size: 13px; margin-top: 6px;">Auto-rectifies perspective tilt via 4 ArUco markers, extracts every question cell, and annotates answers on the sheet.</div>
                     </div>
                 </div>
 
-                <div class="section-title" style="display: flex; justify-content: space-between; align-items: center;">
-                    <span>Model Predictions</span>
-                    <span id="latencyTag" style="font-size: 11px; color: var(--success); font-weight: normal;">Live</span>
+                <!-- Right: Structured Answers Breakdown -->
+                <div class="blank-sidebar">
+                    <div class="summary-card">
+                        <h3>Detection Summary</h3>
+                        <div id="blankSummaryStats">
+                            <div style="color: var(--text-dim); font-size: 13px;">No blank scanned yet.</div>
+                        </div>
+                    </div>
+
+                    <div style="font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-dim);">
+                        Recognized Answers
+                    </div>
+
+                    <div class="answers-list" id="answersList">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- TAB 2: INTERACTIVE SINGLE CROP ADJUSTER                       -->
+        <!-- ============================================================ -->
+        <div id="tab-cropper" class="tab-content">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <div style="font-size: 13px; color: var(--text-dim);">Tightly frame any character crop. Live 64x64 CNN input and Top-5 candidates update in real time.</div>
+                <input type="file" id="cropFileInput" accept="image/*" style="display:none">
+                <button class="btn btn-primary" onclick="document.getElementById('cropFileInput').click()">Upload Image</button>
+            </div>
+
+            <div class="inspector-layout">
+                <div class="card">
+                    <div class="canvas-container">
+                        <img id="cropperImage" src="/sample/strip2_rot90_cw.png" alt="Crop Target">
+                    </div>
+
+                    <div class="toolbar">
+                        <button class="btn" onclick="cropper.rotate(-90)">↺ 90°</button>
+                        <button class="btn" onclick="cropper.rotate(90)">↻ 90°</button>
+                        <button class="btn" onclick="cropper.zoom(0.15)">+</button>
+                        <button class="btn" onclick="cropper.zoom(-0.15)">−</button>
+                        <button class="btn" onclick="cropper.reset()">Reset</button>
+
+                        <div style="margin-left: auto; display: flex; gap: 8px; align-items: center;">
+                            <label style="font-size: 12px; color: var(--text-dim);">Contrast:</label>
+                            <select id="contrastSelect" onchange="triggerCropInference()" style="background:#1e293b; color:#fff; border:1px solid var(--border); font-size:12px; padding:4px 8px; border-radius:4px;">
+                                <option value="percentile" selected>Percentile Min/Max</option>
+                                <option value="clahe">Adaptive CLAHE</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; gap: 6px; margin-top: 10px; align-items: center;">
+                        <span style="font-size: 12px; color: var(--text-dim);">Quick Strips:</span>
+                        <button class="btn-chip" onclick="loadCropUrl('/sample/strip2_rot90_cw.png')">Full 6-Cell Strip</button>
+                        <button class="btn-chip" onclick="loadCropUrl('/sample/crop_raw_1.png')">Ә (Cell 1)</button>
+                        <button class="btn-chip" onclick="loadCropUrl('/sample/crop_raw_4.png')">Җ (Cell 4)</button>
+                        <button class="btn-chip" onclick="loadCropUrl('/sample/crop_raw_5.png')">Щ (Cell 5)</button>
+                        <button class="btn-chip" onclick="loadCropUrl('/sample/crop_raw_6.png')">Ч (Cell 6)</button>
+                    </div>
                 </div>
 
-                <div class="model-tab">
-                    <button class="tab-btn active" id="tab39" onclick="switchModel('39')">39-Class Uppercase (Recommended)</button>
-                    <button class="tab-btn" id="tab102" onclick="switchModel('102')">102-Class Full Model</button>
-                </div>
+                <div class="card">
+                    <div style="font-size: 13px; font-weight: 600; text-transform: uppercase; color: var(--text-dim); margin-bottom: 8px;">Model Tensor Input</div>
+                    <div class="stages-row">
+                        <div class="stage-card">
+                            <img id="imgCropped" src="" alt="Cropped">
+                            <div class="lbl">1. User Crop</div>
+                        </div>
+                        <div class="stage-card">
+                            <img id="imgPadded" src="" alt="Padded">
+                            <div class="lbl">2. Square Pad</div>
+                        </div>
+                        <div class="stage-card highlight">
+                            <img id="imgNorm64" src="" alt="64x64">
+                            <div class="lbl">3. CNN 64x64</div>
+                        </div>
+                    </div>
 
-                <div id="predictionsList">
-                    <!-- Populated via JS -->
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <span style="font-size: 13px; font-weight: 600; text-transform: uppercase; color: var(--text-dim);">Top-5 Model Predictions</span>
+                        <span id="cropLatency" style="font-size: 11px; color: var(--success);">Live</span>
+                    </div>
+
+                    <div id="cropPredictionsList">
+                        <!-- Populated by JS -->
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
     <script>
+        let currentTab = 'blank';
         let cropper = null;
-        let activeModel = '39';
-        let latestPredictions = { predictions_39: [], predictions_102: [] };
         let debounceTimer = null;
-        let baseRotation = 0;
 
-        const imgElement = document.getElementById('cropperImage');
-        const fileInput = document.getElementById('fileInput');
-
-        function initCropper() {
-            if (cropper) cropper.destroy();
-            cropper = new Cropper(imgElement, {
-                viewMode: 1,
-                dragMode: 'move',
-                autoCrop: true,
-                autoCropArea: 0.35,
-                restore: false,
-                guides: true,
-                center: true,
-                highlight: true,
-                cropBoxMovable: true,
-                cropBoxResizable: true,
-                toggleDragModeOnDblclick: true,
-                ready() {
-                    triggerInference();
-                },
-                crop(event) {
-                    // Debounced real-time update during drag/resize
-                    clearTimeout(debounceTimer);
-                    debounceTimer = setTimeout(triggerInference, 120);
-                }
-            });
+        function switchTab(tab) {
+            currentTab = tab;
+            document.querySelectorAll('.nav-btn').forEach((b, i) => b.classList.toggle('active', (i === 0 && tab === 'blank') || (i === 1 && tab === 'cropper')));
+            document.getElementById('tab-blank').classList.toggle('active', tab === 'blank');
+            document.getElementById('tab-cropper').classList.toggle('active', tab === 'cropper');
+            if (tab === 'cropper' && !cropper) initCropper();
         }
 
-        window.addEventListener('DOMContentLoaded', () => {
-            initCropper();
+        // --- TAB 1: BLANK SCANNER LOGIC ---
+        const blankFileInput = document.getElementById('blankFileInput');
+        blankFileInput.addEventListener('change', (e) => {
+            if (e.target.files.length) uploadAndScanBlank(e.target.files[0]);
         });
 
-        // Paste from clipboard support
+        // Paste support
         window.addEventListener('paste', (e) => {
             const items = (e.clipboardData || e.originalEvent.clipboardData).items;
             for (let item of items) {
                 if (item.type.indexOf('image') !== -1) {
                     const blob = item.getAsFile();
-                    loadBlob(blob);
+                    if (currentTab === 'blank') uploadAndScanBlank(blob);
+                    else loadCropBlob(blob);
                     break;
                 }
             }
         });
 
-        fileInput.addEventListener('change', (e) => {
-            if (e.target.files.length) {
-                loadBlob(e.target.files[0]);
-            }
-        });
+        function loadBlankSample(path) {
+            fetch('/sample/' + path)
+                .then(r => r.blob())
+                .then(blob => uploadAndScanBlank(blob));
+        }
 
-        function loadBlob(blob) {
+        function uploadAndScanBlank(fileOrBlob) {
             const reader = new FileReader();
             reader.onload = function(evt) {
-                imgElement.src = evt.target.result;
-                initCropper();
+                const b64 = evt.target.result.split(',')[1];
+                document.getElementById('blankSpinner').style.display = 'block';
+
+                fetch('/api/scan_blank', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image_b64: b64 })
+                })
+                .then(r => r.json())
+                .then(data => {
+                    document.getElementById('blankSpinner').style.display = 'none';
+                    if (data.error) {
+                        alert('Error scanning blank: ' + data.error);
+                        return;
+                    }
+                    renderBlankResults(data);
+                })
+                .catch(err => {
+                    document.getElementById('blankSpinner').style.display = 'none';
+                    alert('Network error scanning blank');
+                });
             };
+            reader.readAsDataURL(fileOrBlob);
+        }
+
+        function renderBlankResults(data) {
+            document.getElementById('blankPlaceholder').style.display = 'none';
+            const img = document.getElementById('annotatedBlankImg');
+            img.src = data.annotated_b64;
+            img.style.display = 'block';
+
+            // Summary Stats
+            const stats = data.stats;
+            document.getElementById('blankSummaryStats').innerHTML = `
+                <div><span class="stat-badge">Alignment: <strong>${data.rectification_method}</strong></span></div>
+                <div>
+                    <span class="stat-badge">Recognized Letters: <strong>${stats.total_letters}</strong></span>
+                    <span class="stat-badge" style="color:var(--success)">Avg Confidence: <strong>${stats.avg_confidence}%</strong></span>
+                </div>
+                <div style="margin-top: 8px; font-size: 13px;">
+                    Student: <strong style="color:#fff; font-size:15px;">${data.student_name || '—'}</strong>
+                </div>
+            `;
+
+            // Answers List
+            const list = document.getElementById('answersList');
+            list.innerHTML = '';
+
+            // 1. Student Name Card
+            const nameCard = document.createElement('div');
+            nameCard.className = 'ans-item';
+            nameCard.innerHTML = `
+                <div class="ans-header"><span>STUDENT IDENTIFICATION</span><span>16 CELLS</span></div>
+                <div class="ans-word">${data.student_name || '(Empty)'}</div>
+            `;
+            list.appendChild(nameCard);
+
+            // 2. Questions Cards
+            data.questions.forEach(q => {
+                const item = document.createElement('div');
+                item.className = 'ans-item';
+                
+                let chipsHtml = '';
+                q.cells.forEach(c => {
+                    if (!c.is_empty) {
+                        const colClass = c.confidence >= 80 ? 'green' : (c.confidence >= 50 ? 'yellow' : 'red');
+                        chipsHtml += `<span class="chip-letter ${colClass}" title="Conf: ${c.confidence}%">${c.char}</span>`;
+                    }
+                });
+
+                item.innerHTML = `
+                    <div class="ans-header">
+                        <span>QUESTION №${q.q_num}</span>
+                        <span>${q.cells.filter(c => !c.is_empty).length} LETTERS</span>
+                    </div>
+                    <div class="ans-word">${q.text || '—'}</div>
+                    <div class="chips-row">${chipsHtml || '<span style="color:var(--text-dim); font-size:12px;">No answer written</span>'}</div>
+                `;
+                list.appendChild(item);
+            });
+        }
+
+        // --- TAB 2: CROP INSPECTOR LOGIC ---
+        const cropImg = document.getElementById('cropperImage');
+        const cropFileInput = document.getElementById('cropFileInput');
+        cropFileInput.addEventListener('change', (e) => {
+            if (e.target.files.length) loadCropBlob(e.target.files[0]);
+        });
+
+        function initCropper() {
+            if (cropper) cropper.destroy();
+            cropper = new Cropper(cropImg, {
+                viewMode: 1,
+                dragMode: 'move',
+                autoCrop: true,
+                autoCropArea: 0.35,
+                cropBoxMovable: true,
+                cropBoxResizable: true,
+                ready() { triggerCropInference(); },
+                crop() {
+                    clearTimeout(debounceTimer);
+                    debounceTimer = setTimeout(triggerCropInference, 120);
+                }
+            });
+        }
+
+        function loadCropBlob(blob) {
+            const reader = new FileReader();
+            reader.onload = (e) => { cropImg.src = e.target.result; initCropper(); };
             reader.readAsDataURL(blob);
         }
 
-        function loadUrl(url) {
-            imgElement.src = url;
+        function loadCropUrl(url) {
+            cropImg.src = url;
             initCropper();
         }
 
-        function onFineRotate(val) {
-            document.getElementById('angleVal').innerText = val + '°';
-            if (cropper) {
-                cropper.rotateTo(parseInt(val));
-            }
-        }
-
-        function triggerInference() {
+        function triggerCropInference() {
             if (!cropper) return;
-            // Get cropped canvas directly from cropper at high resolution
-            const cropCanvas = cropper.getCroppedCanvas({
-                imageSmoothingEnabled: true,
-                imageSmoothingQuality: 'high'
-            });
-            if (!cropCanvas) return;
+            const canvas = cropper.getCroppedCanvas({ imageSmoothingEnabled: true, imageSmoothingQuality: 'high' });
+            if (!canvas) return;
 
-            const cropB64 = cropCanvas.toDataURL('image/png').split(',')[1];
-            const contrastMode = document.getElementById('contrastSelect').value;
-
+            const b64 = canvas.toDataURL('image/png').split(',')[1];
+            const mode = document.getElementById('contrastSelect').value;
             const t0 = performance.now();
+
             fetch('/api/predict_box', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    image_b64: cropB64,
-                    contrast_mode: contrastMode
-                })
+                body: JSON.stringify({ image_b64: b64, contrast_mode: mode })
             })
             .then(r => r.json())
             .then(data => {
-                const elapsed = (performance.now() - t0).toFixed(0);
-                document.getElementById('latencyTag').innerText = elapsed + ' ms';
-
-                // Display pipeline stages
+                document.getElementById('cropLatency').innerText = (performance.now() - t0).toFixed(0) + ' ms';
                 document.getElementById('imgCropped').src = data.stages.cropped;
                 document.getElementById('imgPadded').src = data.stages.padded;
                 document.getElementById('imgNorm64').src = data.stages.normalized_64x64;
 
-                latestPredictions = data;
-                renderPredictions();
-            })
-            .catch(err => console.error(err));
-        }
-
-        function switchModel(mode) {
-            activeModel = mode;
-            document.getElementById('tab39').classList.toggle('active', mode === '39');
-            document.getElementById('tab102').classList.toggle('active', mode === '102');
-            renderPredictions();
-        }
-
-        function renderPredictions() {
-            const list = document.getElementById('predictionsList');
-            list.innerHTML = '';
-            const preds = activeModel === '39' ? latestPredictions.predictions_39 : latestPredictions.predictions_102;
-            if (!preds || !preds.length) return;
-
-            preds.forEach((p, idx) => {
-                const isTop = idx === 0;
-                const div = document.createElement('div');
-                div.className = 'pred-item ' + (isTop ? 'top' : '');
-                div.innerHTML = `
-                    <div class="pred-glyph">${p.char}</div>
-                    <div class="pred-body">
-                        <div class="pred-header">
-                            <span><strong>Rank #${idx + 1}: '${p.char}'</strong> (${p.unicode})</span>
-                            <span><strong>${p.confidence.toFixed(1)}%</strong></span>
+                const list = document.getElementById('cropPredictionsList');
+                list.innerHTML = '';
+                data.predictions_39.forEach((p, idx) => {
+                    const isTop = idx === 0;
+                    const item = document.createElement('div');
+                    item.className = 'pred-item ' + (isTop ? 'top' : '');
+                    item.innerHTML = `
+                        <div class="pred-glyph">${p.char}</div>
+                        <div class="pred-body">
+                            <div class="pred-header">
+                                <span><strong>Rank #${idx + 1}: '${p.char}'</strong> (${p.unicode})</span>
+                                <span><strong>${p.confidence.toFixed(1)}%</strong></span>
+                            </div>
+                            <div class="bar-wrap">
+                                <div class="bar-val" style="width: ${Math.max(2, p.confidence)}%;"></div>
+                            </div>
                         </div>
-                        <div class="bar-wrap">
-                            <div class="bar-val" style="width: ${Math.max(2, p.confidence)}%;"></div>
-                        </div>
-                    </div>
-                `;
-                list.appendChild(div);
+                    `;
+                    list.appendChild(item);
+                });
             });
         }
+
+        // Initial sample auto-load
+        window.addEventListener('DOMContentLoaded', () => {
+            loadBlankSample('scratch/test_blank_phone_photo.jpg');
+        });
     </script>
 </body>
 </html>
@@ -514,15 +638,15 @@ class OCRRequestHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(HTML_PAGE.encode("utf-8"))
         elif self.path.startswith("/sample/"):
-            filename = os.path.basename(self.path)
-            sample_path = WORKSPACE_DIR / "dataset" / "six_cells_test" / filename
+            rel_path = self.path[len("/sample/"):]
+            sample_path = WORKSPACE_DIR / rel_path
             if not sample_path.exists():
-                sample_path = WORKSPACE_DIR / filename
-            if not sample_path.exists():
-                sample_path = Path(r"C:\Users\galee\.gemini\antigravity\brain\e6d31b5c-5d27-456f-ade7-c736653ad00b") / filename
+                sample_path = WORKSPACE_DIR / "dataset" / "six_cells_test" / os.path.basename(rel_path)
             if sample_path.exists():
                 self.send_response(200)
-                self.send_header("Content-Type", "image/png")
+                ext = sample_path.suffix.lower()
+                mime = "image/png" if ext == ".png" else "image/jpeg"
+                self.send_header("Content-Type", mime)
                 self.end_headers()
                 with open(sample_path, "rb") as f:
                     self.wfile.write(f.read())
@@ -534,7 +658,41 @@ class OCRRequestHandler(BaseHTTPRequestHandler):
             self.end_headers()
 
     def do_POST(self):
-        if self.path == "/api/predict_box":
+        if self.path == "/api/scan_blank":
+            content_len = int(self.headers.get('Content-Length', 0))
+            post_body = self.rfile.read(content_len)
+            try:
+                data = json.loads(post_body.decode('utf-8'))
+                img_bytes = base64.b64decode(data['image_b64'])
+                nparr = np.frombuffer(img_bytes, np.uint8)
+                img_bgr = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
+                res = blank_scanner.process_blank(img_bgr, annotate=True)
+
+                # Encode annotated image to base64
+                _, buf = cv2.imencode(".jpg", cv2.resize(res["annotated_bgr"], (1050, 1485)), [cv2.IMWRITE_JPEG_QUALITY, 85])
+                annotated_b64 = "data:image/jpeg;base64," + base64.b64encode(buf).decode("ascii")
+
+                response_payload = {
+                    "status": "success",
+                    "rectification_method": res["rectification_method"],
+                    "student_name": res["student_name"],
+                    "questions": res["questions"],
+                    "stats": res["stats"],
+                    "annotated_b64": annotated_b64
+                }
+
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps(response_payload).encode('utf-8'))
+            except Exception as e:
+                self.send_response(500)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(e)}).encode('utf-8'))
+
+        elif self.path == "/api/predict_box":
             content_len = int(self.headers.get('Content-Length', 0))
             post_body = self.rfile.read(content_len)
             try:
@@ -542,12 +700,7 @@ class OCRRequestHandler(BaseHTTPRequestHandler):
                 img_bytes = base64.b64decode(data['image_b64'])
                 contrast_mode = data.get('contrast_mode', 'percentile')
 
-                res = process_cropped_area(
-                    img_bytes,
-                    crop_box=None,
-                    rotation_deg=0,
-                    contrast_mode=contrast_mode
-                )
+                res = process_cropped_area(img_bytes, contrast_mode=contrast_mode)
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
@@ -568,10 +721,10 @@ class OCRRequestHandler(BaseHTTPRequestHandler):
 def run_server():
     server_address = ('127.0.0.1', PORT)
     httpd = HTTPServer(server_address, OCRRequestHandler)
-    print(f"\n=======================================================")
-    print(f"  Tatar OCR Interactive Adjuster & Inspector is RUNNING!")
-    print(f"  Open in your browser: http://127.0.0.1:{PORT}")
-    print(f"=======================================================\n", flush=True)
+    print(f"\n==================================================================")
+    print(f"  «Дәресханә» Tatar OCR Suite is RUNNING!")
+    print(f"  Open in browser: http://127.0.0.1:{PORT}")
+    print(f"==================================================================\n", flush=True)
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
