@@ -11,7 +11,7 @@ from app.core.database import init_db, AsyncSessionLocal
 from app.models.task import TaskBankModel
 from app.models.test import AssembledTestModel
 from app.models.teacher import TeacherModel
-from app.models.school import ClassModel, StudentModel
+from app.models.school import ClassModel, StudentModel, ClassAssignmentModel
 from app.routers import constructor, assignments, auth, classes, submissions, analytics, reports, web, ocr, model
 from app.generators.registry import registry
 from app.generators.phonetics import build_expected_cells
@@ -206,6 +206,23 @@ async def seed_initial_data():
             existing_asm.bundle_json = json.dumps(bundle_data, ensure_ascii=False)
             session.add(existing_asm)
         await session.commit()
+
+        # Seed initial assignment to class 7-A
+        ca_res = await session.execute(
+            select(ClassAssignmentModel).where(
+                (ClassAssignmentModel.class_id == "cls_7a_2026") &
+                (ClassAssignmentModel.assignment_id == "TAT-2026-Q1")
+            )
+        )
+        if not ca_res.scalar_one_or_none():
+            ca_obj = ClassAssignmentModel(
+                id="ca_7a_tat2026q1",
+                class_id="cls_7a_2026",
+                assignment_id="TAT-2026-Q1",
+                status="active",
+            )
+            session.add(ca_obj)
+            await session.commit()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

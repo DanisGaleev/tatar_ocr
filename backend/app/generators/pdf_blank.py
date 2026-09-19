@@ -46,26 +46,18 @@ def generate_qr_img(payload_str: str, box_size: int = 10) -> np.ndarray:
     return np.array(img.convert('RGB'))
 
 
-def render_blank_pdf(
+def _draw_blank_page(
+    ax: plt.Axes,
     assignment_id: str,
     title: str,
     variant_id: int,
     questions: List[Dict[str, Any]],
     student_name: Optional[str] = None,
-) -> bytes:
+):
     """
-    Renders an official A4 (210 x 297 mm) Tatar OCR test blank with ArUco markers,
-    QR code, student name header, and 10x10 mm answer boxes.
+    Renders elements of an official A4 (210 x 297 mm) Tatar OCR test blank onto given Axes.
     """
     page_w_mm, page_h_mm = 210.0, 297.0
-    fig_w_in, fig_h_in = page_w_mm / 25.4, page_h_mm / 25.4
-
-    fig = plt.figure(figsize=(fig_w_in, fig_h_in), dpi=300)
-    ax = fig.add_axes([0, 0, 1, 1])
-    ax.set_xlim(0, page_w_mm)
-    ax.set_ylim(0, page_h_mm)
-    ax.invert_yaxis()
-    ax.axis('off')
 
     # 1. Page Corner ArUco Markers (Printer-safe 6mm paper margin)
     corner_size_mm = 14.0
@@ -222,9 +214,78 @@ def render_blank_pdf(
     ax.text(page_w_mm / 2.0, footer_y + 2.5, inst_text,
             fontsize=7.0, fontname=_FONT_NAME, ha='center', va='top', color='#475569', multialignment='center')
 
+
+def render_blank_pdf(
+    assignment_id: str,
+    title: str,
+    variant_id: int,
+    questions: List[Dict[str, Any]],
+    student_name: Optional[str] = None,
+) -> bytes:
+    """
+    Renders an official A4 (210 x 297 mm) Tatar OCR test blank with ArUco markers,
+    QR code, student name header, and 10x10 mm answer boxes.
+    """
+    page_w_mm, page_h_mm = 210.0, 297.0
+    fig_w_in, fig_h_in = page_w_mm / 25.4, page_h_mm / 25.4
+
+    fig = plt.figure(figsize=(fig_w_in, fig_h_in), dpi=300)
+    ax = fig.add_axes([0, 0, 1, 1])
+    ax.set_xlim(0, page_w_mm)
+    ax.set_ylim(0, page_h_mm)
+    ax.invert_yaxis()
+    ax.axis('off')
+
+    _draw_blank_page(ax, assignment_id, title, variant_id, questions, student_name)
+
     # Render to PDF in-memory buffer
     buf = io.BytesIO()
     plt.savefig(buf, format='pdf', bbox_inches=None)
     plt.close(fig)
     buf.seek(0)
     return buf.getvalue()
+
+
+def render_batch_blanks_pdf(
+    assignment_id: str,
+    title: str,
+    variants: List[Dict[str, Any]],
+    students: List[Dict[str, str]],
+) -> bytes:
+    """
+    Renders a multi-page PDF with one pre-named test blank per student in the class,
+    automatically alternating variants across the roster.
+    """
+    from matplotlib.backends.backend_pdf import PdfPages
+
+    page_w_mm, page_h_mm = 210.0, 297.0
+    fig_w_in, fig_h_in = page_w_mm / 25.4, page_h_mm / 25.4
+
+    buf = io.BytesIO()
+    num_variants = max(1, len(variants))
+
+    with PdfPages(buf) as pdf:
+        target_students = students if students else [{"student_id": "generic", "full_name": None}]
+
+        for idx, student in enumerate(target_students):
+            var_idx = idx % num_variants
+            var_obj = variants[var_idx] if variants else {}
+            variant_id = var_obj.get("variant_id", var_idx + 1)
+            questions = var_obj.get("questions", [])
+            stu_name = student.get("full_name") or student.get("student_name")
+
+            fig = plt.figure(figsize=(fig_w_in, fig_h_in), dpi=300)
+            ax = fig.add_axes([0, 0, 1, 1])
+            ax.set_xlim(0, page_w_mm)
+            ax.set_ylim(0, page_h_mm)
+            ax.invert_yaxis()
+            ax.axis('off')
+
+            _draw_blank_page(ax, assignment_id, title, variant_id, questions, stu_name)
+
+            pdf.savefig(fig, dpi=300, bbox_inches=None)
+            plt.close(fig)
+
+    buf.seek(0)
+    return buf.getvalue()
+

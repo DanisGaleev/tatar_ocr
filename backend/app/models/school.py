@@ -14,6 +14,7 @@ class ClassModel(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     students = relationship("StudentModel", back_populates="school_class", cascade="all, delete-orphan")
+    assignments = relationship("ClassAssignmentModel", backref="school_class", cascade="all, delete-orphan")
 
 
 class StudentModel(Base):
@@ -29,3 +30,14 @@ class StudentModel(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     school_class = relationship("ClassModel", back_populates="students")
+
+
+class ClassAssignmentModel(Base):
+    __tablename__ = "class_assignments"
+
+    id = Column(String(64), primary_key=True, index=True)
+    class_id = Column(String(64), ForeignKey("classes.class_id"), index=True, nullable=False)
+    assignment_id = Column(String(64), ForeignKey("assembled_tests.test_id"), index=True, nullable=False)
+    assigned_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    due_date = Column(DateTime, nullable=True)
+    status = Column(String(32), default="active")  # active, completed, archived
