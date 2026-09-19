@@ -12,10 +12,18 @@ class Settings(BaseSettings):
     CELL_HEIGHT_MM: float = 10.0
     ARUCO_DICT: str = "DICT_4X4_50"
     CORNER_ARUCO_IDS: list[int] = [0, 1, 2, 3]
+
+    # Yandex Cloud (OCR & YandexGPT)
+    YANDEX_API_KEY: str | None = None
+    YANDEX_FOLDER_ID: str | None = None
+    YANDEX_GPT_MODEL_URI: str | None = None
+    YANDEX_OCR_URL: str = "https://ocr.api.cloud.yandex.net/ocr/v1/recognizeText"
+    YANDEX_GPT_URL: str = "https://llm.api.cloud.yandex.net/foundationModels/v1/completion"
+    TASK_EXTRACTOR_MOCK_MODE: bool = False
     
     model_config = {
         "case_sensitive": True,
-        "env_file": ".env"
+        "env_file": (".env", "../.env")
     }
 
 settings = Settings()

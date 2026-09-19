@@ -9,6 +9,11 @@ wheels/
 # Virtual environments
 .venv/
 
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
 # Scratch & debug artifacts
 debug_*.png
 full_rotated_cw.png
