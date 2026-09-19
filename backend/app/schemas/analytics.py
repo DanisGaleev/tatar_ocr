@@ -25,6 +25,15 @@ class StudentHistoryItem(BaseModel):
     max_score: float
     grade: int
 
+class HandwritingMetrics(BaseModel):
+    quality_pct: float
+    status: str  # "EXCELLENT", "GOOD", "NEEDS_ATTENTION", "POOR"
+    average_confidence: float
+    teacher_correction_rate_pct: float
+    low_confidence_rate_pct: float
+    total_characters_analyzed: int
+    unclear_characters: List[str]
+
 class StudentAnalyticsResponse(BaseModel):
     student_id: str
     full_name: str
@@ -36,6 +45,9 @@ class StudentAnalyticsResponse(BaseModel):
     frequent_weak_topics: List[FrequentWeakTopic]
     problematic_letters: List[ProblematicLetter]
     history: List[StudentHistoryItem]
+    handwriting_quality_pct: float = 100.0
+    handwriting_status: str = "EXCELLENT"
+    handwriting_metrics: Optional[HandwritingMetrics] = None
 
 class TopClassMistake(BaseModel):
     topic_code: str
@@ -53,16 +65,20 @@ class StudentPerformanceRow(BaseModel):
     average_score_pct: float
     average_grade: float
     tests_completed: int
+    handwriting_quality_pct: float = 100.0
+    handwriting_status: str = "EXCELLENT"
 
 class ClassAnalyticsResponse(BaseModel):
     class_id: str
     class_name: str
     students_count: int
     average_class_score_pct: float
+    average_handwriting_quality_pct: float = 100.0
     grade_distribution: Dict[str, int]
     top_class_mistakes: List[TopClassMistake]
     difficult_characters_across_class: List[DifficultCharacter]
     students_performance_table: List[StudentPerformanceRow]
+    students_needing_handwriting_attention: List[str] = []
 
 class WrongSubmissionItem(BaseModel):
     student_id: str

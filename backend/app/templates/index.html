@@ -1413,6 +1413,12 @@
               <div class="stat-lbl">Средняя успеваемость класса (%)</div>
             </div>
             <div class="stat-card">
+              <div class="stat-val" style="color: ${data.average_handwriting_quality_pct >= 85 ? '#16a34a' : (data.average_handwriting_quality_pct >= 70 ? '#2563eb' : '#d97706')};">
+                ${data.average_handwriting_quality_pct}%
+              </div>
+              <div class="stat-lbl">Качество почерка класса (%)</div>
+            </div>
+            <div class="stat-card">
               <div class="stat-val">${data.students_count}</div>
               <div class="stat-lbl">Всего учеников</div>
             </div>
@@ -1429,6 +1435,11 @@
               <div class="stat-lbl">Оценки "3"</div>
             </div>
           </div>
+          ${data.students_needing_handwriting_attention && data.students_needing_handwriting_attention.length > 0 ? `
+            <div style="background:#fffbeb; border:1px solid #fde68a; border-radius:6px; padding:10px 14px; margin-top:12px; font-size:13px; color:#92400e;">
+              ✍️ <strong>Контроль почерка:</strong> Ученики с неразборчивым почерком / частыми исправлениями учителя: <strong>${data.students_needing_handwriting_attention.join(', ')}</strong>
+            </div>
+          ` : ''}
         `;
 
         // 2. Heatmap: Top Class Mistakes
@@ -1481,6 +1492,7 @@
                 <tr>
                   <th>Ученик</th>
                   <th>Успеваемость (%)</th>
+                  <th>Качество почерка</th>
                   <th>Средняя оценка</th>
                   <th>Проверено работ</th>
                   <th>Действие</th>
@@ -1495,6 +1507,11 @@
                       <div class="bar-container" style="height:6px; width:100px;">
                         <div class="bar-fill" style="width: ${s.average_score_pct}%;"></div>
                       </div>
+                    </td>
+                    <td>
+                      <span class="status-pill ${s.handwriting_quality_pct >= 85 ? 'status-match' : (s.handwriting_quality_pct >= 70 ? 'status-empty' : 'status-mismatch')}">
+                        ${s.handwriting_quality_pct}% (${s.handwriting_status === 'EXCELLENT' ? 'Разборчивый' : (s.handwriting_status === 'GOOD' ? 'Хороший' : (s.handwriting_status === 'NEEDS_ATTENTION' ? 'Внимание' : 'Неразборчивый'))})
+                      </span>
                     </td>
                     <td><strong>${s.average_grade.toFixed(1)}</strong></td>
                     <td>${s.tests_completed}</td>
@@ -1536,6 +1553,12 @@
               <div class="stat-lbl">Уртача процент</div>
             </div>
             <div class="stat-card">
+              <div class="stat-val" style="color: ${data.handwriting_quality_pct >= 85 ? '#16a34a' : (data.handwriting_quality_pct >= 70 ? '#2563eb' : '#d97706')};">
+                ${data.handwriting_quality_pct}%
+              </div>
+              <div class="stat-lbl">Качество почерка (${data.handwriting_status === 'EXCELLENT' ? 'Разборчивый' : (data.handwriting_status === 'GOOD' ? 'Хороший' : (data.handwriting_status === 'NEEDS_ATTENTION' ? 'Внимание' : 'Неразборчивый'))})</div>
+            </div>
+            <div class="stat-card">
               <div class="stat-val">${data.average_grade.toFixed(1)}</div>
               <div class="stat-lbl">Уртача билге</div>
             </div>
@@ -1545,7 +1568,24 @@
             </div>
           </div>
 
-          <h4>Бу укучыда кыенлык тудырган темалар (Weak Topics):</h4>
+          ${data.handwriting_metrics ? `
+            <div class="card" style="margin-top:14px; background:#f8fafc; border-left:4px solid ${data.handwriting_quality_pct >= 85 ? '#16a34a' : (data.handwriting_quality_pct >= 70 ? '#2563eb' : '#dc2626')};">
+              <h4 style="margin-top:0;">✍️ Контроль почерка и распознавания OCR</h4>
+              <div style="font-size:13px; color:#334155; display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:10px;">
+                <div>Средняя уверенность модели OCR: <strong>${(data.handwriting_metrics.average_confidence * 100).toFixed(1)}%</strong></div>
+                <div>Доля ручных правок учителем: <strong>${data.handwriting_metrics.teacher_correction_rate_pct}%</strong></div>
+                <div>Буквы с низкой уверенностью (&lt;70%): <strong>${data.handwriting_metrics.low_confidence_rate_pct}%</strong></div>
+                <div>Всего букв в выборке: <strong>${data.handwriting_metrics.total_characters_analyzed}</strong></div>
+              </div>
+              ${data.handwriting_metrics.unclear_characters && data.handwriting_metrics.unclear_characters.length > 0 ? `
+                <div style="margin-top:8px; font-size:12px; color:#b91c1c;">
+                  ⚠️ Буквы с частыми исправлениями или низкой разборчивостью: <strong>${data.handwriting_metrics.unclear_characters.join(', ')}</strong>
+                </div>
+              ` : ''}
+            </div>
+          ` : ''}
+
+          <h4 style="margin-top:14px;">Бу укучыда кыенлык тудырган темалар (Weak Topics):</h4>
           ${data.frequent_weak_topics.length > 0 ? `
             <table>
               <thead>
