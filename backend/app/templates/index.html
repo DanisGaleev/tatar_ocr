@@ -118,12 +118,13 @@
   <div class="nav-tabs">
     <button class="nav-btn active" onclick="switchTab('tab-generate')">1. Generate Tasks</button>
     <button class="nav-btn" onclick="switchTab('tab-assemble')" style="border-bottom: 3px solid #16a34a; font-weight: 700;">2. 📄 Экспорт PDF / Сборка (A4)</button>
-    <button class="nav-btn" onclick="switchTab('tab-custom')">3. Create Custom Task</button>
-    <button class="nav-btn" onclick="switchTab('tab-bank')">4. Task Bank Explorer</button>
-    <button class="nav-btn" onclick="switchTab('tab-classes')">5. Classes & Rosters</button>
-    <button class="nav-btn" onclick="switchTab('tab-submissions')">6. Zero-Photo Submissions Sync</button>
-    <button class="nav-btn" onclick="switchTab('tab-analytics')">7. Analytics & Heatmap</button>
-    <button class="nav-btn" onclick="switchTab('tab-reports')">8. Gradebook Export</button>
+    <button class="nav-btn" onclick="switchTab('tab-scan')" style="border-bottom: 3px solid #2563eb; font-weight: 700;">3. 📸 Скан / Фото (AI)</button>
+    <button class="nav-btn" onclick="switchTab('tab-custom')">4. Create Custom Task</button>
+    <button class="nav-btn" onclick="switchTab('tab-bank')">5. Task Bank Explorer</button>
+    <button class="nav-btn" onclick="switchTab('tab-classes')">6. Classes & Rosters</button>
+    <button class="nav-btn" onclick="switchTab('tab-submissions')">7. Zero-Photo Submissions Sync</button>
+    <button class="nav-btn" onclick="switchTab('tab-analytics')">8. Analytics & Heatmap</button>
+    <button class="nav-btn" onclick="switchTab('tab-reports')">9. Gradebook Export</button>
   </div>
 
   <!-- TAB 1: TASK GENERATOR -->
@@ -310,7 +311,46 @@
     </div>
   </div>
 
-  <!-- TAB 3: CREATE CUSTOM TASK -->
+  <!-- TAB: SCAN TASK (AI OCR + YANDEX GPT) -->
+  <div id="tab-scan" class="tab-content">
+    <h3>📸 Скан / Фото задания через OCR & YandexGPT</h3>
+    <p style="color:#64748b; font-size:14px; margin-top:-6px;">
+      Сфотографируйте или загрузите скриншот задания из учебника или рабочей тетради. 
+      Система автоматически распознает текст через <strong>OCR</strong>, а модель <strong>YandexGPT</strong> определит тип задания, 
+      сформулирует вопрос и проверит совместимость с 12-клеточными бланками А4.
+    </p>
+
+    <div class="card" style="border-left: 4px solid #2563eb;">
+      <form id="scanTaskForm" onsubmit="handleScanTask(event)">
+        <div class="form-grid">
+          <div class="form-group" style="grid-column: 1 / -1;">
+            <label>Файл с заданием (Фото с камеры или скриншот):</label>
+            <input type="file" id="scanFileInput" accept="image/*" required style="padding: 10px; background:#f8fafc;">
+          </div>
+          <div class="form-group">
+            <label>Класс (Подсказка 5-9):</label>
+            <input type="number" id="scanGradeHint" min="5" max="9" value="7">
+          </div>
+          <div class="form-group" style="justify-content: flex-end; padding-bottom: 8px;">
+            <label style="cursor: pointer; display: flex; align-items: center; gap: 8px;">
+              <input type="checkbox" id="scanAutoSave">
+              <span>Автоматически сохранить в банк заданий</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="btn-row">
+          <button type="submit" class="btn btn-primary" id="scanSubmitBtn">
+            🔍 Распознать через YandexGPT / OCR
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <div id="scanResultContainer" style="margin-top: 16px;"></div>
+  </div>
+
+  <!-- TAB 4: CREATE CUSTOM TASK -->
   <div id="tab-custom" class="tab-content">
     <h3>Create Custom Single Task</h3>
     <form id="customTaskForm" onsubmit="handleCreateCustomTask(event)">
@@ -772,7 +812,206 @@
       window.scrollTo({ top: document.getElementById('pdfExportAssignmentId').offsetTop - 50, behavior: 'smooth' });
     }
 
-    // TAB 3: CUSTOM TASK
+    // TAB: SCAN TASK (AI OCR & YANDEX GPT)
+    let currentScannedTask = null;
+
+    async function handleScanTask(e) {
+      e.preventDefault();
+      const resDiv = document.getElementById('scanResultContainer');
+      const submitBtn = document.getElementById('scanSubmitBtn');
+      const fileInput = document.getElementById('scanFileInput');
+
+      if (!fileInput.files || fileInput.files.length === 0) {
+        alert('Зинһар, рәсем файлын сайлагыз (Выберите файл изображения)!');
+        return;
+      }
+
+      const file = fileInput.files[0];
+      const gradeHint = document.getElementById('scanGradeHint').value || 7;
+      const autoSave = document.getElementById('scanAutoSave').checked;
+
+      submitBtn.disabled = true;
+      resDiv.innerHTML = `
+        <div class="card" style="background:#eff6ff; border:1px solid #bfdbfe; text-align:center; padding:24px;">
+          <div style="font-size:24px; margin-bottom:8px;">⏳</div>
+          <strong style="color:#1e40af; font-size:15px;">Распознавание текста через OCR и анализ через YandexGPT...</strong>
+          <p style="color:#64748b; font-size:13px; margin:6px 0 0 0;">Определяем тип упражнения, формируем вопрос и проверяем геометрию ячеек бланка А4.</p>
+        </div>
+      `;
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      try {
+        const url = `/api/v1/constructor/scan-task?save_to_bank=${autoSave}&grade_level=${gradeHint}`;
+        const res = await fetch(url, {
+          method: 'POST',
+          body: formData
+        });
+
+        if (!res.ok) {
+          const err = await res.json();
+          resDiv.innerHTML = `
+            <div class="card" style="background:#fee2e2; border:1px solid #fca5a5; color:#991b1b;">
+              <strong>Ошибка обработки:</strong> ${JSON.stringify(err.detail)}
+            </div>
+          `;
+          return;
+        }
+
+        const data = await res.json();
+        renderScanResult(data);
+      } catch (err) {
+        resDiv.innerHTML = `
+          <div class="card" style="background:#fee2e2; border:1px solid #fca5a5; color:#991b1b;">
+            <strong>Сетевая ошибка:</strong> ${err.message}
+          </div>
+        `;
+      } finally {
+        submitBtn.disabled = false;
+      }
+    }
+
+    let currentScannedTasks = [];
+
+    function renderScanResult(data) {
+      const resDiv = document.getElementById('scanResultContainer');
+      const tasks = (data.tasks && data.tasks.length > 0) ? data.tasks : (data.task ? [data.task] : []);
+      currentScannedTasks = tasks;
+
+      if (!data.is_supported || tasks.length === 0) {
+        resDiv.innerHTML = `
+          <div class="card" style="background:#fff1f2; border:2px solid #fecdd3;">
+            <div class="card-header">
+              <span class="badge" style="background:#fee2e2; color:#b91c1c; border:1px solid #fca5a5;">
+                ❌ Данный тип задания не поддерживается
+              </span>
+              <span style="font-size:12px; color:#64748b;">Уверенность: ${(data.confidence * 100).toFixed(0)}%</span>
+            </div>
+            <p style="font-size:15px; color:#991b1b; font-weight:600; margin:8px 0 4px 0;">
+              ${data.unsupported_reason || 'Задание не подходит для автоматизированных бланков с ячейками.'}
+            </p>
+            <p style="font-size:13px; color:#64748b; margin:0 0 12px 0;">
+              💡 <em>Подсказка: бланки «Дәресханә» рассчитаны на однозначные ответы от 1 до 12 букв (без сочинений, схем и длинных предложений).</em>
+            </p>
+            ${data.raw_ocr_text ? `
+              <details style="margin-top:10px; font-size:12px; color:#475569;">
+                <summary style="cursor:pointer; font-weight:600;">Распознанный OCR текст из изображения</summary>
+                <pre style="background:#f8fafc; color:#1e293b; border:1px solid #e2e8f0; margin-top:6px; padding:8px;">${data.raw_ocr_text}</pre>
+              </details>
+            ` : ''}
+          </div>
+        `;
+        return;
+      }
+
+      let cardsHtml = '';
+      tasks.forEach((t, idx) => {
+        const letters = t.expected_answer.split('');
+        let cellsHtml = '';
+        for (let i = 0; i < t.cell_count; i++) {
+          const ch = letters[i] || '';
+          cellsHtml += ch 
+            ? `<div class="cell-box">${ch}</div>` 
+            : `<div class="cell-box empty">·</div>`;
+        }
+
+        cardsHtml += `
+          <div class="card" style="background:#f0fdf4; border:2px solid #86efac; margin-bottom:12px;">
+            <div class="card-header">
+              <div style="display:flex; gap:8px; align-items:center;">
+                <span class="badge badge-tatar">${t.topic_name_tt}</span>
+                <span class="badge" style="background:#e0e7ff; color:#3730a3;">#${idx + 1}</span>
+              </div>
+              <span style="font-size:12px; color:#64748b;">
+                ID: <code>${t.task_id}</code> | ${t.grade_level} класс
+              </span>
+            </div>
+
+            <div style="font-size:16px; font-weight:600; color:#1e293b; margin:6px 0 4px 0;">
+              ${t.prompt_tt}
+            </div>
+
+            <div style="font-size:13px; color:#475569;">
+              Ожидаемый ответ: <strong style="color:#15803d; font-size:14px;">${t.expected_answer}</strong> 
+              (${t.expected_answer.length} букв) | Ячеек на бланке: <strong>${t.cell_count}</strong>
+            </div>
+
+            <div class="cell-strip">
+              ${cellsHtml}
+            </div>
+          </div>
+        `;
+      });
+
+      const headerMsg = tasks.length > 1
+        ? `✅ Упражнение успешно разбито на <strong>${tasks.length}</strong> отдельных заданий!`
+        : `✅ Задание успешно распознано и готово к использованию!`;
+
+      resDiv.innerHTML = `
+        <div class="card" style="background:#f8fafc; border:1px solid #cbd5e1; margin-bottom:14px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+            <div style="font-size:15px; color:#166534;">
+              ${headerMsg}
+            </div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              ${data.saved_to_bank
+                ? '<span style="color:#15803d; font-weight:600; font-size:13px; padding:6px 12px; background:#dcfce7; border-radius:4px;">✅ Все задания сохранены в банк</span>'
+                : `<button type="button" class="btn btn-success" onclick="saveAllScannedTasksToBank()" id="saveAllScannedBtn">
+                    💾 Сохранить все ${tasks.length} заданий в банк
+                   </button>`
+              }
+              <button type="button" class="btn btn-secondary" onclick="switchTab('tab-assemble')" style="font-size:13px;">
+                📄 Собрать PDF бланк
+              </button>
+            </div>
+          </div>
+        </div>
+
+        ${cardsHtml}
+
+        ${data.raw_ocr_text ? `
+          <details style="margin-top:14px; font-size:12px; color:#475569;">
+            <summary style="cursor:pointer; font-weight:600;">Показать исходный OCR текст</summary>
+            <pre style="background:#f8fafc; color:#1e293b; border:1px solid #e2e8f0; margin-top:6px; padding:8px;">${data.raw_ocr_text}</pre>
+          </details>
+        ` : ''}
+      `;
+    }
+
+    async function saveAllScannedTasksToBank() {
+      if (!currentScannedTasks || currentScannedTasks.length === 0) return;
+      const btn = document.getElementById('saveAllScannedBtn');
+      if (btn) btn.disabled = true;
+
+      try {
+        for (const task of currentScannedTasks) {
+          const payload = {
+            prompt_tt: task.prompt_tt,
+            expected_answer: task.expected_answer,
+            cell_count: task.cell_count,
+            grade_level: task.grade_level,
+            topic_tag: task.topic_tag,
+            topic_name_tt: task.topic_name_tt,
+            is_public_in_bank: true,
+            task_type: task.task_type || "custom"
+          };
+          await fetch('/api/v1/constructor/tasks', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+        }
+        if (btn) {
+          btn.outerHTML = '<span style="color:#15803d; font-weight:600; font-size:13px; padding:6px 12px; background:#dcfce7; border-radius:4px;">✅ Все задания успешно сохранены в банк!</span>';
+        }
+      } catch (err) {
+        alert('Ошибка при сохранении в банк: ' + err.message);
+        if (btn) btn.disabled = false;
+      }
+    }
+
+    // TAB 4: CUSTOM TASK
     async function handleCreateCustomTask(e) {
       e.preventDefault();
       const resDiv = document.getElementById('customTaskResult');

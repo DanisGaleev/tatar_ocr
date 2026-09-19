@@ -1,7 +1,8 @@
 import json
 import uuid
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+import base64
+from fastapi import APIRouter, Depends, HTTPException, Query, status, File, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_
 
@@ -17,6 +18,8 @@ from app.schemas.task import (
     VerifyAnswerRequest,
     VerifyAnswerResponse,
     CellStatusItem,
+    ScanTaskResponse,
+    ScanTaskRequestBase64,
 )
 from app.schemas.test import (
     AssembleTestRequest,
@@ -26,6 +29,7 @@ from app.schemas.test import (
 from app.generators.registry import registry
 from app.generators.phonetics import clean_word, build_expected_cells
 from app.generators.checker import verify_question_cells
+from app.services.task_extractor import get_task_extractor_service
 
 
 router = APIRouter(prefix="/constructor", tags=["Assignment Constructor"])
@@ -299,4 +303,85 @@ async def verify_student_answer(payload: VerifyAnswerRequest):
             for c in res.cells
         ],
     )
+
+
+@router.post("/scan-task", response_model=ScanTaskResponse, summary="Scan exercise image via OCR and classify/structure via YandexGPT")
+async def scan_task_from_image(
+    file: UploadFile = File(..., description="Image file (photo or screenshot) of textbook/workbook exercise"),
+    save_to_bank: bool = Query(False, description="Persist directly into task bank if valid"),
+    grade_level: Optional[int] = Query(None, ge=5, le=9, description="Optional grade level hint (5..9)"),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Analyzes an uploaded photo or screenshot using OCR & YandexGPT:
+    1. Extracts text from image via OCR.
+    2. Classifies task type against supported taxonomy (or flags unsupported tasks).
+    3. Formats prompt, expected answer (<=12 chars), and physical cell count.
+    4. Optionally saves to task bank if save_to_bank=True.
+    """
+    if not file.content_type or not file.content_type.startswith("image/"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid file content type '{file.content_type}'. Must be an image (JPEG, PNG, WEBP).",
+        )
+
+    image_bytes = await file.read()
+    if not image_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Uploaded file is empty.",
+        )
+
+    service = get_task_extractor_service()
+    try:
+        result = await service.extract_from_image(
+            image_bytes=image_bytes,
+            mime_type=file.content_type,
+            grade_hint=grade_level,
+            save_to_bank=save_to_bank,
+            db=db,
+        )
+        return result
+    except ValueError as err:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(err))
+    except Exception as err:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error processing image with AI task extractor: {err}",
+        )
+
+
+@router.post("/scan-task-base64", response_model=ScanTaskResponse, summary="Scan exercise from base64 image via OCR & YandexGPT")
+async def scan_task_from_base64(
+    payload: ScanTaskRequestBase64,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Base64 variant for mobile apps or JSON-only clients.
+    """
+    try:
+        image_bytes = base64.b64decode(payload.image_base64)
+    except Exception as err:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid base64 payload: {err}",
+        )
+
+    service = get_task_extractor_service()
+    try:
+        result = await service.extract_from_image(
+            image_bytes=image_bytes,
+            mime_type=payload.mime_type,
+            grade_hint=payload.grade_level,
+            save_to_bank=payload.save_to_bank,
+            db=db,
+        )
+        return result
+    except ValueError as err:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(err))
+    except Exception as err:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error processing image with AI task extractor: {err}",
+        )
 

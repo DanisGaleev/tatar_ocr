@@ -57,3 +57,21 @@ class VerifyAnswerResponse(BaseModel):
     written_word: str
     cells: List[CellStatusItem]
 
+
+class ScanTaskRequestBase64(BaseModel):
+    image_base64: str = Field(..., description="Base64 encoded image string (JPEG/PNG/WEBP)")
+    mime_type: str = Field(default="image/jpeg", description="MIME type of the image")
+    grade_level: Optional[int] = Field(default=None, ge=5, le=9, description="Optional grade level hint")
+    save_to_bank: bool = Field(default=False, description="Persist directly into task bank if valid")
+
+
+class ScanTaskResponse(BaseModel):
+    is_supported: bool = Field(..., description="True if task matches a supported type and fits 12-cell physical blanks")
+    unsupported_reason: Optional[str] = Field(default=None, description="Explanation why the task is not supported")
+    task_type: Optional[str] = Field(default=None, description="Identified task generator type or 'custom'")
+    task: Optional[TaskBankItem] = Field(default=None, description="Primary formatted task ready for task bank and test blanks")
+    tasks: List[TaskBankItem] = Field(default_factory=list, description="All extracted sub-tasks if exercise contains multiple items")
+    raw_ocr_text: str = Field(default="", description="Recognized text from image OCR")
+    confidence: float = Field(default=1.0, description="Overall confidence score of OCR and classification")
+    saved_to_bank: bool = Field(default=False, description="Whether the task was persisted in DB")
+
