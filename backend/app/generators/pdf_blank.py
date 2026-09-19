@@ -208,9 +208,6 @@ def render_blank_pdf(
             rect = patches.Rectangle((cx, cells_y), cell_w_mm, cell_h_mm,
                                      linewidth=0.8, edgecolor='#000000', facecolor='none')
             ax.add_patch(rect)
-            # Subtle cell index number in top-left
-            ax.text(cx + 1.2, cells_y + 1.0, str(c + 1),
-                    fontsize=4.2, fontname='sans-serif', ha='left', va='top', color='#94a3b8')
 
         # Separator line between questions
         if idx < min(len(questions), 8) - 1:
