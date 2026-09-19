@@ -522,7 +522,7 @@ def generate_augmented_cell_image(
 ):
     """
     Comprehensive, realistic Tatar handwritten character generator tailored for
-    cropped cell recognition in the 'Дәресханә' mobile OCR system.
+    cropped cell recognition in the 'Кара куян' mobile OCR system.
     Supports supplying pre-rendered `base_img` to eliminate repeated font rasterization.
     """
     internal_size = max(128, canvas_size * 2)

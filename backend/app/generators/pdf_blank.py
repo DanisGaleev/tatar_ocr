@@ -107,18 +107,15 @@ def render_blank_pdf(
         fontsize=5.5, fontname='sans-serif', ha='center', va='top', color='#475569'
     )
 
-    # Title & Subtitle (constrained within x <= 180 mm to leave clean quiet zone for ArUco marker 1 at x=190 mm)
+    # Header Warnings & Student Identification (Markers, QR, and cell coordinates preserved)
     title_x = qr_x + qr_size_mm + 6.0
-    display_title = title if len(title) <= 35 else title[:32] + "..."
-    ax.text(title_x, header_top_y + 1.5, f"«ДӘРЕСХАНӘ» • {display_title.upper()}",
-            fontsize=9.5, fontname=_FONT_NAME, ha='left', va='top', color='#0f172a', weight='bold')
-    ax.text(title_x, header_top_y + 6.8, f"Җавап бланкы • Вариант {variant_id} • 10×10 мм баш хәреф языгыз",
-            fontsize=6.8, fontname=_FONT_NAME, ha='left', va='top', color='#475569')
+    ax.text(title_x, header_top_y + 3.0, "Внимание: заполняйте печатными заглавными буквами",
+            fontsize=7.5, fontname=_FONT_NAME, ha='left', va='top', color='#334155')
 
     # Student Identification Field (16 cells x 8.0 mm = 128 mm; ends at x = 175 mm, leaving 15 mm quiet zone before ArUco at x=190 mm)
     name_lbl_y = header_top_y + 11.5
-    ax.text(title_x, name_lbl_y, "Фамилия, исем (укучы коды):",
-            fontsize=7.0, fontname=_FONT_NAME, ha='left', va='top', color='#1e293b')
+    ax.text(title_x, name_lbl_y, "ФИО ученика:",
+            fontsize=7.2, fontname=_FONT_NAME, ha='left', va='top', color='#1e293b')
 
     name_cell_w = 8.0
     name_cell_h = 8.0
@@ -214,13 +211,13 @@ def render_blank_pdf(
             sep_y = block_y + q_pitch_y - 2.5
             ax.plot([20.0, page_w_mm - 10.0], [sep_y, sep_y], color='#e2e8f0', linewidth=0.6, linestyle='--')
 
-    # 4. Footer Instructions
+    # 4. Footer Instructions (Russian warnings only)
     footer_y = 267.0
     ax.plot([margin_corner_mm, page_w_mm - margin_corner_mm], [footer_y, footer_y], color='#cbd5e1', linewidth=0.8)
 
     inst_text = (
-        "Игътибар: Бланкны бөгәргә ярамый. Җавапларны шакмак эченә төгәл баш хәрефләр белән генә языгыз.\n"
-        "Татар хәрефләре: Ә, Җ, Ң, Ө, Ү, Һ. Меткалар (ArUco / QR) өстенә язмагыз."
+        "Внимание: бланк не сгибать. Пишите печатными заглавными буквами строго внутри клеток.\n"
+        "Татарские буквы: Ә, Җ, Ң, Ө, Ү, Һ. Не закрашивать маркеры ArUco и QR-код."
     )
     ax.text(page_w_mm / 2.0, footer_y + 2.5, inst_text,
             fontsize=7.0, fontname=_FONT_NAME, ha='center', va='top', color='#475569', multialignment='center')

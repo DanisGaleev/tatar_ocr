@@ -320,7 +320,7 @@ HTML_PAGE = """<!DOCTYPE html>
     <div class="container">
         <header>
             <div>
-                <h1>«Дәресханә» Tatar OCR Test Suite</h1>
+                <h1>«Кара куян» Tatar OCR Test Suite</h1>
                 <div style="font-size: 12px; color: var(--text-dim);">Full Blank Auto-Scanner & Interactive Single Character Inspector</div>
             </div>
             <div class="nav-tabs">
@@ -757,7 +757,7 @@ def run_server():
     server_address = ('127.0.0.1', PORT)
     httpd = HTTPServer(server_address, OCRRequestHandler)
     print(f"\n==================================================================")
-    print(f"  «Дәресханә» Tatar OCR Suite is RUNNING!")
+    print(f"  «Кара куян» Tatar OCR Suite is RUNNING!")
     print(f"  Open in browser: http://127.0.0.1:{PORT}")
     print(f"==================================================================\n", flush=True)
     try:

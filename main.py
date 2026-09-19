@@ -25,7 +25,7 @@ def main():
         from test_pipeline import run_tests
         run_tests()
     else:
-        print("Tatar OCR («Дәресханә») Pipeline")
+        print("Tatar OCR («Кара куян») Pipeline")
         print("Usage:")
         print("  - To launch interactive Marimo UI: uv run marimo run mp.py (or marimo edit mp.py)")
         print("  - To generate 15k-20k dataset:      python main.py --generate --samples 180")

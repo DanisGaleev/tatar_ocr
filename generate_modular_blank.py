@@ -102,16 +102,14 @@ def create_blank_pdf(output_pdf="test_blank_sample.pdf", output_png="test_blank_
     ax.text(qr_x + qr_size_mm / 2.0, qr_y + qr_size_mm + 2.5, "TAT-2026-Q1 (Var 1)",
             fontsize=5.5, fontname='sans-serif', ha='center', va='top', color='#475569')
 
-    # Title & Subtitle
+    # Title & Subtitle replaced by clean Russian warnings
     title_x = qr_x + qr_size_mm + 6.0
-    ax.text(title_x, header_top_y + 1.5, "«ДӘРЕСХАНӘ» ТАТАР ТЕЛЕ ТЕСТЫ",
-            fontsize=12.0, fontname=font_name, ha='left', va='top', color='#0f172a')
-    ax.text(title_x, header_top_y + 7.0, "Җавап бланкы • Һәр шакмакка 10×10 мм бер баш хәреф языгыз",
-            fontsize=7.2, fontname=font_name, ha='left', va='top', color='#475569')
+    ax.text(title_x, header_top_y + 3.0, "Внимание: заполняйте печатными заглавными буквами",
+            fontsize=7.5, fontname=font_name, ha='left', va='top', color='#334155')
 
     # Student Identification Field (Name / Code)
-    name_lbl_y = header_top_y + 12.0
-    ax.text(title_x, name_lbl_y, "Фамилия, исем (яки укучы коды):",
+    name_lbl_y = header_top_y + 11.5
+    ax.text(title_x, name_lbl_y, "ФИО ученика:",
             fontsize=7.2, fontname=font_name, ha='left', va='top', color='#1e293b')
     
     name_cell_w = 8.0  # 8.0x8.0 mm per name cell (ends at x=175mm, leaving 15mm quiet zone before ArUco 1 at x=190mm)
@@ -192,8 +190,8 @@ def create_blank_pdf(output_pdf="test_blank_sample.pdf", output_png="test_blank_
     ax.plot([margin_corner_mm, page_w_mm - margin_corner_mm], [footer_y, footer_y], color='#cbd5e1', linewidth=0.8)
     
     inst_text = (
-        "Игътибар: Бланкны бөгәргә ярамый. Җавапларны шакмак эченә төгәл баш хәрефләр белән генә языгыз.\n"
-        "Татар хәрефләре: Ә, Җ, Ң, Ө, Ү, Һ. Меткалар (ArUco / QR) өстенә язмагыз."
+        "Внимание: бланк не сгибать. Пишите печатными заглавными буквами строго внутри клеток.\n"
+        "Татарские буквы: Ә, Җ, Ң, Ө, Ү, Һ. Не закрашивать маркеры ArUco и QR-код."
     )
     ax.text(page_w_mm / 2.0, footer_y + 2.5, inst_text,
             fontsize=7.0, fontname=font_name, ha='center', va='top', color='#475569', multialignment='center')

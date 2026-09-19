@@ -30,7 +30,7 @@ def _():
     mo.md(
         """
         # 📝 Tatar Handwritten Character & Punctuation Pipeline
-        ### Synthetic Dataset Generator & CNN Pipeline for Tatar OCR («Дәресханә»)
+        ### Synthetic Dataset Generator & CNN Pipeline for Tatar OCR («Кара куян»)
         This system generates realistic handwritten printed letters (**"рукописно-печатные буквы"**) for the Tatar Cyrillic alphabet (including the 6 specific Tatar letters: **Ә, Ө, Ү, Җ, Ң, Һ**), punctuation marks, and digits.
 
         **Realism Filters tailored for Cell Crops:**
@@ -807,7 +807,7 @@ def _(
     class TatarOCRNet(nn.Module):
         """
         Lightweight Convolutional Neural Network for Tatar handwritten character recognition.
-        Designed for fast mobile inference in the «Дәресханә» app.
+        Designed for fast mobile inference in the «Кара куян» app.
         """
 
         def __init__(self, num_classes=102):

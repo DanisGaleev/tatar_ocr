@@ -131,7 +131,7 @@ def generate_collection_pdf(output_pdf="dataset/tatar_handwriting_collection_she
             # Minimal single-line page marker at very top edge
             ax.text(
                 margin_left_mm, 5.5,
-                f"«Дәресханә» Бланк рукописных букв (клетка 1×1 см) • Лист {page_num}/{TOTAL_PAGES}",
+                f"«Кара куян» Бланк рукописных букв (клетка 1×1 см) • Лист {page_num}/{TOTAL_PAGES}",
                 fontsize=7.0, fontname='sans-serif', color='#475569', va='bottom'
             )
 
@@ -199,7 +199,7 @@ def render_preview_png(preview_png="dataset/collection_sheet_preview_page1.png")
 
     ax.text(
         margin_left_mm, 5.5,
-        "«Дәресханә» Бланк рукописных букв (клетка 1×1 см) • Лист 1/5",
+        "«Кара куян» Бланк рукописных букв (клетка 1×1 см) • Лист 1/5",
         fontsize=7.0, fontname='sans-serif', color='#475569', va='bottom'
     )
 

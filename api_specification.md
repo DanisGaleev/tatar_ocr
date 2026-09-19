@@ -1,6 +1,6 @@
-# «Дәресханә» (Tatar OCR) — API Contract Specification
+# «Кара куян» (Tatar OCR) — API Contract Specification
 
-This document provides the definitive API contracts and architectural design for **«Дәресханә»**, built around two foundational principles:
+This document provides the definitive API contracts and architectural design for **«Кара куян»**, built around two foundational principles:
 1. **Zero-Photo Transmission**: Camera images never leave the teacher's phone. All ArUco perspective rectifications, cell cropping, and TFLite neural network character recognitions happen 100% locally on the device in memory.
 2. **Backend Analytical Processing**: The phone uploads only lightweight structured verification results (1–2 KB JSON per sheet). The backend performs all heavy historical data aggregation, student learning curve analysis, class heatmaps, error categorizations, and gradebook exports.
 
