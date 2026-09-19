@@ -84,8 +84,8 @@ class OCRService:
         ch, cw = img_bgr.shape[:2]
         gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
 
-        my = max(1, int(round(ch * 0.08)))
-        mx = max(1, int(round(cw * 0.08)))
+        my = max(1, int(round(ch * 0.11)))
+        mx = max(1, int(round(cw * 0.11)))
         inner_gray = gray[my:ch - my, mx:cw - mx]
         ih, iw = inner_gray.shape[:2]
 
@@ -96,10 +96,17 @@ class OCRService:
         valid_ink = np.zeros_like(ink_mask)
         for i in range(1, num_labels):
             area = stats[i, cv2.CC_STAT_AREA]
+            bx = stats[i, cv2.CC_STAT_LEFT]
+            by = stats[i, cv2.CC_STAT_TOP]
             bw = stats[i, cv2.CC_STAT_WIDTH]
             bh = stats[i, cv2.CC_STAT_HEIGHT]
-            is_edge_line = (bw > 0.88 * iw and bh <= 3) or (bh > 0.88 * ih and bw <= 3)
-            if area >= 18 and not is_edge_line:
+            touches_edge = (bx <= 1 or by <= 1 or (bx + bw) >= iw - 1 or (by + bh) >= ih - 1)
+            is_edge_line = (
+                (bw > 0.75 * iw and bh <= 5) or
+                (bh > 0.75 * ih and bw <= 5) or
+                (touches_edge and (bh > 3.5 * bw or bw > 3.5 * bh))
+            )
+            if area >= 20 and not is_edge_line:
                 valid_ink[labels == i] = 1
 
         ys, xs = np.where(valid_ink > 0)

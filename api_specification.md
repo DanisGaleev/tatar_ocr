@@ -61,6 +61,7 @@ This document provides the definitive API contracts and architectural design for
 | `/api/v1/submissions` | **Submissions Ingestion** | Ingesting locally graded structured JSON (Zero-Photo), batch sync |
 | `/api/v1/analytics` | **Backend Analytics Engine**| Student curves, class topic heatmaps, difficult Tatar letters |
 | `/api/v1/reports` | **Gradebook Exports** | Export class performance sheets for electronic school journals (Excel) |
+| `/api/v1/model` | **Model & Manifest** | Model weights manifest, preprocessing specs, and 39-class alphabet array |
 
 ---
 
@@ -568,3 +569,51 @@ Downloads an Excel spreadsheet ready for direct upload into school electronic gr
 - **Response `200 OK`**:
   - `Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`
   - Columns: Student Full Name, Variant, Points Earned, Max Points, Grade (2–5), Date.
+
+---
+
+### Router 7: Model Manifest & Preprocessing Spec (`/api/v1/model`)
+
+#### 7.1 `GET /api/v1/model/manifest`
+Returns the authoritative 39-class alphabet array, model version info, SHA-256 hash, and exact image preprocessing parameters to ensure 100% parity between server training and mobile on-device TFLite/ONNX inference.
+
+- **Response `200 OK`**:
+```json
+{
+  "model_name": "finetuned_uppercase39",
+  "model_version": "1.0.0",
+  "num_classes": 39,
+  "alphabet_classes": [
+    "А", "Ә", "Б", "В", "Г", "Д", "Е", "Ё", "Ж", "Җ",
+    "З", "И", "Й", "К", "Л", "М", "Н", "Ң", "О", "Ө",
+    "П", "Р", "С", "Т", "У", "Ү", "Ф", "Х", "Һ", "Ц",
+    "Ч", "Ш", "Щ", "Ъ", "Ы", "Ь", "Э", "Ю", "Я"
+  ],
+  "sha256": "b55481b407751ece8237c77bbfa6270cc3a271d73d04b3ef58a4c25ee01361d3",
+  "preprocessing": {
+    "input_resolution": [64, 64],
+    "channels": 1,
+    "color_mode": "grayscale",
+    "margin_trim_pct": 11.0,
+    "connected_component_segmentation": true,
+    "ink_threshold_offset": 22.0,
+    "ink_min_area_pixels": 35,
+    "bounding_box_padding_px": 2,
+    "target_occupancy_px": 46.0,
+    "canvas_background_val": 250,
+    "normalization_formula": "((pixel / 255.0) - 0.5) / 0.5"
+  }
+}
+```
+
+> **Authoritative Class Indexing Note**:
+> In standard Tatar Cyrillic orthography, the 6 special Tatar letters (**Ә, Җ, Ң, Ө, Ү, Һ**) appear immediately after their base Cyrillic counterparts:
+> - Index 0: `А`, Index 1: `Ә`
+> - Index 8: `Ж`, Index 9: `Җ`
+> - Index 16: `Н`, Index 17: `Ң`
+> - Index 18: `О`, Index 19: `Ө`
+> - Index 24: `У`, Index 25: `Ү`
+> - Index 27: `Х`, Index 28: `Һ`
+>
+> Never append `Ә` to the end of the alphabet array, as that causes catastrophic off-by-one indexing against the trained neural network output logits.
+
