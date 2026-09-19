@@ -107,21 +107,21 @@ def render_blank_pdf(
         fontsize=5.5, fontname='sans-serif', ha='center', va='top', color='#475569'
     )
 
-    # Title & Subtitle
+    # Title & Subtitle (constrained within x <= 180 mm to leave clean quiet zone for ArUco marker 1 at x=190 mm)
     title_x = qr_x + qr_size_mm + 6.0
-    display_title = title if len(title) <= 45 else title[:42] + "..."
+    display_title = title if len(title) <= 35 else title[:32] + "..."
     ax.text(title_x, header_top_y + 1.5, f"«ДӘРЕСХАНӘ» • {display_title.upper()}",
-            fontsize=10.5, fontname=_FONT_NAME, ha='left', va='top', color='#0f172a', weight='bold')
-    ax.text(title_x, header_top_y + 6.8, f"Җавап бланкы • Вариант {variant_id} • Һәр шакмакка 10×10 мм баш хәреф языгыз",
-            fontsize=7.2, fontname=_FONT_NAME, ha='left', va='top', color='#475569')
+            fontsize=9.5, fontname=_FONT_NAME, ha='left', va='top', color='#0f172a', weight='bold')
+    ax.text(title_x, header_top_y + 6.8, f"Җавап бланкы • Вариант {variant_id} • 10×10 мм баш хәреф языгыз",
+            fontsize=6.8, fontname=_FONT_NAME, ha='left', va='top', color='#475569')
 
-    # Student Identification Field
+    # Student Identification Field (16 cells x 8.0 mm = 128 mm; ends at x = 175 mm, leaving 15 mm quiet zone before ArUco at x=190 mm)
     name_lbl_y = header_top_y + 11.5
     ax.text(title_x, name_lbl_y, "Фамилия, исем (укучы коды):",
-            fontsize=7.2, fontname=_FONT_NAME, ha='left', va='top', color='#1e293b')
+            fontsize=7.0, fontname=_FONT_NAME, ha='left', va='top', color='#1e293b')
 
-    name_cell_w = 9.0
-    name_cell_h = 9.0
+    name_cell_w = 8.0
+    name_cell_h = 8.0
     num_name_cells = 16
     name_cells_start_x = title_x
     name_cells_start_y = name_lbl_y + 4.2
@@ -135,7 +135,7 @@ def render_blank_pdf(
         ax.add_patch(rect)
         if i < len(name_letters) and name_letters[i] != ' ':
             ax.text(nx + name_cell_w / 2.0, name_cells_start_y + name_cell_h / 2.0,
-                    name_letters[i], fontsize=8.0, fontname=_FONT_NAME,
+                    name_letters[i], fontsize=7.5, fontname=_FONT_NAME,
                     ha='center', va='center', color='#0f172a', weight='bold')
 
     # Header separator

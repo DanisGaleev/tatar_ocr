@@ -264,15 +264,26 @@ async def get_ready_tests(db: AsyncSession = Depends(get_db)):
     res = await db.execute(stmt)
     records = res.scalars().all()
     
-    return [
-        ReadyTestItem(
-            test_id=rec.test_id,
-            title=rec.title,
-            grade_level=rec.grade_level,
-            questions_count=8,
+    result = []
+    for rec in records:
+        q_count = 8
+        if rec.bundle_json:
+            try:
+                b = json.loads(rec.bundle_json)
+                variants = b.get("variants", [])
+                if variants and "questions" in variants[0]:
+                    q_count = len(variants[0]["questions"])
+            except Exception:
+                pass
+        result.append(
+            ReadyTestItem(
+                test_id=rec.test_id,
+                title=rec.title,
+                grade_level=rec.grade_level,
+                questions_count=q_count,
+            )
         )
-        for rec in records
-    ]
+    return result
 
 @router.post("/verify-answer", response_model=VerifyAnswerResponse, summary="Verify student answer against expected answer")
 async def verify_student_answer(payload: VerifyAnswerRequest):

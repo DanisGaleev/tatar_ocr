@@ -4,6 +4,7 @@ from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.pool import StaticPool
 import io
+import json
 import openpyxl
 
 from app.main import app
@@ -73,19 +74,45 @@ async def prepare_database():
             title="Татар теле. 7 сыйныф. Исем килешләре",
             grade_level=7,
             total_variants=2,
-            bundle_json="""{
+            bundle_json=json.dumps({
                 "assignment_id": "TAT-2026-Q1",
                 "title": "Татар теле. 7 сыйныф. Исем килешләре",
+                "total_variants": 2,
                 "variants": [
                     {
                         "variant_id": 1,
+                        "qr_signature": '{"tid":"TAT-2026-Q1","var":1,"page":1,"tot":1,"n_q":4}',
+                        "template_geometry": {
+                            "format": "A4",
+                            "corner_aruco_dict": "DICT_4X4_50",
+                            "corner_aruco_ids": [0, 1, 2, 3],
+                            "cell_dimensions_mm": {"width": 10.0, "height": 10.0}
+                        },
                         "questions": [
-                            {"question_number": 1, "marker_id": 11, "prompt": "Куегыз сүзне юнәлеш килешендә: китап ->", "expected_answer": "КИТАПКА"},
-                            {"question_number": 2, "marker_id": 12, "prompt": "Куегыз сүзне чыгыш килешендә: өстәл ->", "expected_answer": "ӨСТӘЛДӘН"}
+                            {"question_number": 1, "marker_id": 11, "prompt": "Куегыз сүзне юнәлеш килешендә: китап ->", "topic_tag": "case_dative", "topic_name_tt": "Юнәлеш килеше", "cell_count": 8, "expected_answer": "КИТАПКА", "expected_cells": [{"index": 0, "char": "К", "unicode": "U+041A", "is_empty_allowed": False}]},
+                            {"question_number": 2, "marker_id": 12, "prompt": "Куегыз сүзне чыгыш килешендә: өстәл ->", "topic_tag": "case_ablative", "topic_name_tt": "Чыгыш килеше", "cell_count": 8, "expected_answer": "ӨСТӘЛДӘН", "expected_cells": [{"index": 0, "char": "Ө", "unicode": "U+04E8", "is_empty_allowed": False}]},
+                            {"question_number": 3, "marker_id": 13, "prompt": "Сүзгә күплек сан кушымчасын ялгагыз: бала ->", "topic_tag": "plural_affixes", "topic_name_tt": "Күплек сан", "cell_count": 8, "expected_answer": "БАЛАЛАР", "expected_cells": [{"index": 0, "char": "Б", "unicode": "U+0411", "is_empty_allowed": False}]},
+                            {"question_number": 4, "marker_id": 14, "prompt": "Сүзгә күплек сан кушымчасын ялгагыз: урман ->", "topic_tag": "plural_affixes", "topic_name_tt": "Күплек сан", "cell_count": 8, "expected_answer": "УРМАННАР", "expected_cells": [{"index": 0, "char": "У", "unicode": "U+0423", "is_empty_allowed": False}]}
+                        ]
+                    },
+                    {
+                        "variant_id": 2,
+                        "qr_signature": '{"tid":"TAT-2026-Q1","var":2,"page":1,"tot":1,"n_q":4}',
+                        "template_geometry": {
+                            "format": "A4",
+                            "corner_aruco_dict": "DICT_4X4_50",
+                            "corner_aruco_ids": [0, 1, 2, 3],
+                            "cell_dimensions_mm": {"width": 10.0, "height": 10.0}
+                        },
+                        "questions": [
+                            {"question_number": 1, "marker_id": 11, "prompt": "Куегыз сүзне чыгыш килешендә: өстәл ->", "topic_tag": "case_ablative", "topic_name_tt": "Чыгыш килеше", "cell_count": 8, "expected_answer": "ӨСТӘЛДӘН", "expected_cells": [{"index": 0, "char": "Ө", "unicode": "U+04E8", "is_empty_allowed": False}]},
+                            {"question_number": 2, "marker_id": 12, "prompt": "Сүзгә күплек сан кушымчасын ялгагыз: бала ->", "topic_tag": "plural_affixes", "topic_name_tt": "Күплек сан", "cell_count": 8, "expected_answer": "БАЛАЛАР", "expected_cells": [{"index": 0, "char": "Б", "unicode": "U+0411", "is_empty_allowed": False}]},
+                            {"question_number": 3, "marker_id": 13, "prompt": "Сүзгә күплек сан кушымчасын ялгагыз: урман ->", "topic_tag": "plural_affixes", "topic_name_tt": "Күплек сан", "cell_count": 8, "expected_answer": "УРМАННАР", "expected_cells": [{"index": 0, "char": "У", "unicode": "U+0423", "is_empty_allowed": False}]},
+                            {"question_number": 4, "marker_id": 14, "prompt": "Куегыз сүзне юнәлеш килешендә: китап ->", "topic_tag": "case_dative", "topic_name_tt": "Юнәлеш килеше", "cell_count": 8, "expected_answer": "КИТАПКА", "expected_cells": [{"index": 0, "char": "К", "unicode": "U+041A", "is_empty_allowed": False}]}
                         ]
                     }
                 ]
-            }""",
+            }, ensure_ascii=False),
         )
         session.add(asm)
         await session.commit()
@@ -351,4 +378,42 @@ class TestSubmissionsAndAnalyticsAPI:
         assert len(res_pdf.content) > 1000
         # Valid PDF header
         assert res_pdf.content.startswith(b"%PDF")
+
+        # 8. Test Offline Bundle for TAT-2026-Q1 (Fixed 500 error & schema validation)
+        res_bundle = await client.get("/api/v1/assignments/TAT-2026-Q1/offline-bundle")
+        assert res_bundle.status_code == 200, f"offline-bundle returned {res_bundle.status_code}: {res_bundle.text}"
+        bundle_json = res_bundle.json()
+        assert bundle_json["assignment_id"] == "TAT-2026-Q1"
+        assert bundle_json["total_variants"] == 2
+        assert len(bundle_json["variants"]) == 2
+        assert "template_geometry" in bundle_json["variants"][0]
+        assert len(bundle_json["variants"][0]["questions"]) == 4
+        assert "expected_cells" in bundle_json["variants"][0]["questions"][0]
+
+        res_bundle_v1 = await client.get("/api/v1/assignments/TAT-2026-Q1/offline-bundle?variant=1")
+        assert res_bundle_v1.status_code == 200
+        bundle_v1 = res_bundle_v1.json()
+        assert bundle_v1["total_variants"] == 1
+        assert bundle_v1["variants"][0]["variant_id"] == 1
+
+        # 9. Test ready-tests dynamic questions_count
+        res_ready = await client.get("/api/v1/constructor/ready-tests")
+        assert res_ready.status_code == 200
+        ready_tests = res_ready.json()
+        tat_test = next((t for t in ready_tests if t["test_id"] == "TAT-2026-Q1"), None)
+        assert tat_test is not None
+        assert tat_test["questions_count"] == 4
+
+        # 10. Test Model Manifest & Authoritative Alphabet
+        res_manifest = await client.get("/api/v1/model/manifest")
+        assert res_manifest.status_code == 200
+        manifest = res_manifest.json()
+        assert manifest["num_classes"] == 39
+        assert manifest["alphabet_classes"][0] == "А"
+        assert manifest["alphabet_classes"][1] == "Ә"
+        assert manifest["alphabet_classes"][2] == "Б"
+        assert manifest["alphabet_classes"][-1] == "Я"
+        assert manifest["preprocessing"]["input_resolution"] == [64, 64]
+        assert manifest["preprocessing"]["margin_trim_pct"] == 11.0
+
 

@@ -113,21 +113,49 @@ class BlankOCRScanner:
                 if x >= 200:
                     detected_boxes.append((x, y, w, h))
 
-        # 1. Student Name row: pitch 90px, 16 cells
-        # Snap horizontal line around y=216
+        # 1. Student Name row: dynamically detect start_x, pitch, and cell count
         name_cells = []
         sobel_y = np.abs(cv2.Sobel(gray, cv2.CV_32F, 0, 1, ksize=3))
-        name_profile = sobel_y[200:245, 470:1910].mean(axis=1)
-        name_top_y = 200 + int(np.argmax(name_profile))
+        name_profile = sobel_y[190:265, 450:1920].mean(axis=1)
+        name_top_y = 190 + int(np.argmax(name_profile))
 
-        # Vertical dividers with ~90px pitch
-        name_x_start = 474
-        for i in range(16):
-            cx = int(name_x_start + i * 89.9)
+        # Check vertical lines in student name row
+        v_strip = v_lines[name_top_y + 15 : name_top_y + 75, 450:1950]
+        col_sums = v_strip.sum(axis=0)
+        max_col = float(np.max(col_sums)) if len(col_sums) > 0 else 0.0
+        has_line = col_sums > (0.2 * max_col) if max_col > 0 else np.zeros_like(col_sums, dtype=bool)
+        x_indices = np.where(has_line)[0]
+
+        name_x_start = 469
+        pitch = 95.0
+        num_name_cells = 15
+        name_cell_w = 95
+        name_cell_h = 95
+
+        if len(x_indices) > 0:
+            first_x = 450 + int(x_indices[0])
+            last_x = 450 + int(x_indices[-1])
+            total_span = last_x - first_x
+            if 1350 <= total_span <= 1500:
+                name_x_start = first_x
+                # Test whether 15 cells (~95px) or 16 cells (~90px) matches vertical divider lines best
+                score_15 = sum(col_sums[min(len(col_sums)-1, max(0, int(first_x - 450 + i * (total_span / 15.0))))] for i in range(1, 15))
+                score_16 = sum(col_sums[min(len(col_sums)-1, max(0, int(first_x - 450 + i * (total_span / 16.0))))] for i in range(1, 16))
+                if score_16 > score_15 * 1.15:
+                    num_name_cells = 16
+                    pitch = total_span / 16.0
+                else:
+                    num_name_cells = 15
+                    pitch = total_span / 15.0
+                name_cell_w = int(round(pitch))
+                name_cell_h = name_cell_w
+
+        for i in range(num_name_cells):
+            cx = int(round(name_x_start + i * pitch))
             name_cells.append({
                 "section": "student_name",
                 "cell_idx": i + 1,
-                "bbox": (cx, name_top_y, 90, 96)
+                "bbox": (cx, name_top_y, name_cell_w, name_cell_h)
             })
 
         # 2. Questions: anchor to detected question ArUco markers (ID 11..18)
@@ -187,7 +215,7 @@ class BlankOCRScanner:
 
         return name_cells, question_rows
 
-    def classify_cell(self, cell_bgr, margin_trim_pct=8):
+    def classify_cell(self, cell_bgr, margin_trim_pct=11):
         ch, cw = cell_bgr.shape[:2]
         if ch < 10 or cw < 10:
             return {"is_empty": True, "char": " ", "confidence": 100.0, "top3": [(" ", 100.0)]}
@@ -221,13 +249,18 @@ class BlankOCRScanner:
             bh = stats[i, cv2.CC_STAT_HEIGHT]
 
             # Filter out line artifacts (grid border remnants touching the outer perimeter)
-            is_edge_line = (bw > 0.88 * iw and bh <= 3) or (bh > 0.88 * ih and bw <= 3)
-            if area >= 18 and not is_edge_line:
+            touches_edge = (bx <= 1 or by <= 1 or (bx + bw) >= iw - 1 or (by + bh) >= ih - 1)
+            is_edge_line = (
+                (bw > 0.75 * iw and bh <= 5) or
+                (bh > 0.75 * ih and bw <= 5) or
+                (touches_edge and (bh > 3.5 * bw or bw > 3.5 * bh))
+            )
+            if area >= 20 and not is_edge_line:
                 valid_ink[labels == i] = 1
                 total_ink_pixels += area
 
         # Mark empty if stroke component is tiny or ink ratio is negligible
-        if total_ink_pixels < 30:
+        if total_ink_pixels < 35:
             return {
                 "is_empty": True,
                 "char": " ",

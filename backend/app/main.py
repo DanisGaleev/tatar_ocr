@@ -1,7 +1,9 @@
 import json
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, status
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from sqlalchemy import select
 
 from app.core.config import settings
@@ -10,8 +12,9 @@ from app.models.task import TaskBankModel
 from app.models.test import AssembledTestModel
 from app.models.teacher import TeacherModel
 from app.models.school import ClassModel, StudentModel
-from app.routers import constructor, assignments, auth, classes, submissions, analytics, reports, web, ocr
+from app.routers import constructor, assignments, auth, classes, submissions, analytics, reports, web, ocr, model
 from app.generators.registry import registry
+from app.generators.phonetics import build_expected_cells
 
 INITIAL_BANK_TASKS = [
     {
@@ -144,34 +147,53 @@ async def seed_initial_data():
 
         # Seed initial assembled test
         asm_res = await session.execute(select(AssembledTestModel).where(AssembledTestModel.test_id == "TAT-2026-Q1"))
-        if not asm_res.scalar_one_or_none():
-            bundle_data = {
-                "assignment_id": "TAT-2026-Q1",
-                "title": "Татар теле. 7 сыйныф. Исем килешләре һәм кушымчалар",
-                "total_variants": 2,
-                "variants": [
-                    {
-                        "variant_id": 1,
-                        "qr_signature": '{"tid":"TAT-2026-Q1","var":1,"page":1,"tot":1,"n_q":4}',
-                        "questions": [
-                            {"question_number": 1, "marker_id": 11, "prompt": "Куегыз сүзне юнәлеш килешендә: китап ->", "topic_tag": "case_dative", "topic_name_tt": "Юнәлеш килеше", "cell_count": 8, "expected_answer": "КИТАПКА"},
-                            {"question_number": 2, "marker_id": 12, "prompt": "Куегыз сүзне чыгыш килешендә: өстәл ->", "topic_tag": "case_ablative", "topic_name_tt": "Чыгыш килеше", "cell_count": 8, "expected_answer": "ӨСТӘЛДӘН"},
-                            {"question_number": 3, "marker_id": 13, "prompt": "Сүзгә күплек сан кушымчасын ялгагыз: бала ->", "topic_tag": "plural_affixes", "topic_name_tt": "Күплек сан", "cell_count": 8, "expected_answer": "БАЛАЛАР"},
-                            {"question_number": 4, "marker_id": 14, "prompt": "Сүзгә күплек сан кушымчасын ялгагыз: урман ->", "topic_tag": "plural_affixes", "topic_name_tt": "Күплек сан", "cell_count": 8, "expected_answer": "УРМАННАР"}
-                        ]
-                    },
-                    {
-                        "variant_id": 2,
-                        "qr_signature": '{"tid":"TAT-2026-Q1","var":2,"page":1,"tot":1,"n_q":4}',
-                        "questions": [
-                            {"question_number": 1, "marker_id": 11, "prompt": "Куегыз сүзне чыгыш килешендә: өстәл ->", "topic_tag": "case_ablative", "topic_name_tt": "Чыгыш килеше", "cell_count": 8, "expected_answer": "ӨСТӘЛДӘН"},
-                            {"question_number": 2, "marker_id": 12, "prompt": "Сүзгә күплек сан кушымчасын ялгагыз: бала ->", "topic_tag": "plural_affixes", "topic_name_tt": "Күплек сан", "cell_count": 8, "expected_answer": "БАЛАЛАР"},
-                            {"question_number": 3, "marker_id": 13, "prompt": "Сүзгә күплек сан кушымчасын ялгагыз: урман ->", "topic_tag": "plural_affixes", "topic_name_tt": "Күплек сан", "cell_count": 8, "expected_answer": "УРМАННАР"},
-                            {"question_number": 4, "marker_id": 14, "prompt": "Куегыз сүзне юнәлеш килешендә: китап ->", "topic_tag": "case_dative", "topic_name_tt": "Юнәлеш килеше", "cell_count": 8, "expected_answer": "КИТАПКА"}
-                        ]
-                    }
-                ]
-            }
+        existing_asm = asm_res.scalar_one_or_none()
+        
+        template_geometry = {
+            "format": "A4",
+            "corner_aruco_dict": settings.ARUCO_DICT,
+            "corner_aruco_ids": settings.CORNER_ARUCO_IDS,
+            "cell_dimensions_mm": {
+                "width": settings.CELL_WIDTH_MM,
+                "height": settings.CELL_HEIGHT_MM,
+            },
+        }
+
+        v1_questions = [
+            {"question_number": 1, "marker_id": 11, "prompt": "Куегыз сүзне юнәлеш килешендә: китап ->", "topic_tag": "case_dative", "topic_name_tt": "Юнәлеш килеше", "cell_count": 8, "expected_answer": "КИТАПКА", "expected_cells": build_expected_cells("КИТАПКА", 8)},
+            {"question_number": 2, "marker_id": 12, "prompt": "Куегыз сүзне чыгыш килешендә: өстәл ->", "topic_tag": "case_ablative", "topic_name_tt": "Чыгыш килеше", "cell_count": 8, "expected_answer": "ӨСТӘЛДӘН", "expected_cells": build_expected_cells("ӨСТӘЛДӘН", 8)},
+            {"question_number": 3, "marker_id": 13, "prompt": "Сүзгә күплек сан кушымчасын ялгагыз: бала ->", "topic_tag": "plural_affixes", "topic_name_tt": "Күплек сан", "cell_count": 8, "expected_answer": "БАЛАЛАР", "expected_cells": build_expected_cells("БАЛАЛАР", 8)},
+            {"question_number": 4, "marker_id": 14, "prompt": "Сүзгә күплек сан кушымчасын ялгагыз: урман ->", "topic_tag": "plural_affixes", "topic_name_tt": "Күплек сан", "cell_count": 8, "expected_answer": "УРМАННАР", "expected_cells": build_expected_cells("УРМАННАР", 8)}
+        ]
+
+        v2_questions = [
+            {"question_number": 1, "marker_id": 11, "prompt": "Куегыз сүзне чыгыш килешендә: өстәл ->", "topic_tag": "case_ablative", "topic_name_tt": "Чыгыш килеше", "cell_count": 8, "expected_answer": "ӨСТӘЛДӘН", "expected_cells": build_expected_cells("ӨСТӘЛДӘН", 8)},
+            {"question_number": 2, "marker_id": 12, "prompt": "Сүзгә күплек сан кушымчасын ялгагыз: бала ->", "topic_tag": "plural_affixes", "topic_name_tt": "Күплек сан", "cell_count": 8, "expected_answer": "БАЛАЛАР", "expected_cells": build_expected_cells("БАЛАЛАР", 8)},
+            {"question_number": 3, "marker_id": 13, "prompt": "Сүзгә күплек сан кушымчасын ялгагыз: урман ->", "topic_tag": "plural_affixes", "topic_name_tt": "Күплек сан", "cell_count": 8, "expected_answer": "УРМАННАР", "expected_cells": build_expected_cells("УРМАННАР", 8)},
+            {"question_number": 4, "marker_id": 14, "prompt": "Куегыз сүзне юнәлеш килешендә: китап ->", "topic_tag": "case_dative", "topic_name_tt": "Юнәлеш килеше", "cell_count": 8, "expected_answer": "КИТАПКА", "expected_cells": build_expected_cells("КИТАПКА", 8)}
+        ]
+
+        bundle_data = {
+            "assignment_id": "TAT-2026-Q1",
+            "title": "Татар теле. 7 сыйныф. Исем килешләре һәм кушымчалар",
+            "total_variants": 2,
+            "variants": [
+                {
+                    "variant_id": 1,
+                    "qr_signature": '{"tid":"TAT-2026-Q1","var":1,"page":1,"tot":1,"n_q":4}',
+                    "template_geometry": template_geometry,
+                    "questions": v1_questions
+                },
+                {
+                    "variant_id": 2,
+                    "qr_signature": '{"tid":"TAT-2026-Q1","var":2,"page":1,"tot":1,"n_q":4}',
+                    "template_geometry": template_geometry,
+                    "questions": v2_questions
+                }
+            ]
+        }
+
+        if not existing_asm:
             sample_asm = AssembledTestModel(
                 test_id="TAT-2026-Q1",
                 title="Татар теле. 7 сыйныф. Исем килешләре һәм кушымчалар",
@@ -180,7 +202,10 @@ async def seed_initial_data():
                 bundle_json=json.dumps(bundle_data, ensure_ascii=False),
             )
             session.add(sample_asm)
-            await session.commit()
+        else:
+            existing_asm.bundle_json = json.dumps(bundle_data, ensure_ascii=False)
+            session.add(existing_asm)
+        await session.commit()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -203,6 +228,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail, "status_code": exc.status_code},
+    )
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={"detail": "Internal server error", "status_code": 500},
+    )
+
 app.include_router(web.router)
 app.include_router(constructor.router, prefix=settings.API_V1_STR)
 app.include_router(assignments.router, prefix=settings.API_V1_STR)
@@ -211,6 +250,7 @@ app.include_router(classes.router, prefix=settings.API_V1_STR)
 app.include_router(submissions.router, prefix=settings.API_V1_STR)
 app.include_router(analytics.router, prefix=settings.API_V1_STR)
 app.include_router(reports.router, prefix=settings.API_V1_STR)
+app.include_router(model.router, prefix=settings.API_V1_STR)
 app.include_router(ocr.router, prefix=settings.API_V1_STR)
 app.include_router(ocr.legacy_router)
 

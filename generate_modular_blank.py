@@ -114,9 +114,9 @@ def create_blank_pdf(output_pdf="test_blank_sample.pdf", output_png="test_blank_
     ax.text(title_x, name_lbl_y, "Фамилия, исем (яки укучы коды):",
             fontsize=7.2, fontname=font_name, ha='left', va='top', color='#1e293b')
     
-    name_cell_w = 9.5  # 9.5x9.5 mm per name cell
-    name_cell_h = 9.5
-    num_name_cells = 15  # Fits up to 15 characters
+    name_cell_w = 8.0  # 8.0x8.0 mm per name cell (ends at x=175mm, leaving 15mm quiet zone before ArUco 1 at x=190mm)
+    name_cell_h = 8.0
+    num_name_cells = 16
     name_cells_start_x = title_x
     name_cells_start_y = name_lbl_y + 4.5
     
