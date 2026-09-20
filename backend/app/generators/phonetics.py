@@ -46,6 +46,10 @@ def is_front_vowel(word: str) -> bool:
     """
     cleaned = clean_word(word).lower()
     
+    # Handle Arabic loanwords where 'гый' precedes front vowels (e.g. гыйлем -> front)
+    if cleaned.startswith("гый") and any(c in FRONT_VOWELS for c in cleaned):
+        return True
+
     # Check for unambiguous Tatar-specific front/back vowels
     has_specific_front = any(c in "әөү" for c in cleaned)
     has_specific_back = any(c in "оуы" for c in cleaned)
@@ -218,6 +222,43 @@ def get_possessive_suffix(stem: str, person: int = 1, number: str = "sg") -> Tup
     is_front = is_front_vowel(cleaned)
     last_char = cleaned[-1]
     ends_in_vowel = last_char in ALL_VOWELS
+
+    # Special handling for monosyllabic 'су' and 'аю'
+    if cleaned == "су":
+        if person == 1:
+            return "су", "ым"
+        elif person == 2:
+            return "су", "ың"
+        elif person == 3:
+            return "су", "ы"
+
+    if cleaned == "аю":
+        if person == 1:
+            return "аю", "ым"
+        elif person == 2:
+            return "аю", "ың"
+        elif person == 3:
+            return "аю", "ы"
+
+    # Special handling for stems ending in -ау / -әү (e.g. тау -> тавым/тавы, сорау -> соравым/соравы)
+    if cleaned.endswith("ау") or cleaned.endswith("әү"):
+        stem_v = cleaned[:-1] + "в"
+        if person == 1:
+            return stem_v, "ем" if is_front else "ым"
+        elif person == 2:
+            return stem_v, "ең" if is_front else "ың"
+        elif person == 3:
+            return stem_v, "е" if is_front else "ы"
+
+    # Special handling for words ending in soft sign 'ь' (e.g. сәгать -> сәгатем, кәгазь -> кәгазем)
+    if cleaned.endswith("ь") and len(cleaned) > 1:
+        stem_no_soft = cleaned[:-1]
+        if person == 1:
+            return stem_no_soft, "ем" if is_front else "ым"
+        elif person == 2:
+            return stem_no_soft, "ең" if is_front else "ың"
+        elif person == 3:
+            return stem_no_soft, "е" if is_front else "ы"
 
     # Special handling for words ending in 'и' (e.g. әни, көри)
     if last_char == "и":
