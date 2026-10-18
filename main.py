@@ -27,8 +27,8 @@ def main():
     else:
         print("Tatar OCR («Кара куян») Pipeline")
         print("Usage:")
-        print("  - To launch interactive Marimo UI: uv run marimo run mp.py (or marimo edit mp.py)")
-        print("  - To generate 15k-20k dataset:      python main.py --generate --samples 180")
+        print("  - To launch interactive OCR Inspector: python ocr_inspector_server.py")
+        print("  - To generate 15k-20k dataset:         python main.py --generate --samples 180")
         print("  - To run tests:                    python main.py --test")
 
 
