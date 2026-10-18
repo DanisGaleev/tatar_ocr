@@ -341,9 +341,8 @@ HTML_PAGE = """<!DOCTYPE html>
                 </div>
                 <div style="display: flex; gap: 6px;">
                     <span style="font-size: 12px; color: var(--text-dim); align-self: center;">Samples:</span>
-                    <button class="btn-chip" onclick="loadBlankSample('scratch/test_blank_phone_photo.jpg')">📱 Phone Photo (Tilted)</button>
-                    <button class="btn-chip" onclick="loadBlankSample('scratch/test_blank_filled.png')">✍️ Filled Scan (Flat)</button>
-                    <button class="btn-chip" onclick="loadBlankSample('test_blank_sample.png')">📄 Empty Template</button>
+                    <button class="btn-chip" onclick="loadBlankSample('samples/test_blank_phone_photo.jpg')">📱 Phone Photo (Tilted)</button>
+                    <button class="btn-chip" onclick="loadBlankSample('samples/test_blank_filled.png')">✍️ Filled Scan (Flat)</button>
                 </div>
             </div>
 
@@ -658,7 +657,7 @@ HTML_PAGE = """<!DOCTYPE html>
 
         // Initial sample auto-load
         window.addEventListener('DOMContentLoaded', () => {
-            loadBlankSample('scratch/test_blank_phone_photo.jpg');
+            loadBlankSample('samples/test_blank_phone_photo.jpg');
         });
     </script>
 </body>
@@ -675,6 +674,8 @@ class OCRRequestHandler(BaseHTTPRequestHandler):
         elif self.path.startswith("/sample/"):
             rel_path = self.path[len("/sample/"):]
             sample_path = WORKSPACE_DIR / rel_path
+            if not sample_path.exists():
+                sample_path = WORKSPACE_DIR / "samples" / os.path.basename(rel_path)
             if not sample_path.exists():
                 sample_path = WORKSPACE_DIR / "dataset" / "six_cells_test" / os.path.basename(rel_path)
             if sample_path.exists():
