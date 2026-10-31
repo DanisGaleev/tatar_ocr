@@ -19,17 +19,24 @@ from matplotlib.backends.backend_pdf import FigureCanvasPdf, PdfPages
 import matplotlib.patches as patches
 import matplotlib.font_manager as fm
 
-# Setup font for Tatar Cyrillic characters
-_FONT_PATH = Path("fonts/Rubik-Regular.ttf")
-if not _FONT_PATH.exists():
-    _FONT_PATH = Path("fonts/PlaypenSans.ttf")
-if not _FONT_PATH.exists():
-    _FONT_PATH = Path("C:/Windows/Fonts/segoeui.ttf")
-if not _FONT_PATH.exists():
-    _FONT_PATH = Path("C:/Windows/Fonts/arial.ttf")
+# Setup font for Tatar Cyrillic characters (cross-platform Linux & Windows resolution)
+_PROJECT_ROOT = Path(__file__).resolve().parents[3]
+_FONT_CANDIDATES = [
+    _PROJECT_ROOT / "fonts" / "Rubik-Regular.ttf",
+    _PROJECT_ROOT / "fonts" / "PlaypenSans.ttf",
+    Path("/app/fonts/Rubik-Regular.ttf"),
+    Path("/app/fonts/PlaypenSans.ttf"),
+    Path("fonts/Rubik-Regular.ttf"),
+    Path("fonts/PlaypenSans.ttf"),
+    Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
+    Path("C:/Windows/Fonts/segoeui.ttf"),
+    Path("C:/Windows/Fonts/arial.ttf"),
+]
 
+_FONT_PATH = next((p for p in _FONT_CANDIDATES if p.exists()), None)
 _FONT_NAME = "TatarFont"
-if _FONT_PATH.exists():
+
+if _FONT_PATH is not None and _FONT_PATH.exists():
     _fe = fm.FontEntry(fname=str(_FONT_PATH.resolve()), name=_FONT_NAME)
     fm.fontManager.ttflist.append(_fe)
 else:

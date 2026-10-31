@@ -2,15 +2,17 @@ FROM python:3.12-slim
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PIP_NO_CACHE_DIR=1
+    PIP_NO_CACHE_DIR=1 \
+    PYTHONPATH=/app
 
 WORKDIR /app
 
-# Install system dependencies for OpenCV and GUI/image libs
+# Install system dependencies for headless OpenCV, OpenMP (PyTorch/SciPy/ONNX), and fonts for PDF generation
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libgl1 \
     libglib2.0-0 \
-    libxcb1 \
+    libgomp1 \
+    fontconfig \
+    fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv for fast, reliable package management
@@ -20,7 +22,7 @@ RUN pip install --no-cache-dir uv
 COPY pyproject.toml requirements.txt /app/
 
 # Install dependencies into system environment using uv
-RUN uv pip install --system -r /app/requirements.txt
+RUN uv pip install --system --index-strategy unsafe-best-match --extra-index-url https://download.pytorch.org/whl/cpu -r /app/requirements.txt
 
 # Copy root OCR modules, models, fonts, and backend source code
 COPY blank_pipeline.py tatar_ocr_dataset.py tatar_ocr_augmentation.py /app/
