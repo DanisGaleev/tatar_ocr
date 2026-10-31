@@ -144,24 +144,44 @@ async def save_single_submission(
     item = payload.submission
     questions_json = json.dumps([q.model_dump() for q in item.questions_results], ensure_ascii=False)
     checked_time = item.checked_at or datetime.now(timezone.utc)
-    sub_id = f"sub_{uuid.uuid4().hex[:8]}"
+    client_uuid = item.client_submission_uuid or str(uuid.uuid4())
 
-    sub_obj = SubmissionModel(
-        submission_id=sub_id,
-        client_submission_uuid=item.client_submission_uuid or str(uuid.uuid4()),
-        assignment_id=payload.assignment_id,
-        class_id=payload.class_id,
-        student_id=item.student_id,
-        student_name=item.student_name,
-        variant=item.variant,
-        checked_at=checked_time,
-        overall_score=item.overall_score,
-        max_score=item.max_score,
-        final_grade=item.final_grade,
-        teacher_reviewed_flags=item.teacher_reviewed_flags,
-        questions_results_json=questions_json,
-    )
-    db.add(sub_obj)
+    stmt = select(SubmissionModel).where(SubmissionModel.client_submission_uuid == client_uuid)
+    res = await db.execute(stmt)
+    sub_obj = res.scalar_one_or_none()
+
+    if sub_obj:
+        sub_obj.assignment_id = payload.assignment_id
+        sub_obj.class_id = payload.class_id
+        sub_obj.student_id = item.student_id
+        sub_obj.student_name = item.student_name
+        sub_obj.variant = item.variant
+        sub_obj.checked_at = checked_time
+        sub_obj.overall_score = item.overall_score
+        sub_obj.max_score = item.max_score
+        sub_obj.final_grade = item.final_grade
+        sub_obj.teacher_reviewed_flags = item.teacher_reviewed_flags
+        sub_obj.questions_results_json = questions_json
+        sub_id = sub_obj.submission_id
+    else:
+        sub_id = f"sub_{uuid.uuid4().hex[:8]}"
+        sub_obj = SubmissionModel(
+            submission_id=sub_id,
+            client_submission_uuid=client_uuid,
+            assignment_id=payload.assignment_id,
+            class_id=payload.class_id,
+            student_id=item.student_id,
+            student_name=item.student_name,
+            variant=item.variant,
+            checked_at=checked_time,
+            overall_score=item.overall_score,
+            max_score=item.max_score,
+            final_grade=item.final_grade,
+            teacher_reviewed_flags=item.teacher_reviewed_flags,
+            questions_results_json=questions_json,
+        )
+        db.add(sub_obj)
+
     await db.commit()
 
     return SingleSubmissionSaveResponse(status="saved", submission_id=sub_id)

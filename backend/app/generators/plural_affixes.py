@@ -57,31 +57,6 @@ class PluralAffixesGenerator(BaseTaskGenerator):
             },
         )
 
-    def generate_batch(
-        self,
-        count: int,
-        seed: Optional[int] = None,
-        stems: Optional[List[str]] = None,
-        grade_level: int = 5,
-        **kwargs: Any,
-    ) -> List[TaskDraft]:
-        rng = random.Random(seed) if seed is not None else random.Random()
-        stem_pool = list(stems or DEFAULT_PLURAL_STEMS)
-        rng.shuffle(stem_pool)
-        
-        drafts: List[TaskDraft] = []
-        for i in range(count):
-            item_seed = rng.randint(0, 10_000_000)
-            stem = stem_pool[i % len(stem_pool)]
-            draft = self.generate(
-                seed=item_seed,
-                stems=[stem],
-                grade_level=grade_level,
-            )
-            drafts.append(draft)
-            
-        return drafts
-
     def create_custom(
         self,
         stem: str,

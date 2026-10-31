@@ -44,6 +44,7 @@ async def prepare_database():
     yield
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
+    await test_engine.dispose()
     app.dependency_overrides.clear()
 
 @pytest_asyncio.fixture

@@ -52,6 +52,7 @@ async def prepare_database():
 
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
+    await test_engine.dispose()
     app.dependency_overrides.clear()
 
 @pytest_asyncio.fixture
@@ -225,17 +226,6 @@ class TestConstructorAndAssignmentsAPI:
         assert res.status_code == 404
 
     @pytest.mark.asyncio
-    async def test_web_ui_dashboard(self, client: AsyncClient):
-        res_root = await client.get("/")
-        assert res_root.status_code == 200
-        assert "text/html" in res_root.headers["content-type"]
-        assert "«Кара куян»" in res_root.text
-
-        res_ui = await client.get("/ui")
-        assert res_ui.status_code == 200
-        assert "Deterministic Task Generator" in res_ui.text
-
-    @pytest.mark.asyncio
     async def test_verify_answer_endpoint(self, client: AsyncClient):
         # 1. Correct answer
         res_ok = await client.post("/api/v1/constructor/verify-answer", json={
@@ -259,4 +249,60 @@ class TestConstructorAndAssignmentsAPI:
         data_wrong = res_wrong.json()
         assert data_wrong["is_correct"] is False
         assert data_wrong["points_earned"] == 0.0
+
+    @pytest.mark.asyncio
+    async def test_search_task_bank_scope_my_tasks(self, client: AsyncClient):
+        # Initially, seeded task has task_type="case_inflection", so scope=my_tasks returns empty
+        res_empty = await client.get("/api/v1/constructor/tasks?scope=my_tasks")
+        assert res_empty.status_code == 200
+        assert res_empty.json() == []
+
+        # Create a custom teacher task
+        payload = {
+            "prompt_tt": "Сүзгә күплек сан кушымчасын ялгагыз: китап ->",
+            "expected_answer": "КИТАПЛАР",
+            "cell_count": 8,
+            "grade_level": 5,
+            "topic_tag": "plural_affixes",
+            "topic_name_tt": "Күплек сан",
+            "is_public_in_bank": True,
+        }
+        create_res = await client.post("/api/v1/constructor/tasks", json=payload)
+        assert create_res.status_code == 201
+        created_id = create_res.json()["task_id"]
+
+        # Now scope=my_tasks returns only the custom task
+        res_my = await client.get("/api/v1/constructor/tasks?scope=my_tasks")
+        assert res_my.status_code == 200
+        my_tasks = res_my.json()
+        assert len(my_tasks) == 1
+        assert my_tasks[0]["task_id"] == created_id
+
+    @pytest.mark.asyncio
+    async def test_create_custom_task_phonetics_error_and_numeric_answer(self, client: AsyncClient):
+        # 1. Invalid non-Tatar characters in expected_answer must return 422 instead of 500
+        bad_payload = {
+            "prompt_tt": "Куегыз сүзне: китап ->",
+            "expected_answer": "BOOK123!",
+            "cell_count": 8,
+            "grade_level": 7,
+            "topic_tag": "case_dative",
+            "topic_name_tt": "Юнәлеш килеше",
+        }
+        res_bad = await client.post("/api/v1/constructor/tasks", json=bad_payload)
+        assert res_bad.status_code == 422
+
+        # 2. Numeric answer (e.g. for find_error_sentence) is allowed
+        num_payload = {
+            "prompt_tt": "Кайсы җөмләдә грамматик хата бар? (1-4 языгыз)",
+            "expected_answer": "2",
+            "cell_count": 1,
+            "grade_level": 7,
+            "topic_tag": "find_error",
+            "topic_name_tt": "Хатаны тап",
+            "task_type": "find_error_sentence",
+        }
+        res_num = await client.post("/api/v1/constructor/tasks", json=num_payload)
+        assert res_num.status_code == 201
+        assert res_num.json()["expected_answer"] == "2"
 

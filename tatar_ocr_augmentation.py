@@ -228,7 +228,6 @@ def apply_overwriting_correction(arr, char, font_path, canvas_size=128, prob=0.2
 
         # The overlying target letter is written BOLDLY ("жирное написание")
         # Dilate the target letter stroke to simulate heavy bold pen overwrite
-        target_binary = (arr < 180).astype(np.uint8)
         k_size = random.choice([3, 5])
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (k_size, k_size))
         dilated_target = cv2.erode(arr, kernel)  # erode darkens/thickens in grayscale
@@ -409,6 +408,11 @@ def apply_cell_crop_artifacts(arr, prob=0.75):
         elif neighbor_edge == "bottom":
             sx = random.randint(int(w * 0.2), int(w * 0.8))
             cv2.line(res, (sx, h - 1), (sx + random.randint(-6, 6), h - 1 - random.randint(4, 10)), color=n_color, thickness=1)
+        elif neighbor_edge == "right":
+            sy = random.randint(int(h * 0.2), int(h * 0.8))
+            ey = sy + random.randint(-6, 6)
+            ex = w - 1 - random.randint(5, 14)
+            cv2.line(res, (w - 1, sy), (ex, ey), color=n_color, thickness=random.choice([1, 2]))
 
     return res
 
@@ -469,7 +473,7 @@ def apply_camera_defocus(arr, prob=0.40):
     """Simulates slight smartphone camera defocus or optical softness."""
     if random.random() > prob:
         return arr
-    k = random.choice([3, 3])
+    k = 3
     sigma = random.uniform(0.4, 0.9)
     return cv2.GaussianBlur(arr, (k, k), sigma)
 

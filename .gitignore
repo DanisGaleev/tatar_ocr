@@ -29,3 +29,12 @@ debug_rectify/
 previews/
 __marimo__/
 
+# Datasets and large assets
+dataset/
+realdataset/
+
+# Matplotlib cache
+.mplconfig/
+**/.mplconfig/
+
+

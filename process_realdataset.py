@@ -69,6 +69,14 @@ ROW_GAP = 18
 BOXES_X_START = 150  # prompt (120) + gap (30)
 
 
+def _save_image_unicode(path: Path, img: np.ndarray) -> None:
+    ext = path.suffix or ".png"
+    ok, buf = cv2.imencode(ext, img)
+    if not ok:
+        raise IOError(f"Failed to encode image for {path}")
+    path.write_bytes(buf.tobytes())
+
+
 def process_dataset(out_base="realdataset"):
     out_dir = Path(out_base)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -107,7 +115,7 @@ def process_dataset(out_base="realdataset"):
         warped = cv2.warpPerspective(img, M, (CANVAS_W, CANVAS_H))
         
         # Save rectified page preview
-        cv2.imwrite(str(out_dir / f"rectified_page_{page_num}.jpg"), cv2.resize(warped, (925, 1407)))
+        _save_image_unicode(out_dir / f"rectified_page_{page_num}.jpg", cv2.resize(warped, (925, 1407)))
         
         page_rows = PAGE_LETTERS[page_num]
         
@@ -118,7 +126,7 @@ def process_dataset(out_base="realdataset"):
             
             # Save prompt box
             prompt_crop = warped[y1:y2, 0:120]
-            cv2.imwrite(str(prompts_dir / f"prompt_p{page_num}_r{r_idx:02d}_{char}.png"), prompt_crop)
+            _save_image_unicode(prompts_dir / f"prompt_p{page_num}_r{r_idx:02d}_{char}.png", prompt_crop)
             
             char_class_dir = by_class_dir / char
             char_class_dir.mkdir(exist_ok=True)
@@ -134,15 +142,15 @@ def process_dataset(out_base="realdataset"):
                 
                 # 1. Save raw BGR 100x100
                 raw_filename = f"{cell_id}.png"
-                cv2.imwrite(str(raw_dir / raw_filename), cell_bgr)
+                _save_image_unicode(raw_dir / raw_filename, cell_bgr)
                 
                 # 2. Save in by_class folder
-                cv2.imwrite(str(char_class_dir / raw_filename), cell_bgr)
+                _save_image_unicode(char_class_dir / raw_filename, cell_bgr)
                 
                 # 3. Save standardized 64x64 grayscale (matching OCR model input)
                 cell_gray = cv2.cvtColor(cell_bgr, cv2.COLOR_BGR2GRAY)
                 cell_64 = cv2.resize(cell_gray, (64, 64), interpolation=cv2.INTER_AREA)
-                cv2.imwrite(str(norm_dir / raw_filename), cell_64)
+                _save_image_unicode(norm_dir / raw_filename, cell_64)
                 
                 # Record metadata
                 records.append({

@@ -53,25 +53,6 @@ class NounProfessionGenerator(BaseTaskGenerator):
             metadata={"stem": chosen_stem},
         )
 
-    def generate_batch(
-        self,
-        count: int,
-        seed: Optional[int] = None,
-        stems: Optional[List[str]] = None,
-        grade_level: int = 6,
-        **kwargs: Any,
-    ) -> List[TaskDraft]:
-        rng = random.Random(seed) if seed is not None else random.Random()
-        stem_pool = list(stems or PROFESSION_STEMS)
-        rng.shuffle(stem_pool)
-        drafts: List[TaskDraft] = []
-        for i in range(count):
-            item_seed = rng.randint(0, 10_000_000)
-            stem = stem_pool[i % len(stem_pool)]
-            draft = self.generate(seed=item_seed, stems=[stem], grade_level=grade_level)
-            drafts.append(draft)
-        return drafts
-
     def create_custom(self, stem: str, grade_level: int = 6, **kwargs: Any) -> TaskDraft:
         clean_s = clean_word(stem)
         expected_answer = inflect_profession(clean_s)
@@ -128,25 +109,6 @@ class AbstractNounGenerator(BaseTaskGenerator):
             metadata={"stem": chosen_stem},
         )
 
-    def generate_batch(
-        self,
-        count: int,
-        seed: Optional[int] = None,
-        stems: Optional[List[str]] = None,
-        grade_level: int = 6,
-        **kwargs: Any,
-    ) -> List[TaskDraft]:
-        rng = random.Random(seed) if seed is not None else random.Random()
-        stem_pool = list(stems or ABSTRACT_NOUN_STEMS)
-        rng.shuffle(stem_pool)
-        drafts: List[TaskDraft] = []
-        for i in range(count):
-            item_seed = rng.randint(0, 10_000_000)
-            stem = stem_pool[i % len(stem_pool)]
-            draft = self.generate(seed=item_seed, stems=[stem], grade_level=grade_level)
-            drafts.append(draft)
-        return drafts
-
     def create_custom(self, stem: str, grade_level: int = 6, **kwargs: Any) -> TaskDraft:
         clean_s = clean_word(stem)
         expected_answer = inflect_abstract_noun(clean_s)
@@ -202,25 +164,6 @@ class ConsonantVoicingGenerator(BaseTaskGenerator):
             grade_level=grade_level,
             metadata={"stem": chosen_stem},
         )
-
-    def generate_batch(
-        self,
-        count: int,
-        seed: Optional[int] = None,
-        stems: Optional[List[str]] = None,
-        grade_level: int = 7,
-        **kwargs: Any,
-    ) -> List[TaskDraft]:
-        rng = random.Random(seed) if seed is not None else random.Random()
-        stem_pool = list(stems or VOICING_STEMS)
-        rng.shuffle(stem_pool)
-        drafts: List[TaskDraft] = []
-        for i in range(count):
-            item_seed = rng.randint(0, 10_000_000)
-            stem = stem_pool[i % len(stem_pool)]
-            draft = self.generate(seed=item_seed, stems=[stem], grade_level=grade_level)
-            drafts.append(draft)
-        return drafts
 
     def create_custom(self, stem: str, grade_level: int = 7, **kwargs: Any) -> TaskDraft:
         clean_s = clean_word(stem)

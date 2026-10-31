@@ -47,37 +47,6 @@ class TextComprehensionGenerator(BaseTaskGenerator):
             metadata={"text": text, "question": q, "options": opts},
         )
 
-    def generate_batch(
-        self,
-        count: int,
-        seed: Optional[int] = None,
-        grade_level: int = 7,
-        **kwargs: Any,
-    ) -> List[TaskDraft]:
-        rng = random.Random(seed) if seed is not None else random.Random()
-        pool = list(TEXT_COMPREHENSION_SETS)
-        rng.shuffle(pool)
-        drafts: List[TaskDraft] = []
-        for i in range(count):
-            item = pool[i % len(pool)]
-            text = item["text"]
-            q = item["question"]
-            opts = item["options"]
-            ans = item["answer"]
-            opts_str = "   ".join(opts)
-            draft = TaskDraft(
-                task_type=self.task_type,
-                topic_tag="reading_comp",
-                topic_name_tt="Текстны аңлау",
-                prompt_tt=f"{text}\n{q} {opts_str}",
-                expected_answer=ans.upper(),
-                cell_count=1,
-                grade_level=grade_level,
-                metadata={"text": text, "question": q, "options": opts},
-            )
-            drafts.append(draft)
-        return drafts
-
     def create_custom(self, text: str, question: str, options: List[str], correct_letter: str, grade_level: int = 7, **kwargs: Any) -> TaskDraft:
         opts_str = "   ".join(options)
         return TaskDraft(
@@ -131,37 +100,6 @@ class TextTitleMainIdeaGenerator(BaseTaskGenerator):
             grade_level=grade_level,
             metadata={"text": text, "question": q, "options": opts},
         )
-
-    def generate_batch(
-        self,
-        count: int,
-        seed: Optional[int] = None,
-        grade_level: int = 7,
-        **kwargs: Any,
-    ) -> List[TaskDraft]:
-        rng = random.Random(seed) if seed is not None else random.Random()
-        pool = list(TEXT_TITLE_SETS)
-        rng.shuffle(pool)
-        drafts: List[TaskDraft] = []
-        for i in range(count):
-            item = pool[i % len(pool)]
-            text = item["text"]
-            q = item["question"]
-            opts = item["options"]
-            ans = item["answer"]
-            opts_str = "   ".join(opts)
-            draft = TaskDraft(
-                task_type=self.task_type,
-                topic_tag="reading_title",
-                topic_name_tt="Текстның исеме",
-                prompt_tt=f"{text}\n{q} {opts_str}",
-                expected_answer=ans.upper(),
-                cell_count=1,
-                grade_level=grade_level,
-                metadata={"text": text, "question": q, "options": opts},
-            )
-            drafts.append(draft)
-        return drafts
 
     def create_custom(self, text: str, question: str, options: List[str], correct_letter: str, grade_level: int = 7, **kwargs: Any) -> TaskDraft:
         opts_str = "   ".join(options)

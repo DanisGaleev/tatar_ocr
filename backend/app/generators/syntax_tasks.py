@@ -46,34 +46,6 @@ class SentenceMCClozeGenerator(BaseTaskGenerator):
             metadata={"sentence": sent, "options": opts},
         )
 
-    def generate_batch(
-        self,
-        count: int,
-        seed: Optional[int] = None,
-        grade_level: int = 7,
-        **kwargs: Any,
-    ) -> List[TaskDraft]:
-        rng = random.Random(seed) if seed is not None else random.Random()
-        pool = list(SENTENCE_CLOZE_SETS)
-        rng.shuffle(pool)
-        drafts: List[TaskDraft] = []
-        for i in range(count):
-            item = pool[i % len(pool)]
-            sent, opts, ans = item
-            opts_str = f"А) {opts[0]}   Б) {opts[1]}   В) {opts[2]}"
-            draft = TaskDraft(
-                task_type=self.task_type,
-                topic_tag="sentence_cloze",
-                topic_name_tt="Җөмләдә кушымча",
-                prompt_tt=f"«{sent}»\nДөрес кушымчаны сайлагыз: {opts_str}",
-                expected_answer=ans.upper(),
-                cell_count=1,
-                grade_level=grade_level,
-                metadata={"sentence": sent, "options": opts},
-            )
-            drafts.append(draft)
-        return drafts
-
     def create_custom(self, sentence: str, options: List[str], correct_letter: str, grade_level: int = 7, **kwargs: Any) -> TaskDraft:
         opts_str = "   ".join(f"{chr(65+i)}) {opt}" for i, opt in enumerate(options[:3]))
         return TaskDraft(
@@ -124,34 +96,6 @@ class TrueFalseGrammarGenerator(BaseTaskGenerator):
             grade_level=grade_level,
             metadata={"statement": stmt, "is_true": is_true},
         )
-
-    def generate_batch(
-        self,
-        count: int,
-        seed: Optional[int] = None,
-        grade_level: int = 6,
-        **kwargs: Any,
-    ) -> List[TaskDraft]:
-        rng = random.Random(seed) if seed is not None else random.Random()
-        pool = list(TRUE_FALSE_SETS)
-        rng.shuffle(pool)
-        drafts: List[TaskDraft] = []
-        for i in range(count):
-            item = pool[i % len(pool)]
-            stmt, is_true = item
-            ans = "Д" if is_true else "Я"
-            draft = TaskDraft(
-                task_type=self.task_type,
-                topic_tag="true_false",
-                topic_name_tt="Дөрес яки ялгыш",
-                prompt_tt=f"{stmt} — Раслау дөресме? (Д — дөрес, Я — ялгыш)",
-                expected_answer=ans,
-                cell_count=1,
-                grade_level=grade_level,
-                metadata={"statement": stmt, "is_true": is_true},
-            )
-            drafts.append(draft)
-        return drafts
 
     def create_custom(self, statement: str, is_true: bool, grade_level: int = 6, **kwargs: Any) -> TaskDraft:
         ans = "Д" if is_true else "Я"
@@ -204,34 +148,6 @@ class FindErrorSentenceGenerator(BaseTaskGenerator):
             metadata={"sentences": sentences},
         )
 
-    def generate_batch(
-        self,
-        count: int,
-        seed: Optional[int] = None,
-        grade_level: int = 7,
-        **kwargs: Any,
-    ) -> List[TaskDraft]:
-        rng = random.Random(seed) if seed is not None else random.Random()
-        pool = list(FIND_ERROR_SETS)
-        rng.shuffle(pool)
-        drafts: List[TaskDraft] = []
-        for i in range(count):
-            item = pool[i % len(pool)]
-            sentences, err_num = item
-            sents_formatted = "   ".join(sentences)
-            draft = TaskDraft(
-                task_type=self.task_type,
-                topic_tag="find_error",
-                topic_name_tt="Хатаны тап",
-                prompt_tt=f"Кайсы җөмләдә грамматик хата бар? (1-4 языгыз): {sents_formatted}",
-                expected_answer=str(err_num),
-                cell_count=1,
-                grade_level=grade_level,
-                metadata={"sentences": sentences},
-            )
-            drafts.append(draft)
-        return drafts
-
     def create_custom(self, sentences: List[str], error_number: int, grade_level: int = 7, **kwargs: Any) -> TaskDraft:
         sents_formatted = "   ".join(sentences)
         return TaskDraft(
@@ -282,34 +198,6 @@ class WordOrderGenerator(BaseTaskGenerator):
             grade_level=grade_level,
             metadata={"parts": parts},
         )
-
-    def generate_batch(
-        self,
-        count: int,
-        seed: Optional[int] = None,
-        grade_level: int = 6,
-        **kwargs: Any,
-    ) -> List[TaskDraft]:
-        rng = random.Random(seed) if seed is not None else random.Random()
-        pool = list(WORD_ORDER_SETS)
-        rng.shuffle(pool)
-        drafts: List[TaskDraft] = []
-        for i in range(count):
-            item = pool[i % len(pool)]
-            parts, ans_order = item
-            parts_formatted = "   ".join(parts)
-            draft = TaskDraft(
-                task_type=self.task_type,
-                topic_tag="word_order",
-                topic_name_tt="Сүзләр тәртибе",
-                prompt_tt=f"Җөмлә төзегез (хәрефләр тәртибен языгыз): {parts_formatted}",
-                expected_answer=ans_order.upper(),
-                cell_count=len(ans_order),
-                grade_level=grade_level,
-                metadata={"parts": parts},
-            )
-            drafts.append(draft)
-        return drafts
 
     def create_custom(self, parts: List[str], correct_order: str, grade_level: int = 6, **kwargs: Any) -> TaskDraft:
         parts_formatted = "   ".join(parts)

@@ -99,7 +99,6 @@ def advanced_augment_real_cell(img_arr, is_train=True):
         cx = random.randint(8, w - 8)
         cy = random.randint(8, h - 8)
         rx = random.randint(3, 7)
-        ry = random.randint(3, 7)
         cv2.circle(aug, (cx, cy), rx, 245, -1)
 
     # 6. Defocus blur

@@ -4,14 +4,14 @@ import json
 import base64
 from pathlib import Path
 
-WORKSPACE_DIR = Path(r"c:\Users\galee\PycharmProjects\tatar_ocr")
+WORKSPACE_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(WORKSPACE_DIR))
 sys.stdout.reconfigure(encoding='utf-8')
 
+import torch
 import cv2
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
-import torch
 
 from tatar_ocr_dataset import TatarOCRNet
 from tatar_ocr_augmentation import TATAR_UPPERCASE
@@ -36,10 +36,10 @@ class BlankOCRScanner:
             weights = WORKSPACE_DIR / "models" / "baseline_synthetic_uppercase39.pth"
         if weights.exists():
             self.model.load_state_dict(torch.load(weights, map_location=self.device, weights_only=True))
-            self.model.eval()
             print(f"BlankOCRScanner: Loaded OCR model from {weights}")
         else:
             print("BlankOCRScanner: Warning - model weights not found!")
+        self.model.eval()
 
         self.aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
         self.detector = cv2.aruco.ArucoDetector(self.aruco_dict, cv2.aruco.DetectorParameters())
@@ -99,19 +99,8 @@ class BlankOCRScanner:
         gray = cv2.cvtColor(rectified_bgr, cv2.COLOR_BGR2GRAY)
         thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 25, 10)
 
-        h_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (35, 1))
         v_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, 35))
-        h_lines = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, h_kernel)
         v_lines = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, v_kernel)
-        table_mask = cv2.bitwise_or(h_lines, v_lines)
-
-        contours, _ = cv2.findContours(table_mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-        detected_boxes = []
-        for cnt in contours:
-            x, y, w, h = cv2.boundingRect(cnt)
-            if 70 <= w <= 130 and 70 <= h <= 130 and (0.75 <= float(w)/h <= 1.3):
-                if x >= 200:
-                    detected_boxes.append((x, y, w, h))
 
         # 1. Student Name row: dynamically detect start_x, pitch, and cell count
         name_cells = []
@@ -173,9 +162,10 @@ class BlankOCRScanner:
                 q_num = q_idx + 1
                 my = float(q_markers[mid][:, 1].mean())
                 # Find exact top line of answer strip near marker
-                y_min, y_max = int(my - 40), int(my + 40)
+                y_min = max(0, int(my - 40))
+                y_max = min(sobel_y.shape[0], max(y_min + 1, int(my + 40)))
                 strip_sobel = sobel_y[y_min:y_max, 220:1020].mean(axis=1)
-                snapped_q_y = y_min + int(np.argmax(strip_sobel))
+                snapped_q_y = max(0, min(gray.shape[0] - 95, y_min + int(np.argmax(strip_sobel))))
 
                 # Detect actual number of cells in this row (from 1 up to 12) based on vertical cell borders
                 row_cell_count = 0
@@ -215,12 +205,25 @@ class BlankOCRScanner:
 
         return name_cells, question_rows
 
-    def classify_cell(self, cell_bgr, margin_trim_pct=11):
+    def classify_cell(
+        self,
+        cell_bgr,
+        margin_trim_pct=11,
+        is_header: bool = False,
+        model=None,
+        char_list=None,
+        contrast_mode: str = "percentile",
+        top_k: int = 3,
+        force_predict: bool = False,
+    ) -> dict:
+        active_model = model if model is not None else self.model
+        active_chars = char_list if char_list is not None else TATAR_UPPERCASE
+
         ch, cw = cell_bgr.shape[:2]
         if ch < 10 or cw < 10:
-            return {"is_empty": True, "char": " ", "confidence": 100.0, "top3": [(" ", 100.0)]}
+            return {"is_empty": True, "char": " ", "confidence": 100.0, "top3": [(" ", 100.0)], "top_items": []}
 
-        gray = cv2.cvtColor(cell_bgr, cv2.COLOR_BGR2GRAY)
+        gray = cv2.cvtColor(cell_bgr, cv2.COLOR_BGR2GRAY) if cell_bgr.ndim == 3 else cell_bgr
 
         # 1. Suppress printed cell borders via margin trimming
         my = max(1, int(round(ch * (margin_trim_pct / 100.0))))
@@ -229,15 +232,15 @@ class BlankOCRScanner:
         ih, iw = inner_gray.shape[:2]
 
         if ih < 8 or iw < 8:
-            return {"is_empty": True, "char": " ", "confidence": 100.0, "top3": [(" ", 100.0)]}
+            return {"is_empty": True, "char": " ", "confidence": 100.0, "top3": [(" ", 100.0)], "top_items": []}
 
         # 2. Ink segmentation & connected components
         bg_val = float(np.median(inner_gray))
         ink_mask = (inner_gray < (bg_val - 22)).astype(np.uint8)
 
         num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(ink_mask)
-        if num_labels <= 1:
-            return {"is_empty": True, "char": " ", "confidence": 100.0, "top3": [(" ", 100.0)]}
+        if num_labels <= 1 and not force_predict:
+            return {"is_empty": True, "char": " ", "confidence": 100.0, "top3": [(" ", 100.0)], "top_items": []}
 
         valid_ink = np.zeros_like(ink_mask)
         total_ink_pixels = 0
@@ -260,30 +263,35 @@ class BlankOCRScanner:
                 total_ink_pixels += area
 
         # Mark empty if stroke component is tiny or ink ratio is negligible
-        if total_ink_pixels < 35:
+        if total_ink_pixels < 35 and not force_predict:
             return {
                 "is_empty": True,
                 "char": " ",
                 "confidence": 100.0,
-                "top3": [(" ", 100.0)]
+                "top3": [(" ", 100.0)],
+                "top_items": [],
             }
 
         # 3. Ink Bounding-Box Extraction
         ys, xs = np.where(valid_ink > 0)
-        if len(xs) == 0 or len(ys) == 0:
-            return {"is_empty": True, "char": " ", "confidence": 100.0, "top3": [(" ", 100.0)]}
+        if (len(xs) == 0 or len(ys) == 0) and not force_predict:
+            return {"is_empty": True, "char": " ", "confidence": 100.0, "top3": [(" ", 100.0)], "top_items": []}
 
-        x1, x2 = int(np.min(xs)), int(np.max(xs))
-        y1, y2 = int(np.min(ys)), int(np.max(ys))
+        if len(xs) > 0 and len(ys) > 0:
+            x1, x2 = int(np.min(xs)), int(np.max(xs))
+            y1, y2 = int(np.min(ys)), int(np.max(ys))
 
-        # Add small cushion padding
-        pad = 2
-        x1 = max(0, x1 - pad)
-        y1 = max(0, y1 - pad)
-        x2 = min(iw - 1, x2 + pad)
-        y2 = min(ih - 1, y2 + pad)
+            # Add small cushion padding
+            pad = 2
+            x1 = max(0, x1 - pad)
+            y1 = max(0, y1 - pad)
+            x2 = min(iw - 1, x2 + pad)
+            y2 = min(ih - 1, y2 + pad)
 
-        glyph_crop = inner_gray[y1:y2 + 1, x1:x2 + 1]
+            glyph_crop = inner_gray[y1:y2 + 1, x1:x2 + 1]
+        else:
+            glyph_crop = inner_gray
+
         gh, gw = glyph_crop.shape[:2]
 
         # 4. Aspect-ratio preserving scaling to canonical ~72% occupancy (46px out of 64px)
@@ -296,10 +304,14 @@ class BlankOCRScanner:
         interp = cv2.INTER_AREA if scale < 1.0 else cv2.INTER_LANCZOS4
         resized_glyph = cv2.resize(glyph_crop, (new_w, new_h), interpolation=interp)
 
-        # 5. Percentile contrast normalization
-        p_lo = np.percentile(resized_glyph, 2)
-        p_hi = np.percentile(resized_glyph, 98)
-        norm_glyph = np.clip((resized_glyph.astype(np.float32) - p_lo) / (p_hi - p_lo + 1e-5) * 240.0 + 10.0, 0, 255).astype(np.uint8)
+        # 5. Contrast normalization
+        if contrast_mode == "clahe":
+            clahe = cv2.createCLAHE(clipLimit=2.5, tileGridSize=(8, 8))
+            norm_glyph = clahe.apply(resized_glyph)
+        else:
+            p_lo = np.percentile(resized_glyph, 2)
+            p_hi = np.percentile(resized_glyph, 98)
+            norm_glyph = np.clip((resized_glyph.astype(np.float32) - p_lo) / (p_hi - p_lo + 1e-5) * 240.0 + 10.0, 0, 255).astype(np.uint8)
 
         # 6. Center on 64x64 canvas
         inp_64 = np.full((64, 64), 250, dtype=np.uint8)
@@ -312,18 +324,31 @@ class BlankOCRScanner:
         tensor = torch.from_numpy(t).unsqueeze(0).unsqueeze(0).to(self.device)
 
         with torch.no_grad():
-            logits = self.model(tensor)
+            logits = active_model(tensor)
             probs = torch.softmax(logits, dim=1)[0]
 
-        top_probs, top_indices = torch.topk(probs, k=3)
-        top_chars = [TATAR_UPPERCASE[i] for i in top_indices.cpu().numpy()]
+        k = min(max(3, top_k), len(active_chars))
+        top_probs, top_indices = torch.topk(probs, k=k)
+        top_chars = [active_chars[i] for i in top_indices.cpu().numpy()]
         top_confs = (top_probs.cpu().numpy() * 100.0).tolist()
+        top_items = [
+            {
+                "char": ch_val,
+                "unicode": f"U+{ord(ch_val):04X}",
+                "confidence": round(float(conf_val), 2),
+            }
+            for ch_val, conf_val in zip(top_chars[:top_k], top_confs[:top_k])
+        ]
 
+        is_empty = total_ink_pixels < 35
         return {
-            "is_empty": False,
-            "char": top_chars[0],
-            "confidence": round(float(top_confs[0]), 1),
-            "top3": list(zip(top_chars, [round(c, 1) for c in top_confs]))
+            "is_empty": is_empty,
+            "char": " " if is_empty else top_chars[0],
+            "confidence": 100.0 if is_empty else round(float(top_confs[0]), 1),
+            "top3": [(" ", 100.0)] if is_empty else list(zip(top_chars[:3], [round(c, 1) for c in top_confs[:3]])),
+            "top_items": top_items,
+            "resized_glyph": resized_glyph,
+            "inp_64": inp_64,
         }
 
     def process_blank(self, img_bgr, annotate=True):

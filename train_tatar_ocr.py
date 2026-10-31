@@ -183,66 +183,67 @@ def run_training(
     history = []
     start_total_time = time.time()
 
-    print("\n" + "=" * 70)
-    print(f"{'Epoch':^7} | {'Train Loss':^10} | {'Train Acc':^10} | {'Val Loss':^10} | {'Val Acc':^10} | {'Elapsed':^9}")
-    print("=" * 70)
+    if not eval_only:
+        print("\n" + "=" * 70)
+        print(f"{'Epoch':^7} | {'Train Loss':^10} | {'Train Acc':^10} | {'Val Loss':^10} | {'Val Acc':^10} | {'Elapsed':^9}")
+        print("=" * 70)
 
-    for epoch in range(1, epochs + 1):
-        t0_epoch = time.time()
-        
-        # --- TRAIN STEP ---
-        model.train()
-        train_loss, train_correct, train_total = 0.0, 0, 0
-        for x_b, y_b in train_loader:
-            x_b, y_b = x_b.to(device), y_b.to(device)
-            optimizer.zero_grad()
-            logits = model(x_b)
-            loss = criterion(logits, y_b)
-            loss.backward()
-            optimizer.step()
+        for epoch in range(1, epochs + 1):
+            t0_epoch = time.time()
             
-            train_loss += loss.item() * len(y_b)
-            preds = logits.argmax(dim=1)
-            train_correct += (preds == y_b).sum().item()
-            train_total += len(y_b)
-
-        scheduler.step()
-        epoch_train_loss = train_loss / train_total
-        epoch_train_acc = (train_correct / train_total) * 100.0
-
-        # --- VALIDATION STEP ---
-        model.eval()
-        val_loss, val_correct, val_total = 0.0, 0, 0
-        with torch.no_grad():
-            for x_b, y_b in val_loader:
+            # --- TRAIN STEP ---
+            model.train()
+            train_loss, train_correct, train_total = 0.0, 0, 0
+            for x_b, y_b in train_loader:
                 x_b, y_b = x_b.to(device), y_b.to(device)
+                optimizer.zero_grad()
                 logits = model(x_b)
                 loss = criterion(logits, y_b)
-                val_loss += loss.item() * len(y_b)
+                loss.backward()
+                optimizer.step()
+                
+                train_loss += loss.item() * len(y_b)
                 preds = logits.argmax(dim=1)
-                val_correct += (preds == y_b).sum().item()
-                val_total += len(y_b)
+                train_correct += (preds == y_b).sum().item()
+                train_total += len(y_b)
 
-        epoch_val_loss = val_loss / val_total
-        epoch_val_acc = (val_correct / val_total) * 100.0
-        elapsed_epoch = time.time() - t0_epoch
+            scheduler.step()
+            epoch_train_loss = train_loss / train_total
+            epoch_train_acc = (train_correct / train_total) * 100.0
 
-        history.append({
-            "epoch": epoch,
-            "train_loss": epoch_train_loss,
-            "train_acc": epoch_train_acc,
-            "val_loss": epoch_val_loss,
-            "val_acc": epoch_val_acc,
-            "elapsed_s": elapsed_epoch,
-        })
+            # --- VALIDATION STEP ---
+            model.eval()
+            val_loss, val_correct, val_total = 0.0, 0, 0
+            with torch.no_grad():
+                for x_b, y_b in val_loader:
+                    x_b, y_b = x_b.to(device), y_b.to(device)
+                    logits = model(x_b)
+                    loss = criterion(logits, y_b)
+                    val_loss += loss.item() * len(y_b)
+                    preds = logits.argmax(dim=1)
+                    val_correct += (preds == y_b).sum().item()
+                    val_total += len(y_b)
 
-        is_best = (epoch == 1) or (epoch_val_acc >= best_val_acc)
-        if is_best:
-            best_val_acc = epoch_val_acc
-            torch.save(model.state_dict(), out_path / "best_tatar_ocr_net.pth")
+            epoch_val_loss = val_loss / val_total
+            epoch_val_acc = (val_correct / val_total) * 100.0
+            elapsed_epoch = time.time() - t0_epoch
 
-        best_marker = " 🌟 BEST" if is_best else ""
-        print(f"{epoch:^7d} | {epoch_train_loss:^10.4f} | {epoch_train_acc:^9.2f}% | {epoch_val_loss:^10.4f} | {epoch_val_acc:^9.2f}% | {elapsed_epoch:^7.1f}s{best_marker}")
+            history.append({
+                "epoch": epoch,
+                "train_loss": epoch_train_loss,
+                "train_acc": epoch_train_acc,
+                "val_loss": epoch_val_loss,
+                "val_acc": epoch_val_acc,
+                "elapsed_s": elapsed_epoch,
+            })
+
+            is_best = (epoch == 1) or (epoch_val_acc >= best_val_acc)
+            if is_best:
+                best_val_acc = epoch_val_acc
+                torch.save(model.state_dict(), out_path / "best_tatar_ocr_net.pth")
+
+            best_marker = " 🌟 BEST" if is_best else ""
+            print(f"{epoch:^7d} | {epoch_train_loss:^10.4f} | {epoch_train_acc:^9.2f}% | {epoch_val_loss:^10.4f} | {epoch_val_acc:^9.2f}% | {elapsed_epoch:^7.1f}s{best_marker}")
 
     total_training_time = time.time() - start_total_time
     print("=" * 70)
@@ -342,8 +343,8 @@ def run_training(
     # 6. Save Model Checkpoint & ONNX Export
     print("\n--- Exporting Deployable Weights & Mobile ONNX Model ---")
     weights_path = out_path / "best_tatar_ocr_net.pth"
-    torch.save(model.state_dict(), weights_path)
-    print(f"  ✓ Saved PyTorch weights: {weights_path} ({weights_path.stat().st_size / (1024*1024):.2f} MB)")
+    if weights_path.exists():
+        print(f"  ✓ Saved PyTorch weights: {weights_path} ({weights_path.stat().st_size / (1024*1024):.2f} MB)")
 
     try:
         onnx_path = out_path / "tatar_ocr_net.onnx"
