@@ -1,0 +1,276 @@
+{
+  "image_id": "blank_06",
+  "pipeline": "ground_truth",
+  "student_name": {
+    "text": "",
+    "cells": [
+      {
+        "cell_idx": 1,
+        "char": "",
+        "is_empty": true
+      },
+      {
+        "cell_idx": 2,
+        "char": "",
+        "is_empty": true
+      },
+      {
+        "cell_idx": 3,
+        "char": "",
+        "is_empty": true
+      },
+      {
+        "cell_idx": 4,
+        "char": "",
+        "is_empty": true
+      },
+      {
+        "cell_idx": 5,
+        "char": "",
+        "is_empty": true
+      },
+      {
+        "cell_idx": 6,
+        "char": "",
+        "is_empty": true
+      },
+      {
+        "cell_idx": 7,
+        "char": "",
+        "is_empty": true
+      },
+      {
+        "cell_idx": 8,
+        "char": "",
+        "is_empty": true
+      },
+      {
+        "cell_idx": 9,
+        "char": "",
+        "is_empty": true
+      },
+      {
+        "cell_idx": 10,
+        "char": "",
+        "is_empty": true
+      },
+      {
+        "cell_idx": 11,
+        "char": "",
+        "is_empty": true
+      },
+      {
+        "cell_idx": 12,
+        "char": "",
+        "is_empty": true
+      },
+      {
+        "cell_idx": 13,
+        "char": "",
+        "is_empty": true
+      },
+      {
+        "cell_idx": 14,
+        "char": "",
+        "is_empty": true
+      },
+      {
+        "cell_idx": 15,
+        "char": "",
+        "is_empty": true
+      }
+    ]
+  },
+  "questions": [
+    {
+      "q_num": 1,
+      "text": "КИТАПКАД",
+      "cells": [
+        {
+          "cell_idx": 1,
+          "char": "К",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 2,
+          "char": "И",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 3,
+          "char": "Т",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 4,
+          "char": "А",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 5,
+          "char": "П",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 6,
+          "char": "К",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 7,
+          "char": "А",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 8,
+          "char": "Д",
+          "is_empty": false
+        }
+      ]
+    },
+    {
+      "q_num": 2,
+      "text": "ӨСТӘЛДҢҖ",
+      "cells": [
+        {
+          "cell_idx": 1,
+          "char": "Ө",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 2,
+          "char": "С",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 3,
+          "char": "Т",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 4,
+          "char": "Ә",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 5,
+          "char": "Л",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 6,
+          "char": "Д",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 7,
+          "char": "Ң",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 8,
+          "char": "Җ",
+          "is_empty": false
+        }
+      ]
+    },
+    {
+      "q_num": 3,
+      "text": "БЫЛОГДӨЕ",
+      "cells": [
+        {
+          "cell_idx": 1,
+          "char": "Б",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 2,
+          "char": "Ы",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 3,
+          "char": "Л",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 4,
+          "char": "О",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 5,
+          "char": "Г",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 6,
+          "char": "Д",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 7,
+          "char": "Ө",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 8,
+          "char": "Е",
+          "is_empty": false
+        }
+      ]
+    },
+    {
+      "q_num": 4,
+      "text": "ЙЮЯВШЦИҺ",
+      "cells": [
+        {
+          "cell_idx": 1,
+          "char": "Й",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 2,
+          "char": "Ю",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 3,
+          "char": "Я",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 4,
+          "char": "В",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 5,
+          "char": "Ш",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 6,
+          "char": "Ц",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 7,
+          "char": "И",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 8,
+          "char": "Һ",
+          "is_empty": false
+        }
+      ]
+    }
+  ],
+  "questions_dict": {
+    "1": "КИТАПКАД",
+    "2": "ӨСТӘЛДҢҖ",
+    "3": "БЫЛОГДӨЕ",
+    "4": "ЙЮЯВШЦИҺ"
+  }
+}

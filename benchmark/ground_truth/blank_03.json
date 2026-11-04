@@ -1,0 +1,276 @@
+{
+  "image_id": "blank_03",
+  "pipeline": "ground_truth",
+  "student_name": {
+    "text": "",
+    "cells": [
+      {
+        "cell_idx": 1,
+        "char": "",
+        "is_empty": true
+      },
+      {
+        "cell_idx": 2,
+        "char": "",
+        "is_empty": true
+      },
+      {
+        "cell_idx": 3,
+        "char": "",
+        "is_empty": true
+      },
+      {
+        "cell_idx": 4,
+        "char": "",
+        "is_empty": true
+      },
+      {
+        "cell_idx": 5,
+        "char": "",
+        "is_empty": true
+      },
+      {
+        "cell_idx": 6,
+        "char": "",
+        "is_empty": true
+      },
+      {
+        "cell_idx": 7,
+        "char": "",
+        "is_empty": true
+      },
+      {
+        "cell_idx": 8,
+        "char": "",
+        "is_empty": true
+      },
+      {
+        "cell_idx": 9,
+        "char": "",
+        "is_empty": true
+      },
+      {
+        "cell_idx": 10,
+        "char": "",
+        "is_empty": true
+      },
+      {
+        "cell_idx": 11,
+        "char": "",
+        "is_empty": true
+      },
+      {
+        "cell_idx": 12,
+        "char": "",
+        "is_empty": true
+      },
+      {
+        "cell_idx": 13,
+        "char": "",
+        "is_empty": true
+      },
+      {
+        "cell_idx": 14,
+        "char": "",
+        "is_empty": true
+      },
+      {
+        "cell_idx": 15,
+        "char": "",
+        "is_empty": true
+      }
+    ]
+  },
+  "questions": [
+    {
+      "q_num": 1,
+      "text": "КӨЛМИӨФИ",
+      "cells": [
+        {
+          "cell_idx": 1,
+          "char": "К",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 2,
+          "char": "Ө",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 3,
+          "char": "Л",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 4,
+          "char": "М",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 5,
+          "char": "И",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 6,
+          "char": "Ө",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 7,
+          "char": "Ф",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 8,
+          "char": "И",
+          "is_empty": false
+        }
+      ]
+    },
+    {
+      "q_num": 2,
+      "text": "КАРАМЫЙӨ",
+      "cells": [
+        {
+          "cell_idx": 1,
+          "char": "К",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 2,
+          "char": "А",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 3,
+          "char": "Р",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 4,
+          "char": "А",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 5,
+          "char": "М",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 6,
+          "char": "Ы",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 7,
+          "char": "Й",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 8,
+          "char": "Ө",
+          "is_empty": false
+        }
+      ]
+    },
+    {
+      "q_num": 3,
+      "text": "УРАМНАРО",
+      "cells": [
+        {
+          "cell_idx": 1,
+          "char": "У",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 2,
+          "char": "Р",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 3,
+          "char": "А",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 4,
+          "char": "М",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 5,
+          "char": "Н",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 6,
+          "char": "А",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 7,
+          "char": "Р",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 8,
+          "char": "О",
+          "is_empty": false
+        }
+      ]
+    },
+    {
+      "q_num": 4,
+      "text": "АЛМЫЙЫОЛ",
+      "cells": [
+        {
+          "cell_idx": 1,
+          "char": "А",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 2,
+          "char": "Л",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 3,
+          "char": "М",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 4,
+          "char": "Ы",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 5,
+          "char": "Й",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 6,
+          "char": "Ы",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 7,
+          "char": "О",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 8,
+          "char": "Л",
+          "is_empty": false
+        }
+      ]
+    }
+  ],
+  "questions_dict": {
+    "1": "КӨЛМИӨФИ",
+    "2": "КАРАМЫЙӨ",
+    "3": "УРАМНАРО",
+    "4": "АЛМЫЙЫОЛ"
+  }
+}
