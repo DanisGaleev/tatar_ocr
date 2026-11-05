@@ -1,0 +1,605 @@
+{
+  "image_id": "blank_05",
+  "pipeline": "blank_pipeline_onnx_int8",
+  "rectification_method": "ArUco 4-Point Geometry",
+  "student_name": {
+    "text": "ӘШШ",
+    "cells": [
+      {
+        "cell_idx": 1,
+        "char": " ",
+        "confidence": 100.0,
+        "is_empty": true,
+        "bbox": [
+          468,
+          210,
+          91,
+          88
+        ]
+      },
+      {
+        "cell_idx": 2,
+        "char": " ",
+        "confidence": 100.0,
+        "is_empty": true,
+        "bbox": [
+          559,
+          210,
+          91,
+          88
+        ]
+      },
+      {
+        "cell_idx": 3,
+        "char": " ",
+        "confidence": 100.0,
+        "is_empty": true,
+        "bbox": [
+          649,
+          210,
+          91,
+          88
+        ]
+      },
+      {
+        "cell_idx": 4,
+        "char": " ",
+        "confidence": 100.0,
+        "is_empty": true,
+        "bbox": [
+          740,
+          210,
+          91,
+          88
+        ]
+      },
+      {
+        "cell_idx": 5,
+        "char": " ",
+        "confidence": 100.0,
+        "is_empty": true,
+        "bbox": [
+          831,
+          210,
+          91,
+          88
+        ]
+      },
+      {
+        "cell_idx": 6,
+        "char": " ",
+        "confidence": 100.0,
+        "is_empty": true,
+        "bbox": [
+          921,
+          210,
+          91,
+          88
+        ]
+      },
+      {
+        "cell_idx": 7,
+        "char": " ",
+        "confidence": 100.0,
+        "is_empty": true,
+        "bbox": [
+          1012,
+          210,
+          91,
+          88
+        ]
+      },
+      {
+        "cell_idx": 8,
+        "char": " ",
+        "confidence": 100.0,
+        "is_empty": true,
+        "bbox": [
+          1103,
+          210,
+          91,
+          88
+        ]
+      },
+      {
+        "cell_idx": 9,
+        "char": " ",
+        "confidence": 100.0,
+        "is_empty": true,
+        "bbox": [
+          1193,
+          210,
+          91,
+          88
+        ]
+      },
+      {
+        "cell_idx": 10,
+        "char": "Ә",
+        "confidence": 21.8,
+        "is_empty": false,
+        "bbox": [
+          1284,
+          210,
+          91,
+          88
+        ]
+      },
+      {
+        "cell_idx": 11,
+        "char": "Ш",
+        "confidence": 73.2,
+        "is_empty": false,
+        "bbox": [
+          1375,
+          210,
+          91,
+          88
+        ]
+      },
+      {
+        "cell_idx": 12,
+        "char": "Ш",
+        "confidence": 45.3,
+        "is_empty": false,
+        "bbox": [
+          1465,
+          210,
+          91,
+          88
+        ]
+      },
+      {
+        "cell_idx": 13,
+        "char": " ",
+        "confidence": 100.0,
+        "is_empty": true,
+        "bbox": [
+          1556,
+          210,
+          91,
+          88
+        ]
+      },
+      {
+        "cell_idx": 14,
+        "char": " ",
+        "confidence": 100.0,
+        "is_empty": true,
+        "bbox": [
+          1647,
+          210,
+          91,
+          88
+        ]
+      },
+      {
+        "cell_idx": 15,
+        "char": " ",
+        "confidence": 100.0,
+        "is_empty": true,
+        "bbox": [
+          1737,
+          210,
+          91,
+          88
+        ]
+      }
+    ]
+  },
+  "questions": [
+    {
+      "q_num": 1,
+      "text": "ЮЫЪЬХМНК",
+      "cells": [
+        {
+          "cell_idx": 1,
+          "char": "Ю",
+          "confidence": 92.0,
+          "is_empty": false,
+          "bbox": [
+            215,
+            476,
+            100,
+            98
+          ]
+        },
+        {
+          "cell_idx": 2,
+          "char": "Ы",
+          "confidence": 96.2,
+          "is_empty": false,
+          "bbox": [
+            315,
+            476,
+            100,
+            98
+          ]
+        },
+        {
+          "cell_idx": 3,
+          "char": "Ъ",
+          "confidence": 99.7,
+          "is_empty": false,
+          "bbox": [
+            416,
+            476,
+            100,
+            98
+          ]
+        },
+        {
+          "cell_idx": 4,
+          "char": "Ь",
+          "confidence": 99.8,
+          "is_empty": false,
+          "bbox": [
+            516,
+            476,
+            100,
+            98
+          ]
+        },
+        {
+          "cell_idx": 5,
+          "char": "Х",
+          "confidence": 94.1,
+          "is_empty": false,
+          "bbox": [
+            616,
+            476,
+            100,
+            98
+          ]
+        },
+        {
+          "cell_idx": 6,
+          "char": "М",
+          "confidence": 99.9,
+          "is_empty": false,
+          "bbox": [
+            717,
+            476,
+            100,
+            98
+          ]
+        },
+        {
+          "cell_idx": 7,
+          "char": "Н",
+          "confidence": 51.5,
+          "is_empty": false,
+          "bbox": [
+            817,
+            476,
+            100,
+            98
+          ]
+        },
+        {
+          "cell_idx": 8,
+          "char": "К",
+          "confidence": 99.9,
+          "is_empty": false,
+          "bbox": [
+            918,
+            476,
+            100,
+            98
+          ]
+        }
+      ]
+    },
+    {
+      "q_num": 2,
+      "text": "ГЛАӨЩДЛЫ",
+      "cells": [
+        {
+          "cell_idx": 1,
+          "char": "Г",
+          "confidence": 99.8,
+          "is_empty": false,
+          "bbox": [
+            212,
+            755,
+            101,
+            99
+          ]
+        },
+        {
+          "cell_idx": 2,
+          "char": "Л",
+          "confidence": 94.3,
+          "is_empty": false,
+          "bbox": [
+            313,
+            755,
+            101,
+            99
+          ]
+        },
+        {
+          "cell_idx": 3,
+          "char": "А",
+          "confidence": 94.9,
+          "is_empty": false,
+          "bbox": [
+            414,
+            755,
+            101,
+            99
+          ]
+        },
+        {
+          "cell_idx": 4,
+          "char": "Ө",
+          "confidence": 99.7,
+          "is_empty": false,
+          "bbox": [
+            514,
+            755,
+            101,
+            99
+          ]
+        },
+        {
+          "cell_idx": 5,
+          "char": "Щ",
+          "confidence": 98.9,
+          "is_empty": false,
+          "bbox": [
+            615,
+            755,
+            101,
+            99
+          ]
+        },
+        {
+          "cell_idx": 6,
+          "char": "Д",
+          "confidence": 77.7,
+          "is_empty": false,
+          "bbox": [
+            716,
+            755,
+            101,
+            99
+          ]
+        },
+        {
+          "cell_idx": 7,
+          "char": "Л",
+          "confidence": 61.1,
+          "is_empty": false,
+          "bbox": [
+            816,
+            755,
+            101,
+            99
+          ]
+        },
+        {
+          "cell_idx": 8,
+          "char": "Ы",
+          "confidence": 99.6,
+          "is_empty": false,
+          "bbox": [
+            917,
+            755,
+            101,
+            99
+          ]
+        }
+      ]
+    },
+    {
+      "q_num": 3,
+      "text": "ӨЩХХЁЕҖХ",
+      "cells": [
+        {
+          "cell_idx": 1,
+          "char": "Ө",
+          "confidence": 99.8,
+          "is_empty": false,
+          "bbox": [
+            211,
+            1035,
+            101,
+            102
+          ]
+        },
+        {
+          "cell_idx": 2,
+          "char": "Щ",
+          "confidence": 100.0,
+          "is_empty": false,
+          "bbox": [
+            312,
+            1035,
+            101,
+            102
+          ]
+        },
+        {
+          "cell_idx": 3,
+          "char": "Х",
+          "confidence": 97.7,
+          "is_empty": false,
+          "bbox": [
+            413,
+            1035,
+            101,
+            102
+          ]
+        },
+        {
+          "cell_idx": 4,
+          "char": "Х",
+          "confidence": 92.6,
+          "is_empty": false,
+          "bbox": [
+            514,
+            1035,
+            101,
+            102
+          ]
+        },
+        {
+          "cell_idx": 5,
+          "char": "Ё",
+          "confidence": 86.6,
+          "is_empty": false,
+          "bbox": [
+            614,
+            1035,
+            101,
+            102
+          ]
+        },
+        {
+          "cell_idx": 6,
+          "char": "Е",
+          "confidence": 96.2,
+          "is_empty": false,
+          "bbox": [
+            715,
+            1035,
+            101,
+            102
+          ]
+        },
+        {
+          "cell_idx": 7,
+          "char": "Җ",
+          "confidence": 98.5,
+          "is_empty": false,
+          "bbox": [
+            816,
+            1035,
+            101,
+            102
+          ]
+        },
+        {
+          "cell_idx": 8,
+          "char": "Х",
+          "confidence": 50.3,
+          "is_empty": false,
+          "bbox": [
+            917,
+            1035,
+            101,
+            102
+          ]
+        }
+      ]
+    },
+    {
+      "q_num": 4,
+      "text": "БӨХЁҖЖЕЁ",
+      "cells": [
+        {
+          "cell_idx": 1,
+          "char": "Б",
+          "confidence": 95.9,
+          "is_empty": false,
+          "bbox": [
+            211,
+            1320,
+            101,
+            99
+          ]
+        },
+        {
+          "cell_idx": 2,
+          "char": "Ө",
+          "confidence": 99.5,
+          "is_empty": false,
+          "bbox": [
+            312,
+            1320,
+            101,
+            99
+          ]
+        },
+        {
+          "cell_idx": 3,
+          "char": "Х",
+          "confidence": 99.7,
+          "is_empty": false,
+          "bbox": [
+            413,
+            1320,
+            101,
+            99
+          ]
+        },
+        {
+          "cell_idx": 4,
+          "char": "Ё",
+          "confidence": 99.9,
+          "is_empty": false,
+          "bbox": [
+            514,
+            1320,
+            101,
+            99
+          ]
+        },
+        {
+          "cell_idx": 5,
+          "char": "Җ",
+          "confidence": 99.9,
+          "is_empty": false,
+          "bbox": [
+            614,
+            1320,
+            101,
+            99
+          ]
+        },
+        {
+          "cell_idx": 6,
+          "char": "Ж",
+          "confidence": 60.9,
+          "is_empty": false,
+          "bbox": [
+            715,
+            1320,
+            101,
+            99
+          ]
+        },
+        {
+          "cell_idx": 7,
+          "char": "Е",
+          "confidence": 81.5,
+          "is_empty": false,
+          "bbox": [
+            816,
+            1320,
+            101,
+            99
+          ]
+        },
+        {
+          "cell_idx": 8,
+          "char": "Ё",
+          "confidence": 99.0,
+          "is_empty": false,
+          "bbox": [
+            917,
+            1320,
+            101,
+            99
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "total_letters": 32,
+    "avg_confidence": 91.2,
+    "questions_count": 4
+  }
+}

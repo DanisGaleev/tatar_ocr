@@ -1,0 +1,276 @@
+{
+  "image_id": "blank_05",
+  "pipeline": "ground_truth",
+  "student_name": {
+    "text": "",
+    "cells": [
+      {
+        "cell_idx": 1,
+        "char": "",
+        "is_empty": true
+      },
+      {
+        "cell_idx": 2,
+        "char": "",
+        "is_empty": true
+      },
+      {
+        "cell_idx": 3,
+        "char": "",
+        "is_empty": true
+      },
+      {
+        "cell_idx": 4,
+        "char": "",
+        "is_empty": true
+      },
+      {
+        "cell_idx": 5,
+        "char": "",
+        "is_empty": true
+      },
+      {
+        "cell_idx": 6,
+        "char": "",
+        "is_empty": true
+      },
+      {
+        "cell_idx": 7,
+        "char": "",
+        "is_empty": true
+      },
+      {
+        "cell_idx": 8,
+        "char": "",
+        "is_empty": true
+      },
+      {
+        "cell_idx": 9,
+        "char": "",
+        "is_empty": true
+      },
+      {
+        "cell_idx": 10,
+        "char": "",
+        "is_empty": true
+      },
+      {
+        "cell_idx": 11,
+        "char": "",
+        "is_empty": true
+      },
+      {
+        "cell_idx": 12,
+        "char": "",
+        "is_empty": true
+      },
+      {
+        "cell_idx": 13,
+        "char": "",
+        "is_empty": true
+      },
+      {
+        "cell_idx": 14,
+        "char": "",
+        "is_empty": true
+      },
+      {
+        "cell_idx": 15,
+        "char": "",
+        "is_empty": true
+      }
+    ]
+  },
+  "questions": [
+    {
+      "q_num": 1,
+      "text": "ЮЫЪЬХМНК",
+      "cells": [
+        {
+          "cell_idx": 1,
+          "char": "Ю",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 2,
+          "char": "Ы",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 3,
+          "char": "Ъ",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 4,
+          "char": "Ь",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 5,
+          "char": "Х",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 6,
+          "char": "М",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 7,
+          "char": "Н",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 8,
+          "char": "К",
+          "is_empty": false
+        }
+      ]
+    },
+    {
+      "q_num": 2,
+      "text": "ГЛАӨЩДХЫ",
+      "cells": [
+        {
+          "cell_idx": 1,
+          "char": "Г",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 2,
+          "char": "Л",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 3,
+          "char": "А",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 4,
+          "char": "Ө",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 5,
+          "char": "Щ",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 6,
+          "char": "Д",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 7,
+          "char": "Х",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 8,
+          "char": "Ы",
+          "is_empty": false
+        }
+      ]
+    },
+    {
+      "q_num": 3,
+      "text": "ӨЩХХЁЕҖХ",
+      "cells": [
+        {
+          "cell_idx": 1,
+          "char": "Ө",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 2,
+          "char": "Щ",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 3,
+          "char": "Х",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 4,
+          "char": "Х",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 5,
+          "char": "Ё",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 6,
+          "char": "Е",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 7,
+          "char": "Җ",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 8,
+          "char": "Х",
+          "is_empty": false
+        }
+      ]
+    },
+    {
+      "q_num": 4,
+      "text": "БӨХЁҖХЕЁ",
+      "cells": [
+        {
+          "cell_idx": 1,
+          "char": "Б",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 2,
+          "char": "Ө",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 3,
+          "char": "Х",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 4,
+          "char": "Ё",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 5,
+          "char": "Җ",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 6,
+          "char": "Х",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 7,
+          "char": "Е",
+          "is_empty": false
+        },
+        {
+          "cell_idx": 8,
+          "char": "Ё",
+          "is_empty": false
+        }
+      ]
+    }
+  ],
+  "questions_dict": {
+    "1": "ЮЫЪЬХМНК",
+    "2": "ГЛАӨЩДХЫ",
+    "3": "ӨЩХХЁЕҖХ",
+    "4": "БӨХЁҖХЕЁ"
+  }
+}

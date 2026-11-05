@@ -253,25 +253,6 @@ class VerbNegationGenerator(BaseTaskGenerator):
             metadata={"stem": chosen_stem},
         )
 
-    def generate_batch(
-        self,
-        count: int,
-        seed: Optional[int] = None,
-        stems: Optional[List[str]] = None,
-        grade_level: int = 6,
-        **kwargs: Any,
-    ) -> List[TaskDraft]:
-        rng = random.Random(seed) if seed is not None else random.Random()
-        stem_pool = list(stems or VERB_STEMS)
-        rng.shuffle(stem_pool)
-        drafts: List[TaskDraft] = []
-        for i in range(count):
-            item_seed = rng.randint(0, 10_000_000)
-            stem = stem_pool[i % len(stem_pool)]
-            draft = self.generate(seed=item_seed, stems=[stem], grade_level=grade_level)
-            drafts.append(draft)
-        return drafts
-
     def create_custom(self, stem: str, grade_level: int = 6, **kwargs: Any) -> TaskDraft:
         clean_s = clean_word(stem)
         expected_answer = inflect_verb_negation(clean_s)
@@ -327,25 +308,6 @@ class VerbImperativeGenerator(BaseTaskGenerator):
             grade_level=grade_level,
             metadata={"stem": chosen_stem},
         )
-
-    def generate_batch(
-        self,
-        count: int,
-        seed: Optional[int] = None,
-        stems: Optional[List[str]] = None,
-        grade_level: int = 6,
-        **kwargs: Any,
-    ) -> List[TaskDraft]:
-        rng = random.Random(seed) if seed is not None else random.Random()
-        stem_pool = list(stems or VERB_STEMS)
-        rng.shuffle(stem_pool)
-        drafts: List[TaskDraft] = []
-        for i in range(count):
-            item_seed = rng.randint(0, 10_000_000)
-            stem = stem_pool[i % len(stem_pool)]
-            draft = self.generate(seed=item_seed, stems=[stem], grade_level=grade_level)
-            drafts.append(draft)
-        return drafts
 
     def create_custom(self, stem: str, grade_level: int = 6, **kwargs: Any) -> TaskDraft:
         clean_s = clean_word(stem)
@@ -403,25 +365,6 @@ class ComparativeDegreeGenerator(BaseTaskGenerator):
             metadata={"stem": chosen_stem},
         )
 
-    def generate_batch(
-        self,
-        count: int,
-        seed: Optional[int] = None,
-        stems: Optional[List[str]] = None,
-        grade_level: int = 6,
-        **kwargs: Any,
-    ) -> List[TaskDraft]:
-        rng = random.Random(seed) if seed is not None else random.Random()
-        stem_pool = list(stems or ADJECTIVE_STEMS)
-        rng.shuffle(stem_pool)
-        drafts: List[TaskDraft] = []
-        for i in range(count):
-            item_seed = rng.randint(0, 10_000_000)
-            stem = stem_pool[i % len(stem_pool)]
-            draft = self.generate(seed=item_seed, stems=[stem], grade_level=grade_level)
-            drafts.append(draft)
-        return drafts
-
     def create_custom(self, stem: str, grade_level: int = 6, **kwargs: Any) -> TaskDraft:
         clean_s = clean_word(stem)
         expected_answer = inflect_comparative(clean_s)
@@ -477,25 +420,6 @@ class OrdinalNumeralsGenerator(BaseTaskGenerator):
             grade_level=grade_level,
             metadata={"stem": chosen_stem},
         )
-
-    def generate_batch(
-        self,
-        count: int,
-        seed: Optional[int] = None,
-        stems: Optional[List[str]] = None,
-        grade_level: int = 6,
-        **kwargs: Any,
-    ) -> List[TaskDraft]:
-        rng = random.Random(seed) if seed is not None else random.Random()
-        stem_pool = list(stems or NUMERAL_STEMS)
-        rng.shuffle(stem_pool)
-        drafts: List[TaskDraft] = []
-        for i in range(count):
-            item_seed = rng.randint(0, 10_000_000)
-            stem = stem_pool[i % len(stem_pool)]
-            draft = self.generate(seed=item_seed, stems=[stem], grade_level=grade_level)
-            drafts.append(draft)
-        return drafts
 
     def create_custom(self, stem: str, grade_level: int = 6, **kwargs: Any) -> TaskDraft:
         clean_s = clean_word(stem)

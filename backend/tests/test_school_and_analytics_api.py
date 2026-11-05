@@ -121,6 +121,7 @@ async def prepare_database():
 
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
+    await test_engine.dispose()
     app.dependency_overrides.clear()
 
 @pytest_asyncio.fixture
@@ -474,5 +475,41 @@ class TestSubmissionsAndAnalyticsAPI:
         assert manifest["alphabet_classes"][-1] == "Я"
         assert manifest["preprocessing"]["input_resolution"] == [64, 64]
         assert manifest["preprocessing"]["margin_trim_pct"] == 11.0
+
+    @pytest.mark.asyncio
+    async def test_save_single_submission_idempotent_upsert(self, client: AsyncClient):
+        single_payload = {
+            "assignment_id": "TAT-2026-Q1",
+            "class_id": "cls_7a_2026",
+            "submission": {
+                "client_submission_uuid": "single-sub-dup-01",
+                "student_id": "stu_01",
+                "student_name": "Галиев Амир Рустемович",
+                "variant": 1,
+                "overall_score": 6.0,
+                "max_score": 8.0,
+                "final_grade": 4,
+                "teacher_reviewed_flags": 0,
+                "questions_results": [],
+            },
+        }
+        res1 = await client.post("/api/v1/submissions", json=single_payload)
+        assert res1.status_code == 200
+        sub_id_1 = res1.json()["submission_id"]
+
+        # Update score with identical client_submission_uuid
+        single_payload["submission"]["overall_score"] = 8.0
+        single_payload["submission"]["final_grade"] = 5
+        res2 = await client.post("/api/v1/submissions", json=single_payload)
+        assert res2.status_code == 200
+        assert res2.json()["submission_id"] == sub_id_1
+
+        # Verify updated in DB without duplicate rows
+        res_list = await client.get("/api/v1/submissions?student_id=stu_01")
+        assert res_list.status_code == 200
+        items = res_list.json()
+        assert len(items) == 1
+        assert items[0]["overall_score"] == 8.0
+        assert items[0]["final_grade"] == 5
 
 

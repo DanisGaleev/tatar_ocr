@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+import random
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field
 from app.generators.phonetics import build_expected_cells
@@ -38,16 +39,29 @@ class BaseTaskGenerator(ABC):
         pass
 
     @abstractmethod
-    def generate(self, seed: Optional[int] = None, **kwargs) -> TaskDraft:
+    def generate(self, seed: Optional[int] = None, **kwargs: Any) -> TaskDraft:
         """Generate a single deterministic task if seed is given, or pseudo-random if None."""
         pass
 
-    @abstractmethod
-    def generate_batch(self, count: int, seed: Optional[int] = None, **kwargs) -> List[TaskDraft]:
+    def generate_batch(self, count: int, seed: Optional[int] = None, **kwargs: Any) -> List[TaskDraft]:
         """Generate a batch of non-duplicate tasks deterministically."""
-        pass
+        rng = random.Random(seed) if seed is not None else random.Random()
+        drafts: List[TaskDraft] = []
+        seen: set[tuple[str, str]] = set()
+        for _ in range(count * 6):
+            if len(drafts) >= count:
+                break
+            item_seed = rng.randint(0, 10_000_000)
+            draft = self.generate(seed=item_seed, **kwargs)
+            key = (draft.prompt_tt, draft.expected_answer)
+            if key not in seen:
+                seen.add(key)
+                drafts.append(draft)
+        while len(drafts) < count:
+            item_seed = rng.randint(0, 10_000_000)
+            drafts.append(self.generate(seed=item_seed, **kwargs))
+        return drafts
 
-    @abstractmethod
-    def create_custom(self, **kwargs) -> TaskDraft:
+    def create_custom(self, **kwargs: Any) -> TaskDraft:
         """Create a validated task from custom teacher parameters."""
-        pass
+        raise NotImplementedError(f"Custom creation not supported for {self.task_type}")

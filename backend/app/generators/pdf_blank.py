@@ -1,27 +1,42 @@
 import io
+import os
 import json
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 import numpy as np
 import cv2
 import qrcode
+
+_MPL_DIR = Path(__file__).resolve().parents[2] / ".mplconfig"
+_MPL_DIR.mkdir(parents=True, exist_ok=True)
+os.environ.setdefault("MPLCONFIGDIR", str(_MPL_DIR))
+
 import matplotlib
 matplotlib.use('Agg')
-import matplotlib.pyplot as plt
+from matplotlib.axes import Axes
+from matplotlib.figure import Figure
+from matplotlib.backends.backend_pdf import FigureCanvasPdf, PdfPages
 import matplotlib.patches as patches
 import matplotlib.font_manager as fm
 
-# Setup font for Tatar Cyrillic characters
-_FONT_PATH = Path("fonts/Rubik-Regular.ttf")
-if not _FONT_PATH.exists():
-    _FONT_PATH = Path("fonts/PlaypenSans.ttf")
-if not _FONT_PATH.exists():
-    _FONT_PATH = Path("C:/Windows/Fonts/segoeui.ttf")
-if not _FONT_PATH.exists():
-    _FONT_PATH = Path("C:/Windows/Fonts/arial.ttf")
+# Setup font for Tatar Cyrillic characters (cross-platform Linux & Windows resolution)
+_PROJECT_ROOT = Path(__file__).resolve().parents[3]
+_FONT_CANDIDATES = [
+    _PROJECT_ROOT / "fonts" / "Rubik-Regular.ttf",
+    _PROJECT_ROOT / "fonts" / "PlaypenSans.ttf",
+    Path("/app/fonts/Rubik-Regular.ttf"),
+    Path("/app/fonts/PlaypenSans.ttf"),
+    Path("fonts/Rubik-Regular.ttf"),
+    Path("fonts/PlaypenSans.ttf"),
+    Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
+    Path("C:/Windows/Fonts/segoeui.ttf"),
+    Path("C:/Windows/Fonts/arial.ttf"),
+]
 
+_FONT_PATH = next((p for p in _FONT_CANDIDATES if p.exists()), None)
 _FONT_NAME = "TatarFont"
-if _FONT_PATH.exists():
+
+if _FONT_PATH is not None and _FONT_PATH.exists():
     _fe = fm.FontEntry(fname=str(_FONT_PATH.resolve()), name=_FONT_NAME)
     fm.fontManager.ttflist.append(_fe)
 else:
@@ -47,7 +62,7 @@ def generate_qr_img(payload_str: str, box_size: int = 10) -> np.ndarray:
 
 
 def _draw_blank_page(
-    ax: plt.Axes,
+    ax: Axes,
     assignment_id: str,
     title: str,
     variant_id: int,
@@ -229,7 +244,7 @@ def render_blank_pdf(
     page_w_mm, page_h_mm = 210.0, 297.0
     fig_w_in, fig_h_in = page_w_mm / 25.4, page_h_mm / 25.4
 
-    fig = plt.figure(figsize=(fig_w_in, fig_h_in), dpi=300)
+    fig = Figure(figsize=(fig_w_in, fig_h_in), dpi=300)
     ax = fig.add_axes([0, 0, 1, 1])
     ax.set_xlim(0, page_w_mm)
     ax.set_ylim(0, page_h_mm)
@@ -240,8 +255,7 @@ def render_blank_pdf(
 
     # Render to PDF in-memory buffer
     buf = io.BytesIO()
-    plt.savefig(buf, format='pdf', bbox_inches=None)
-    plt.close(fig)
+    FigureCanvasPdf(fig).print_pdf(buf)
     buf.seek(0)
     return buf.getvalue()
 
@@ -256,8 +270,6 @@ def render_batch_blanks_pdf(
     Renders a multi-page PDF with one pre-named test blank per student in the class,
     automatically alternating variants across the roster.
     """
-    from matplotlib.backends.backend_pdf import PdfPages
-
     page_w_mm, page_h_mm = 210.0, 297.0
     fig_w_in, fig_h_in = page_w_mm / 25.4, page_h_mm / 25.4
 
@@ -274,7 +286,8 @@ def render_batch_blanks_pdf(
             questions = var_obj.get("questions", [])
             stu_name = student.get("full_name") or student.get("student_name")
 
-            fig = plt.figure(figsize=(fig_w_in, fig_h_in), dpi=300)
+            fig = Figure(figsize=(fig_w_in, fig_h_in), dpi=300)
+            FigureCanvasPdf(fig)
             ax = fig.add_axes([0, 0, 1, 1])
             ax.set_xlim(0, page_w_mm)
             ax.set_ylim(0, page_h_mm)
@@ -284,7 +297,6 @@ def render_batch_blanks_pdf(
             _draw_blank_page(ax, assignment_id, title, variant_id, questions, stu_name)
 
             pdf.savefig(fig, dpi=300, bbox_inches=None)
-            plt.close(fig)
 
     buf.seek(0)
     return buf.getvalue()

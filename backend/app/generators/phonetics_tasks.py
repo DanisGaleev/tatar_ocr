@@ -43,32 +43,6 @@ class VowelHarmonyGapGenerator(BaseTaskGenerator):
             metadata={"gap_prompt": gap_prompt},
         )
 
-    def generate_batch(
-        self,
-        count: int,
-        seed: Optional[int] = None,
-        grade_level: int = 5,
-        **kwargs: Any,
-    ) -> List[TaskDraft]:
-        rng = random.Random(seed) if seed is not None else random.Random()
-        pool = list(VOWEL_HARMONY_GAPS)
-        rng.shuffle(pool)
-        drafts: List[TaskDraft] = []
-        for i in range(count):
-            item = pool[i % len(pool)]
-            draft = TaskDraft(
-                task_type=self.task_type,
-                topic_tag="vowel_harmony",
-                topic_name_tt="Сузык авазлар гармониясе",
-                prompt_tt=f"Төшеп калган сузыкны куегыз: {item[0]} ->",
-                expected_answer=item[1].upper(),
-                cell_count=1,
-                grade_level=grade_level,
-                metadata={"gap_prompt": item[0]},
-            )
-            drafts.append(draft)
-        return drafts
-
     def create_custom(self, gap_prompt: str, missing_vowel: str, grade_level: int = 5, **kwargs: Any) -> TaskDraft:
         clean_v = missing_vowel.strip().upper()
         return TaskDraft(
@@ -118,32 +92,6 @@ class TatarLettersGapGenerator(BaseTaskGenerator):
             grade_level=grade_level,
             metadata={"word_gap": word_gap},
         )
-
-    def generate_batch(
-        self,
-        count: int,
-        seed: Optional[int] = None,
-        grade_level: int = 5,
-        **kwargs: Any,
-    ) -> List[TaskDraft]:
-        rng = random.Random(seed) if seed is not None else random.Random()
-        pool = list(TATAR_LETTERS_GAPS)
-        rng.shuffle(pool)
-        drafts: List[TaskDraft] = []
-        for i in range(count):
-            item = pool[i % len(pool)]
-            draft = TaskDraft(
-                task_type=self.task_type,
-                topic_tag="tatar_letters",
-                topic_name_tt="Татар хәрефләре",
-                prompt_tt=f"Татар хәрефен куегыз (Ә, Ө, Ү, Җ, Ң, Һ): {item[0]} ->",
-                expected_answer=item[1].upper(),
-                cell_count=1,
-                grade_level=grade_level,
-                metadata={"word_gap": item[0]},
-            )
-            drafts.append(draft)
-        return drafts
 
     def create_custom(self, word_gap: str, missing_char: str, grade_level: int = 5, **kwargs: Any) -> TaskDraft:
         clean_ch = missing_char.strip().upper()

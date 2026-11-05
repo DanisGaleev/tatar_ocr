@@ -50,31 +50,6 @@ class AntonymsGenerator(BaseTaskGenerator):
             },
         )
 
-    def generate_batch(
-        self,
-        count: int,
-        seed: Optional[int] = None,
-        pairs: Optional[List[Tuple[str, str]]] = None,
-        grade_level: int = 6,
-        **kwargs: Any,
-    ) -> List[TaskDraft]:
-        rng = random.Random(seed) if seed is not None else random.Random()
-        pair_pool = list(pairs or DEFAULT_ANTONYM_PAIRS)
-        rng.shuffle(pair_pool)
-        
-        drafts: List[TaskDraft] = []
-        for i in range(count):
-            item_seed = rng.randint(0, 10_000_000)
-            pair = [pair_pool[i % len(pair_pool)]]
-            draft = self.generate(
-                seed=item_seed,
-                pairs=pair,
-                grade_level=grade_level,
-            )
-            drafts.append(draft)
-            
-        return drafts
-
     def create_custom(
         self,
         word: str,

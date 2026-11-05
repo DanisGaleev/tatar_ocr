@@ -311,6 +311,7 @@ async def get_class_batch_blanks_pdf(
     import io
     import json
     from fastapi.responses import StreamingResponse
+    from starlette.concurrency import run_in_threadpool
 
     stmt_cls = select(ClassModel).where(ClassModel.class_id == class_id)
     cls_obj = (await db.execute(stmt_cls)).scalar_one_or_none()
@@ -330,7 +331,8 @@ async def get_class_batch_blanks_pdf(
     bundle_dict = json.loads(test_obj.bundle_json)
     variants = bundle_dict.get("variants", [])
 
-    pdf_bytes = render_batch_blanks_pdf(
+    pdf_bytes = await run_in_threadpool(
+        render_batch_blanks_pdf,
         assignment_id=assignment_id,
         title=test_obj.title,
         variants=variants,

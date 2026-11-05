@@ -191,9 +191,11 @@ async def get_blank_pdf(
 
     import io
     from fastapi.responses import StreamingResponse
+    from starlette.concurrency import run_in_threadpool
     from app.generators.pdf_blank import render_blank_pdf
 
-    pdf_bytes = render_blank_pdf(
+    pdf_bytes = await run_in_threadpool(
+        render_blank_pdf,
         assignment_id=assignment_id,
         title=test_obj.title,
         variant_id=variant,

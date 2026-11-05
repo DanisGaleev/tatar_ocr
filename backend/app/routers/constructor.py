@@ -27,7 +27,7 @@ from app.schemas.test import (
     OfflineBundleResponse,
 )
 from app.generators.registry import registry
-from app.generators.phonetics import clean_word, build_expected_cells
+from app.generators.phonetics import clean_word, build_expected_cells, PhoneticsError
 from app.generators.checker import verify_question_cells
 from app.services.task_extractor import get_task_extractor_service
 
@@ -48,6 +48,8 @@ async def search_task_bank(
     db: AsyncSession = Depends(get_db),
 ):
     stmt = select(TaskBankModel)
+    if scope == "my_tasks":
+        stmt = stmt.where(TaskBankModel.task_type == "custom")
     if topic_tag:
         stmt = stmt.where(TaskBankModel.topic_tag == topic_tag)
     if grade_level:
@@ -71,7 +73,17 @@ async def create_custom_task(
     payload: CreateTaskRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    clean_ans = clean_word(payload.expected_answer).upper()
+    raw_ans = payload.expected_answer.strip()
+    if raw_ans.isdigit():
+        clean_ans = raw_ans
+    else:
+        try:
+            clean_ans = clean_word(raw_ans).upper()
+        except PhoneticsError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=str(exc),
+            )
     if len(clean_ans) > payload.cell_count:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,

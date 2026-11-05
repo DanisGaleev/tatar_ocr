@@ -9,6 +9,10 @@ wheels/
 # Virtual environments
 .venv/
 
+# IDE & editor files
+.idea/
+.vscode/
+
 # Environment and secrets
 .env
 .env.*
@@ -24,4 +28,13 @@ test_blank_sample.*
 debug_rectify/
 previews/
 __marimo__/
+
+# Datasets and large assets
+dataset/
+realdataset/
+
+# Matplotlib cache
+.mplconfig/
+**/.mplconfig/
+
 

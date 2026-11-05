@@ -12,7 +12,7 @@ from app.models.task import TaskBankModel
 from app.models.test import AssembledTestModel
 from app.models.teacher import TeacherModel
 from app.models.school import ClassModel, StudentModel, ClassAssignmentModel
-from app.routers import constructor, assignments, auth, classes, submissions, analytics, reports, web, ocr, model
+from app.routers import constructor, assignments, auth, classes, submissions, analytics, reports, model
 from app.generators.registry import registry
 from app.generators.phonetics import build_expected_cells
 
@@ -254,12 +254,12 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
 
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
+    logger.exception(f"Unhandled server error on {request.method} {request.url.path}: {exc}")
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={"detail": "Internal server error", "status_code": 500},
     )
 
-app.include_router(web.router)
 app.include_router(constructor.router, prefix=settings.API_V1_STR)
 app.include_router(assignments.router, prefix=settings.API_V1_STR)
 app.include_router(auth.router, prefix=settings.API_V1_STR)
@@ -268,8 +268,6 @@ app.include_router(submissions.router, prefix=settings.API_V1_STR)
 app.include_router(analytics.router, prefix=settings.API_V1_STR)
 app.include_router(reports.router, prefix=settings.API_V1_STR)
 app.include_router(model.router, prefix=settings.API_V1_STR)
-app.include_router(ocr.router, prefix=settings.API_V1_STR)
-app.include_router(ocr.legacy_router)
 
 @app.get("/health", tags=["System"])
 async def health_check():
