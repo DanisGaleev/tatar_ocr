@@ -1,0 +1,106 @@
+================================================================================
+TATAR OCR v3 FULL PRODUCTION TRAINING PIPELINE (Device: cuda)
+Architecture: MultiScale | Synth Epochs: 12 | Finetune Epochs: 16
+================================================================================
+Model Parameters: 939,495 (Weights: ~3.58 MB)
+
+Preparing datasets...
+
+======================================================================
+PHASE 1: SYNTHETIC FOUNDATION PRE-TRAINING
+======================================================================
+  [Phase 1] Epoch  1/12 | Loss: 1.0741 | Synth Acc:  77.0% | Real Val Acc:  63.0% | 223.6s
+  [Phase 1] Epoch  2/12 | Loss: 0.3240 | Synth Acc:  97.2% | Real Val Acc:  69.0% | 276.0s
+  [Phase 1] Epoch  3/12 | Loss: 0.2827 | Synth Acc:  98.0% | Real Val Acc:  66.3% | 274.1s
+  [Phase 1] Epoch  4/12 | Loss: 0.2612 | Synth Acc:  98.6% | Real Val Acc:  70.4% | 272.4s
+  [Phase 1] Epoch  5/12 | Loss: 0.2513 | Synth Acc:  98.6% | Real Val Acc:  72.4% | 272.6s
+  [Phase 1] Epoch  6/12 | Loss: 0.2387 | Synth Acc:  99.0% | Real Val Acc:  70.7% | 273.3s
+  [Phase 1] Epoch  7/12 | Loss: 0.2272 | Synth Acc:  99.3% | Real Val Acc:  74.1% | 276.1s
+  [Phase 1] Epoch  8/12 | Loss: 0.2199 | Synth Acc:  99.4% | Real Val Acc:  72.4% | 275.3s
+  [Phase 1] Epoch  9/12 | Loss: 0.2132 | Synth Acc:  99.6% | Real Val Acc:  75.4% | 277.6s
+  [Phase 1] Epoch 10/12 | Loss: 0.2097 | Synth Acc:  99.6% | Real Val Acc:  72.1% | 275.7s
+  [Phase 1] Epoch 11/12 | Loss: 0.2076 | Synth Acc:  99.7% | Real Val Acc:  73.7% | 272.8s
+  [Phase 1] Epoch 12/12 | Loss: 0.2043 | Synth Acc:  99.7% | Real Val Acc:  74.1% | 274.7s
+
+======================================================================
+PHASE 2: REAL HANDWRITING FINE-TUNING & CONFUSION RIVAL SUPPRESSION
+======================================================================
+  [Phase 2] Epoch  1/16 | Loss: 0.6595 | Train Acc:  90.4% | Real Val Acc:  89.6% (Best:  89.6%) | 90.0s
+  [Phase 2] Epoch  2/16 | Loss: 0.5169 | Train Acc:  94.7% | Real Val Acc:  90.6% (Best:  90.6%) | 91.0s
+  [Phase 2] Epoch  3/16 | Loss: 0.4863 | Train Acc:  95.2% | Real Val Acc:  91.6% (Best:  91.6%) | 89.4s
+  [Phase 2] Epoch  4/16 | Loss: 0.4505 | Train Acc:  95.8% | Real Val Acc:  91.6% (Best:  91.6%) | 89.3s
+  [Phase 2] Epoch  5/16 | Loss: 0.4260 | Train Acc:  96.5% | Real Val Acc:  92.3% (Best:  92.3%) | 90.3s
+  [Phase 2] Epoch  6/16 | Loss: 0.4050 | Train Acc:  96.9% | Real Val Acc:  92.6% (Best:  92.6%) | 90.3s
+  [Phase 2] Epoch  7/16 | Loss: 0.3956 | Train Acc:  97.4% | Real Val Acc:  91.9% (Best:  92.6%) | 88.8s
+  [Phase 2] Epoch  8/16 | Loss: 0.3878 | Train Acc:  97.8% | Real Val Acc:  92.3% (Best:  92.6%) | 90.0s
+  [Phase 2] Epoch  9/16 | Loss: 0.3720 | Train Acc:  98.2% | Real Val Acc:  92.6% (Best:  92.6%) | 89.4s
+  [Phase 2] Epoch 10/16 | Loss: 0.3697 | Train Acc:  98.1% | Real Val Acc:  92.6% (Best:  92.6%) | 90.7s
+  [Phase 2] Epoch 11/16 | Loss: 0.3632 | Train Acc:  98.2% | Real Val Acc:  93.3% (Best:  93.3%) | 92.0s
+  [Phase 2] Epoch 12/16 | Loss: 0.3686 | Train Acc:  98.2% | Real Val Acc:  93.3% (Best:  93.3%) | 91.3s
+  [Phase 2] Epoch 13/16 | Loss: 0.3559 | Train Acc:  98.6% | Real Val Acc:  93.9% (Best:  93.9%) | 90.4s
+  [Phase 2] Epoch 14/16 | Loss: 0.3528 | Train Acc:  98.7% | Real Val Acc:  92.9% (Best:  93.9%) | 88.9s
+  [Phase 2] Epoch 15/16 | Loss: 0.3511 | Train Acc:  98.6% | Real Val Acc:  93.3% (Best:  93.9%) | 89.6s
+  [Phase 2] Epoch 16/16 | Loss: 0.3438 | Train Acc:  98.8% | Real Val Acc:  92.9% (Best:  93.9%) | 91.0s
+
+======================================================================
+PHASE 3: WiSE-FT WEIGHT ENSEMBLING & BN RECALIBRATION
+======================================================================
+Interpolated WiSE-FT weights with alpha=0.65. Recalibrating BatchNorm statistics...
+  ✓ WiSE-FT Real Validation Accuracy: 88.55%
+
+======================================================================
+PHASE 4: EXPORTING MODEL ARTIFACTS
+======================================================================
+  ✓ Saved PyTorch Checkpoint: models/tatar_ocr_v3_handwritten39.pth (3736.6 KB / 3.65 MB)
+  ✓ Exported FP32 ONNX: models/tatar_ocr_v3_handwritten39_fp32.onnx (3694.1 KB / 3.61 MB)
+  ✓ Exported INT8 ONNX: models/tatar_ocr_v3_handwritten39_int8.onnx (1000.6 KB / 0.98 MB)
+
+======================================================================
+PHASE 5: INDEPENDENT EVALUATION ON 12 CANONICAL TEST BLANKS
+======================================================================
+
+--- [v3 PyTorch FP32 on 12 Blanks] ---
+BlankOCRScanner: Loaded ONNX model from /root/tatar_ocr/models/tatar_ocr_v2_handwritten39_int8.onnx
+=================================================================
+BENCHMARK REPORT: 12 Real Blanks (449 letters, 57 fields)
+=================================================================
+  • Acc_char:      95.77% (430/449)
+  • CER:            4.23% (19 edits)
+  • R_Tatar:       97.33% (73/75)
+  • FEM:           71.93% (41/57)
+  • FFM (Lev<=1):  94.74% (54/57)
+  • HCER_80%:       1.34% (6 errors with conf >= 80%)
+  • Total Errors: 19
+  • Tatar Letters Breakdown:
+      Ә: 13/13 (100.0%)
+      Ө: 21/21 (100.0%)
+      Ү: 12/12 (100.0%)
+      Җ: 11/12 (91.7%)
+      Ң: 11/11 (100.0%)
+      Һ: 5/6 (83.3%)
+  • Elapsed Time: 9.25s
+=================================================================
+
+--- [v3 ONNX INT8 on 12 Blanks] ---
+BlankOCRScanner: Loaded ONNX model from /root/tatar_ocr/models/tatar_ocr_v3_handwritten39_int8.onnx
+=================================================================
+BENCHMARK REPORT: 12 Real Blanks (449 letters, 57 fields)
+=================================================================
+  • Acc_char:      95.77% (430/449)
+  • CER:            4.23% (19 edits)
+  • R_Tatar:       97.33% (73/75)
+  • FEM:           71.93% (41/57)
+  • FFM (Lev<=1):  94.74% (54/57)
+  • HCER_80%:       1.34% (6 errors with conf >= 80%)
+  • Total Errors: 19
+  • Tatar Letters Breakdown:
+      Ә: 13/13 (100.0%)
+      Ө: 21/21 (100.0%)
+      Ү: 12/12 (100.0%)
+      Җ: 11/12 (91.7%)
+      Ң: 11/11 (100.0%)
+      Һ: 5/6 (83.3%)
+  • Elapsed Time: 19.56s
+=================================================================
+
+Final report saved to: models/tatar_ocr_v3_report.json

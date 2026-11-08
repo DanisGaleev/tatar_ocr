@@ -1,0 +1,82 @@
+================================================================================
+TATAR OCR v4 SURGICAL REFINEMENT (Device: cuda)
+Focus: Eliminating E->Ё, N->M, U->Ү/Ч, O->Й | Target Raw FEM >= 85-90%
+Epochs: 16 | Batch Size: 64 | Resume: models/tatar_ocr_v3_handwritten39.pth
+================================================================================
+Loading checkpoint from: /root/tatar_ocr/models/tatar_ocr_v3_handwritten39.pth
+Model parameters: 939,495 (3.58 MB float32)
+
+Preparing v4 targeted datasets...
+  • Real Train Samples (v4 priority weighted):   3487
+  • Synthetic Complement per Epoch:             3200
+  • Real Validation Set:                        297
+
+================================================================================
+STARTING v4 TRAINING LOOP
+================================================================================
+  Epoch  1/16 | Loss: 0.2327 | Train Acc:  98.3% | Real Val Acc: 97.31% (Best: 97.31%) ★ BEST | 78.3s
+  Epoch  2/16 | Loss: 0.2214 | Train Acc:  98.5% | Real Val Acc: 97.64% (Best: 97.64%) ★ BEST | 75.7s
+  Epoch  3/16 | Loss: 0.2128 | Train Acc:  98.7% | Real Val Acc: 97.64% (Best: 97.64%) ★ BEST | 71.0s
+  Epoch  4/16 | Loss: 0.2131 | Train Acc:  98.7% | Real Val Acc: 97.31% (Best: 97.64%) | 74.7s
+  Epoch  5/16 | Loss: 0.2111 | Train Acc:  98.9% | Real Val Acc: 97.31% (Best: 97.64%) | 73.6s
+  Epoch  6/16 | Loss: 0.2077 | Train Acc:  98.7% | Real Val Acc: 97.64% (Best: 97.64%) ★ BEST | 75.7s
+  Epoch  7/16 | Loss: 0.2029 | Train Acc:  98.9% | Real Val Acc: 97.98% (Best: 97.98%) ★ BEST | 76.8s
+  Epoch  8/16 | Loss: 0.2042 | Train Acc:  98.9% | Real Val Acc: 97.98% (Best: 97.98%) ★ BEST | 76.4s
+  Epoch  9/16 | Loss: 0.2034 | Train Acc:  99.1% | Real Val Acc: 97.64% (Best: 97.98%) | 79.9s
+  Epoch 10/16 | Loss: 0.2040 | Train Acc:  98.9% | Real Val Acc: 97.98% (Best: 97.98%) ★ BEST | 80.2s
+  Epoch 11/16 | Loss: 0.2031 | Train Acc:  99.0% | Real Val Acc: 97.98% (Best: 97.98%) ★ BEST | 71.2s
+  Epoch 12/16 | Loss: 0.2018 | Train Acc:  99.1% | Real Val Acc: 97.98% (Best: 97.98%) ★ BEST | 76.6s
+  Epoch 13/16 | Loss: 0.1963 | Train Acc:  99.1% | Real Val Acc: 97.98% (Best: 97.98%) ★ BEST | 72.8s
+  Epoch 14/16 | Loss: 0.2004 | Train Acc:  98.9% | Real Val Acc: 97.98% (Best: 97.98%) ★ BEST | 72.9s
+  Epoch 15/16 | Loss: 0.2008 | Train Acc:  99.1% | Real Val Acc: 97.98% (Best: 97.98%) ★ BEST | 72.5s
+  Epoch 16/16 | Loss: 0.1958 | Train Acc:  99.1% | Real Val Acc: 97.98% (Best: 97.98%) ★ BEST | 75.3s
+
+================================================================================
+RESTORING BEST v4 CHECKPOINT (Val Acc: 97.98%)
+================================================================================
+  ✓ Saved PyTorch Checkpoint: /root/tatar_ocr/models/tatar_ocr_v4_handwritten39.pth
+  ✓ Exported FP32 ONNX: /root/tatar_ocr/models/tatar_ocr_v4_handwritten39_fp32.onnx (3694.1 KB / 3.61 MB)
+  ✓ Exported INT8 ONNX: /root/tatar_ocr/models/tatar_ocr_v4_handwritten39_int8.onnx (1000.6 KB / 0.98 MB)
+
+================================================================================
+EVALUATING v4 ON 12 CANONICAL BLANKS BENCHMARK
+================================================================================
+BlankOCRScanner: Loaded ONNX model from /root/tatar_ocr/models/tatar_ocr_v4_handwritten39_int8.onnx
+=================================================================
+BENCHMARK REPORT: 12 Real Blanks (449 letters, 57 fields)
+=================================================================
+  • Acc_char:      95.99% (431/449)
+  • CER:            4.01% (18 edits)
+  • R_Tatar:       97.33% (73/75)
+  • FEM:           75.44% (43/57)
+  • FFM (Lev<=1):  92.98% (53/57)
+  • HCER_80%:       1.78% (8 errors with conf >= 80%)
+  • Total Errors: 18
+  • Tatar Letters Breakdown:
+      Ә: 13/13 (100.0%)
+      Ө: 20/21 (95.2%)
+      Ү: 12/12 (100.0%)
+      Җ: 12/12 (100.0%)
+      Ң: 11/11 (100.0%)
+      Һ: 5/6 (83.3%)
+  • Elapsed Time: 20.41s
+=================================================================
+
+================================================================================
+3-WAY COMPARISON (v2 vs v3 vs v4)
+================================================================================
+BlankOCRScanner: Loaded ONNX model from /root/tatar_ocr/models/tatar_ocr_v2_handwritten39_int8.onnx
+BlankOCRScanner: Loaded ONNX model from /root/tatar_ocr/models/tatar_ocr_v3_handwritten39_int8.onnx
+Метрика                                | v2 (INT8)    | v3 (INT8)    | v4 (INT8)   
+----------------------------------------------------------------------------------
+Посимвольная точность (Acc_char)       |      96.44 % |      96.21 % |      95.99 %
+Ошибок посимвольно (Errors)            |         16   |         17   |         18  
+Полнота татарских букв (R_Tatar)       |      98.67 % |      98.67 % |      97.33 %
+Точное совпадение полей (FEM)          |      75.44 % |      75.44 % |      75.44 %
+Traceback (most recent call last):
+  File "/root/tatar_ocr/v3/train_v4.py", line 493, in <module>
+    run_v4_training(
+  File "/root/tatar_ocr/v3/train_v4.py", line 465, in run_v4_training
+    print(f"{'Полей без ошибок (Exact Fields)':<38} | {v2_eval['exact_fields']:>7d} / 57 | {v3_eval['exact_fields']:>7d} / 57 | {v4_eval['exact_fields']:>7d} / 57")
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: Unknown format code 'd' for object of type 'str'
