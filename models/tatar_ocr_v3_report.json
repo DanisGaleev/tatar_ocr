@@ -1,0 +1,363 @@
+{
+  "architecture": "MultiScale",
+  "parameters": 939495,
+  "weights_fp32_mb": 3.65,
+  "weights_int8_mb": 0.98,
+  "val_acc_real": 88.55,
+  "blanks_eval_fp32": {
+    "Acc_char": 95.77,
+    "correct_chars": "430/449",
+    "CER": 4.23,
+    "total_lev_edits": 19,
+    "R_Tatar": 97.33,
+    "tatar_count": "73/75",
+    "Tatar_breakdown": {
+      "Ә": "13/13 (100.0%)",
+      "Ө": "21/21 (100.0%)",
+      "Ү": "12/12 (100.0%)",
+      "Җ": "11/12 (91.7%)",
+      "Ң": "11/11 (100.0%)",
+      "Һ": "5/6 (83.3%)"
+    },
+    "FEM": 71.93,
+    "exact_fields": "41/57",
+    "FFM_le1": 94.74,
+    "fuzzy_fields": "54/57",
+    "HCER_80": 1.34,
+    "high_conf_errors_80": "6/449",
+    "errors_count": 19,
+    "errors": [
+      {
+        "blank": "blank_01",
+        "q": "1",
+        "pos": 5,
+        "gt": "П",
+        "pred": "И",
+        "conf": 90.4
+      },
+      {
+        "blank": "blank_01",
+        "q": "2",
+        "pos": 7,
+        "gt": "И",
+        "pred": "Ч",
+        "conf": 83.3
+      },
+      {
+        "blank": "blank_01",
+        "q": "4",
+        "pos": 3,
+        "gt": "М",
+        "pred": "Н",
+        "conf": 97.9
+      },
+      {
+        "blank": "blank_02",
+        "q": "1",
+        "pos": 8,
+        "gt": "Ж",
+        "pred": "Җ",
+        "conf": 54.9
+      },
+      {
+        "blank": "blank_02",
+        "q": "3",
+        "pos": 6,
+        "gt": "Н",
+        "pred": "М",
+        "conf": 98.2
+      },
+      {
+        "blank": "blank_03",
+        "q": "3",
+        "pos": 1,
+        "gt": "У",
+        "pred": "Ү",
+        "conf": 63.9
+      },
+      {
+        "blank": "blank_03",
+        "q": "4",
+        "pos": 7,
+        "gt": "О",
+        "pred": "Й",
+        "conf": 50.4
+      },
+      {
+        "blank": "blank_03",
+        "q": "4",
+        "pos": 8,
+        "gt": "Л",
+        "pred": "М",
+        "conf": 26.8
+      },
+      {
+        "blank": "blank_04",
+        "q": "4",
+        "pos": 6,
+        "gt": "Җ",
+        "pred": "Ж",
+        "conf": 67.0
+      },
+      {
+        "blank": "blank_06",
+        "q": "1",
+        "pos": 1,
+        "gt": "К",
+        "pred": "И",
+        "conf": 66.7
+      },
+      {
+        "blank": "blank_06",
+        "q": "4",
+        "pos": 8,
+        "gt": "Һ",
+        "pred": "Ь",
+        "conf": 99.3
+      },
+      {
+        "blank": "blank_08",
+        "q": "2",
+        "pos": 1,
+        "gt": "Н",
+        "pred": "М",
+        "conf": 72.2
+      },
+      {
+        "blank": "blank_08",
+        "q": "2",
+        "pos": 2,
+        "gt": "К",
+        "pred": "И",
+        "conf": 55.8
+      },
+      {
+        "blank": "blank_10",
+        "q": "7",
+        "pos": 6,
+        "gt": "Ч",
+        "pred": "И",
+        "conf": 97.3
+      },
+      {
+        "blank": "blank_11",
+        "q": "6",
+        "pos": 2,
+        "gt": "К",
+        "pred": "Ү",
+        "conf": 30.2
+      },
+      {
+        "blank": "blank_11",
+        "q": "7",
+        "pos": 6,
+        "gt": "В",
+        "pred": "Щ",
+        "conf": 48.6
+      },
+      {
+        "blank": "blank_11",
+        "q": "7",
+        "pos": 8,
+        "gt": "У",
+        "pred": "Ч",
+        "conf": 64.8
+      },
+      {
+        "blank": "blank_12",
+        "q": "4",
+        "pos": 4,
+        "gt": "Я",
+        "pred": "С",
+        "conf": 23.8
+      },
+      {
+        "blank": "blank_12",
+        "q": "7",
+        "pos": 7,
+        "gt": "К",
+        "pred": "И",
+        "conf": 51.6
+      }
+    ],
+    "eval_time_sec": 9.25
+  },
+  "blanks_eval_int8": {
+    "Acc_char": 95.77,
+    "correct_chars": "430/449",
+    "CER": 4.23,
+    "total_lev_edits": 19,
+    "R_Tatar": 97.33,
+    "tatar_count": "73/75",
+    "Tatar_breakdown": {
+      "Ә": "13/13 (100.0%)",
+      "Ө": "21/21 (100.0%)",
+      "Ү": "12/12 (100.0%)",
+      "Җ": "11/12 (91.7%)",
+      "Ң": "11/11 (100.0%)",
+      "Һ": "5/6 (83.3%)"
+    },
+    "FEM": 71.93,
+    "exact_fields": "41/57",
+    "FFM_le1": 94.74,
+    "fuzzy_fields": "54/57",
+    "HCER_80": 1.34,
+    "high_conf_errors_80": "6/449",
+    "errors_count": 19,
+    "errors": [
+      {
+        "blank": "blank_01",
+        "q": "1",
+        "pos": 5,
+        "gt": "П",
+        "pred": "И",
+        "conf": 90.9
+      },
+      {
+        "blank": "blank_01",
+        "q": "2",
+        "pos": 7,
+        "gt": "И",
+        "pred": "Ч",
+        "conf": 80.4
+      },
+      {
+        "blank": "blank_01",
+        "q": "4",
+        "pos": 3,
+        "gt": "М",
+        "pred": "Н",
+        "conf": 97.9
+      },
+      {
+        "blank": "blank_02",
+        "q": "1",
+        "pos": 8,
+        "gt": "Ж",
+        "pred": "Җ",
+        "conf": 54.7
+      },
+      {
+        "blank": "blank_02",
+        "q": "3",
+        "pos": 6,
+        "gt": "Н",
+        "pred": "М",
+        "conf": 98.2
+      },
+      {
+        "blank": "blank_03",
+        "q": "3",
+        "pos": 1,
+        "gt": "У",
+        "pred": "Ү",
+        "conf": 63.7
+      },
+      {
+        "blank": "blank_03",
+        "q": "4",
+        "pos": 7,
+        "gt": "О",
+        "pred": "Й",
+        "conf": 49.8
+      },
+      {
+        "blank": "blank_03",
+        "q": "4",
+        "pos": 8,
+        "gt": "Л",
+        "pred": "М",
+        "conf": 27.1
+      },
+      {
+        "blank": "blank_04",
+        "q": "4",
+        "pos": 6,
+        "gt": "Җ",
+        "pred": "Ж",
+        "conf": 67.1
+      },
+      {
+        "blank": "blank_06",
+        "q": "1",
+        "pos": 1,
+        "gt": "К",
+        "pred": "И",
+        "conf": 66.9
+      },
+      {
+        "blank": "blank_06",
+        "q": "4",
+        "pos": 8,
+        "gt": "Һ",
+        "pred": "Ь",
+        "conf": 99.4
+      },
+      {
+        "blank": "blank_08",
+        "q": "2",
+        "pos": 1,
+        "gt": "Н",
+        "pred": "М",
+        "conf": 71.2
+      },
+      {
+        "blank": "blank_08",
+        "q": "2",
+        "pos": 2,
+        "gt": "К",
+        "pred": "И",
+        "conf": 57.5
+      },
+      {
+        "blank": "blank_10",
+        "q": "7",
+        "pos": 6,
+        "gt": "Ч",
+        "pred": "И",
+        "conf": 97.3
+      },
+      {
+        "blank": "blank_11",
+        "q": "6",
+        "pos": 2,
+        "gt": "К",
+        "pred": "Ү",
+        "conf": 30.5
+      },
+      {
+        "blank": "blank_11",
+        "q": "7",
+        "pos": 6,
+        "gt": "В",
+        "pred": "Щ",
+        "conf": 49.3
+      },
+      {
+        "blank": "blank_11",
+        "q": "7",
+        "pos": 8,
+        "gt": "У",
+        "pred": "Ч",
+        "conf": 65.7
+      },
+      {
+        "blank": "blank_12",
+        "q": "4",
+        "pos": 4,
+        "gt": "Я",
+        "pred": "С",
+        "conf": 23.6
+      },
+      {
+        "blank": "blank_12",
+        "q": "7",
+        "pos": 7,
+        "gt": "К",
+        "pred": "И",
+        "conf": 52.7
+      }
+    ],
+    "eval_time_sec": 19.56
+  }
+}

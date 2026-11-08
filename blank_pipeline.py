@@ -71,11 +71,18 @@ class BlankOCRScanner:
             else:
                 print(f"BlankOCRScanner: Warning - ONNX model weights not found at {weights}!")
         else:
-            self.model = TatarOCRNet(num_classes=len(TATAR_UPPERCASE)).to(self.device)
             if weights.exists():
-                self.model.load_state_dict(torch.load(weights, map_location=self.device, weights_only=True))
-                print(f"BlankOCRScanner: Loaded OCR model from {weights}")
+                state_dict = torch.load(weights, map_location=self.device, weights_only=True)
+                is_v3_ckpt = any(".se." in k or ".shortcut." in k for k in state_dict.keys())
+                if is_v3_ckpt:
+                    from v3.architecture import TatarOCRNetV3
+                    self.model = TatarOCRNetV3(num_classes=len(TATAR_UPPERCASE)).to(self.device)
+                else:
+                    self.model = TatarOCRNet(num_classes=len(TATAR_UPPERCASE)).to(self.device)
+                self.model.load_state_dict(state_dict)
+                print(f"BlankOCRScanner: Loaded OCR model ({self.model.__class__.__name__}) from {weights}")
             else:
+                self.model = TatarOCRNet(num_classes=len(TATAR_UPPERCASE)).to(self.device)
                 print("BlankOCRScanner: Warning - model weights not found!")
             self.model.eval()
 
@@ -722,6 +729,29 @@ class BlankOCRScanner:
             top_probs, top_indices = torch.topk(probs, k=k)
             top_chars = [active_chars[i] for i in top_indices.cpu().numpy()]
             top_confs = (top_probs.cpu().numpy() * 100.0).tolist()
+
+        if top_chars and top_chars[0] in ("Ё", "Й") and not is_empty_cell:
+            n_lbl, _, st, _ = cv2.connectedComponentsWithStats(valid_ink)
+            has_top_diacritic = False
+            if n_lbl > 2:
+                areas = [st[i, cv2.CC_STAT_AREA] for i in range(1, n_lbl)]
+                main_c_idx = int(np.argmax(areas)) + 1
+                main_top = st[main_c_idx, cv2.CC_STAT_TOP]
+                for i in range(1, n_lbl):
+                    if i == main_c_idx:
+                        continue
+                    c_top = st[i, cv2.CC_STAT_TOP]
+                    c_h = st[i, cv2.CC_STAT_HEIGHT]
+                    c_area = st[i, cv2.CC_STAT_AREA]
+                    if (c_top + c_h) <= main_top + 2 and c_area >= 10:
+                        has_top_diacritic = True
+                        break
+            if not has_top_diacritic:
+                target_alt = "Е" if top_chars[0] == "Ё" else ("О" if "О" in top_chars else "И")
+                if target_alt in top_chars:
+                    alt_idx = top_chars.index(target_alt)
+                    top_chars.insert(0, top_chars.pop(alt_idx))
+                    top_confs.insert(0, top_confs.pop(alt_idx))
 
         top_items = [
             {
