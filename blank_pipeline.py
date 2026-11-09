@@ -44,7 +44,7 @@ CANONICAL_ANCHORS = {
 
 
 class BlankOCRScanner:
-    def __init__(self, model_path="models/tatar_ocr_v2_handwritten39_int8.onnx", device="cpu"):
+    def __init__(self, model_path="models/tatar_ocr_v4_handwritten39_int8.onnx", device="cpu"):
         self.device = torch.device(device)
         self.model_path = str(model_path)
         self.is_onnx = self.model_path.lower().endswith(".onnx")
