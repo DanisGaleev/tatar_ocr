@@ -84,6 +84,12 @@ dependencies = [
     "uvicorn[standard]==0.52.4",
     "watchfiles==1.2.0",
     "websockets==17.1",
+    "pyjwt[crypto]>=2.9.0",
+    "argon2-cffi>=23.1.0",
+    "passlib[bcrypt]>=1.7.4",
+    "pyotp>=2.9.0",
+    "slowapi>=0.1.9",
+    "aiosmtplib>=3.0.1",
 ]
 
 [[tool.uv.index]]

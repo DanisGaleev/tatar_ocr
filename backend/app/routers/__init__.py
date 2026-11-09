@@ -1,4 +1,4 @@
-from app.routers import constructor, assignments, auth, classes, submissions, analytics, reports, model
+from app.routers import constructor, assignments, auth, classes, submissions, analytics, reports, model, teacher, admin
 
 __all__ = [
     "constructor",
@@ -9,4 +9,6 @@ __all__ = [
     "analytics",
     "reports",
     "model",
+    "teacher",
+    "admin",
 ]

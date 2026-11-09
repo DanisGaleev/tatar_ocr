@@ -1,11 +1,13 @@
 import json
 from collections import defaultdict
 from typing import Optional, Dict, Any, List
-from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.core.database import get_db
+from app.core.dependencies import get_current_active_user
+from app.models.user import UserModel
 from app.models.school import ClassModel, StudentModel
 from app.models.submission import SubmissionModel
 from app.models.test import AssembledTestModel
@@ -28,7 +30,7 @@ from app.generators.registry import registry
 
 router = APIRouter(prefix="/analytics", tags=["Backend Analytics Engine"])
 
-def compute_handwriting_metrics(cells_data: List[Dict[str, Any]]) -> Dict[str, Any]:
+def _compute_handwriting_metrics(cells_data: List[Dict[str, Any]]) -> Dict[str, Any]:
     """
     Computes student handwriting quality percentage and legibility metrics:
     - Base confidence score (60% weight)
@@ -131,7 +133,7 @@ for _item in registry.list_supported_types():
 @router.get("/students/{student_id}", response_model=StudentAnalyticsResponse, summary="Student Analytics (Individual)")
 async def get_student_analytics(
     student_id: str,
-    x_teacher_uuid: Optional[str] = Header(None, alias="X-Teacher-UUID"),
+    current_user: UserModel = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
     stmt_stu = select(StudentModel).where(StudentModel.student_id == student_id)
@@ -145,6 +147,12 @@ async def get_student_analytics(
         res_cls = await db.execute(stmt_cls)
         cls_obj = res_cls.scalar_one_or_none()
         if cls_obj:
+            if cls_obj.teacher_uuid and current_user and current_user.role not in ["admin", "superadmin"]:
+                if cls_obj.teacher_uuid != current_user.id:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Access denied: You do not own this student's class",
+                    )
             class_name = cls_obj.name
 
     stmt_sub = select(SubmissionModel).where(SubmissionModel.student_id == student_id).order_by(SubmissionModel.checked_at.desc())
@@ -257,7 +265,7 @@ async def get_student_analytics(
             )
     prob_letters.sort(key=lambda x: (x.accuracy_pct, -x.misrecognized_or_wrong))
 
-    hw = compute_handwriting_metrics(all_student_cells)
+    hw = _compute_handwriting_metrics(all_student_cells)
     hw_metrics = HandwritingMetrics(**hw)
 
     return StudentAnalyticsResponse(
@@ -280,12 +288,18 @@ async def get_student_analytics(
 @router.get("/classes/{class_id}", response_model=ClassAnalyticsResponse, summary="Class Aggregated Analytics & Heatmap")
 async def get_class_analytics(
     class_id: str,
-    x_teacher_uuid: Optional[str] = Header(None, alias="X-Teacher-UUID"),
+    current_user: UserModel = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
     stmt_cls = select(ClassModel).where(ClassModel.class_id == class_id)
     res_cls = await db.execute(stmt_cls)
     cls_obj = res_cls.scalar_one_or_none()
+    if cls_obj and cls_obj.teacher_uuid and current_user and current_user.role not in ["admin", "superadmin"]:
+        if cls_obj.teacher_uuid != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: You do not own this class",
+            )
 
     class_name = cls_obj.name if cls_obj else class_id
 
@@ -403,7 +417,7 @@ async def get_class_analytics(
 
         avg_pct = round(sum(s_pcts) / len(s_pcts), 1) if s_pcts else 0.0
         avg_g = round(sum(s_grades) / len(s_grades), 1) if s_grades else 0.0
-        stu_hw = compute_handwriting_metrics(rec.get("cells", []))
+        stu_hw = _compute_handwriting_metrics(rec.get("cells", []))
 
         perf_table.append(
             StudentPerformanceRow(
@@ -418,7 +432,7 @@ async def get_class_analytics(
         )
     perf_table.sort(key=lambda x: (-x.average_score_pct, -x.average_grade, x.full_name))
 
-    class_hw = compute_handwriting_metrics(all_class_cells)
+    class_hw = _compute_handwriting_metrics(all_class_cells)
     needing_attention = [
         row.full_name for row in perf_table
         if row.handwriting_status in ("NEEDS_ATTENTION", "POOR")
@@ -441,9 +455,20 @@ async def get_class_analytics(
 @router.get("/assignments/{assignment_id}", response_model=AssignmentAnalyticsResponse, summary="Assignment Analytics (Item Analysis)")
 async def get_assignment_analytics(
     assignment_id: str,
-    x_teacher_uuid: Optional[str] = Header(None, alias="X-Teacher-UUID"),
+    class_id: Optional[str] = Query(None, description="Optional class ID filter"),
+    current_user: UserModel = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
+    if class_id:
+        stmt_cls = select(ClassModel).where(ClassModel.class_id == class_id)
+        cls_obj = (await db.execute(stmt_cls)).scalar_one_or_none()
+        if cls_obj and cls_obj.teacher_uuid and current_user and current_user.role not in ["admin", "superadmin"]:
+            if cls_obj.teacher_uuid != current_user.id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Access denied: You do not own this class",
+                )
+
     stmt_test = select(AssembledTestModel).where(AssembledTestModel.test_id == assignment_id)
     res_test = await db.execute(stmt_test)
     test_obj = res_test.scalar_one_or_none()
@@ -468,6 +493,11 @@ async def get_assignment_analytics(
             pass
 
     stmt_sub = select(SubmissionModel).where(SubmissionModel.assignment_id == assignment_id)
+    if class_id:
+        stmt_sub = stmt_sub.where(SubmissionModel.class_id == class_id)
+    elif current_user and current_user.role not in ["admin", "superadmin"]:
+        stmt_sub = stmt_sub.where((SubmissionModel.teacher_id == current_user.id) | (SubmissionModel.teacher_id.is_(None)))
+
     res_sub = await db.execute(stmt_sub)
     submissions = res_sub.scalars().all()
 

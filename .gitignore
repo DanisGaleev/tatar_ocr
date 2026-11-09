@@ -37,4 +37,9 @@ realdataset/
 .mplconfig/
 **/.mplconfig/
 
+# Subagent artifacts & scratch scripts
+.agents/
+adversarial_challenge_*.py
+verify_*.py
+
 

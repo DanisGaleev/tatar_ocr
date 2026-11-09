@@ -1,7 +1,7 @@
 import io
 import csv
-from typing import Optional
-from fastapi import APIRouter, Depends, Header, Query, HTTPException, status
+from typing import List, Any
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -10,33 +10,36 @@ from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 
 from app.core.database import get_db
-from app.models.school import ClassModel
+from app.core.dependencies import get_current_active_user, get_owned_class
+from app.core.security import limiter
+from app.models.user import UserModel
 from app.models.submission import SubmissionModel
 from app.models.test import AssembledTestModel
 
 router = APIRouter(prefix="/reports", tags=["Gradebook Exports"])
+
 
 @router.get(
     "/assignments/{assignment_id}/gradebook.xlsx",
     summary="Export Electronic Gradebook",
     description="Downloads an Excel (.xlsx) or CSV spreadsheet ready for direct upload into school electronic gradebooks (e.g., edu.tatar.ru or МЭШ).",
 )
+@limiter.limit("30/minute")
 async def export_gradebook(
     assignment_id: str,
+    request: Request,
     class_id: str = Query(..., description="Class ID, e.g. cls_7a_2026"),
     format: str = Query("xlsx", description="Output format: xlsx or csv", pattern="^(xlsx|csv)$"),
-    x_teacher_uuid: Optional[str] = Header(None, alias="X-Teacher-UUID"),
+    current_user: UserModel = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
+    cls_obj = await get_owned_class(class_id, current_user, db)
+    class_name = cls_obj.name if cls_obj else class_id
+
     stmt_test = select(AssembledTestModel).where(AssembledTestModel.test_id == assignment_id)
     res_test = await db.execute(stmt_test)
     test_obj = res_test.scalar_one_or_none()
     test_title = test_obj.title if test_obj else assignment_id
-
-    stmt_cls = select(ClassModel).where(ClassModel.class_id == class_id)
-    res_cls = await db.execute(stmt_cls)
-    cls_obj = res_cls.scalar_one_or_none()
-    class_name = cls_obj.name if cls_obj else class_id
 
     stmt_sub = (
         select(SubmissionModel)
@@ -68,26 +71,65 @@ async def export_gradebook(
         ])
 
     if format == "csv":
-        output = io.StringIO()
-        # UTF-8 BOM for Excel compatibility with Tatar Cyrillic
-        output.write("\ufeff")
-        writer = csv.writer(output, delimiter=";")
-        writer.writerow([f"Контрольная работа: {test_title} | Класс: {class_name}"])
-        writer.writerow([])
-        writer.writerow(headers)
-        for r in rows:
-            writer.writerow(r)
-
-        output.seek(0)
-        csv_bytes = output.getvalue().encode("utf-8")
-        filename = f"gradebook_{class_id}_{assignment_id}.csv"
-        return StreamingResponse(
-            io.BytesIO(csv_bytes),
-            media_type="text/csv",
-            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        return _generate_csv_gradebook(
+            class_id=class_id,
+            assignment_id=assignment_id,
+            test_title=test_title,
+            class_name=class_name,
+            headers=headers,
+            rows=rows,
         )
 
-    # Excel (.xlsx) output
+    return _generate_excel_gradebook(
+        class_id=class_id,
+        assignment_id=assignment_id,
+        test_title=test_title,
+        class_name=class_name,
+        headers=headers,
+        rows=rows,
+        submissions_count=len(submissions),
+    )
+
+
+def _generate_csv_gradebook(
+    *,
+    class_id: str,
+    assignment_id: str,
+    test_title: str,
+    class_name: str,
+    headers: List[str],
+    rows: List[List[Any]],
+) -> StreamingResponse:
+    output = io.StringIO()
+    # UTF-8 BOM for Excel compatibility with Tatar Cyrillic
+    output.write("\ufeff")
+    writer = csv.writer(output, delimiter=";")
+    writer.writerow([f"Контрольная работа: {test_title} | Класс: {class_name}"])
+    writer.writerow([])
+    writer.writerow(headers)
+    for r in rows:
+        writer.writerow(r)
+
+    output.seek(0)
+    csv_bytes = output.getvalue().encode("utf-8")
+    filename = f"gradebook_{class_id}_{assignment_id}.csv"
+    return StreamingResponse(
+        io.BytesIO(csv_bytes),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+def _generate_excel_gradebook(
+    *,
+    class_id: str,
+    assignment_id: str,
+    test_title: str,
+    class_name: str,
+    headers: List[str],
+    rows: List[List[Any]],
+    submissions_count: int,
+) -> StreamingResponse:
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = f"Журнал {class_name}"
@@ -100,7 +142,7 @@ async def export_gradebook(
     ws["A1"].alignment = Alignment(vertical="center")
     ws.row_dimensions[1].height = 28
 
-    ws["A2"] = f"Сыйныф: {class_name} | Эш коды: {assignment_id} | Барлыгы укучылар: {len(submissions)}"
+    ws["A2"] = f"Сыйныф: {class_name} | Эш коды: {assignment_id} | Барлыгы укучылар: {submissions_count}"
     ws["A2"].font = Font(name="Calibri", size=10, italic=True, color="555555")
 
     # Table Header Row

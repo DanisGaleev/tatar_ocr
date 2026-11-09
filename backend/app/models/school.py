@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, ForeignKey, DateTime
+from sqlalchemy import Column, String, ForeignKey, DateTime, Boolean
 from sqlalchemy.orm import relationship
 from app.core.database import Base
 
@@ -7,7 +7,7 @@ class ClassModel(Base):
     __tablename__ = "classes"
 
     class_id = Column(String(64), primary_key=True, index=True)
-    teacher_uuid = Column(String(64), index=True, nullable=True)
+    teacher_uuid = Column(String(64), ForeignKey("users.id", ondelete="SET NULL"), index=True, nullable=True)
     name = Column(String(64), nullable=False)
     subject = Column(String(64), default="tatar_language")
     academic_year = Column(String(32), default="2026-2027")
@@ -15,6 +15,7 @@ class ClassModel(Base):
 
     students = relationship("StudentModel", back_populates="school_class", cascade="all, delete-orphan")
     assignments = relationship("ClassAssignmentModel", backref="school_class", cascade="all, delete-orphan")
+    teacher_user = relationship("UserModel", back_populates="classes", foreign_keys=[teacher_uuid])
 
 
 class StudentModel(Base):
@@ -27,6 +28,7 @@ class StudentModel(Base):
     middle_name = Column(String(64), nullable=True, default="")
     full_name = Column(String(192), nullable=False)
     short_name = Column(String(96), nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     school_class = relationship("ClassModel", back_populates="students")

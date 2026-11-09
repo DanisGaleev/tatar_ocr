@@ -5,6 +5,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.core.database import get_db
+from app.core.dependencies import get_current_active_user, get_owned_class
+from app.models.user import UserModel
 from app.models.test import AssembledTestModel
 from app.schemas.test import OfflineBundleResponse
 
@@ -13,12 +15,16 @@ router = APIRouter(prefix="/assignments", tags=["Assignment Delivery"])
 @router.get("", summary="List Teacher Assignments")
 async def list_assignments(
     class_id: Optional[str] = Query(None, description="Filter assignments by class ID"),
-    status: Optional[str] = Query(None, description="Filter assignments by status"),
+    status_filter: Optional[str] = Query(None, alias="status", description="Filter assignments by status"),
+    current_user: UserModel = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
     from app.models.school import ClassModel, ClassAssignmentModel, StudentModel
     from app.models.submission import SubmissionModel
     from sqlalchemy import func
+
+    if class_id:
+        await get_owned_class(class_id, current_user, db)
 
     stmt = select(AssembledTestModel).order_by(AssembledTestModel.created_at.desc())
     res = await db.execute(stmt)
@@ -33,18 +39,25 @@ async def list_assignments(
 
         if class_id:
             ca_stmt = ca_stmt.where(ClassAssignmentModel.class_id == class_id)
-        if status:
-            ca_stmt = ca_stmt.where(ClassAssignmentModel.status == status)
+        if status_filter:
+            ca_stmt = ca_stmt.where(ClassAssignmentModel.status == status_filter)
 
         ca_res = await db.execute(ca_stmt)
         ca_rows = ca_res.all()
 
-        if (class_id or status) and not ca_rows:
+        if (class_id or status_filter) and not ca_rows:
             continue
 
         assigned_classes_list = []
         for ca_obj, cls_obj in ca_rows:
-            stu_stmt = select(func.count(StudentModel.student_id)).where(StudentModel.class_id == cls_obj.class_id)
+            if current_user and current_user.role not in ["admin", "superadmin"]:
+                if cls_obj.teacher_uuid and cls_obj.teacher_uuid != current_user.id:
+                    continue
+
+            stu_stmt = select(func.count(StudentModel.student_id)).where(
+                StudentModel.class_id == cls_obj.class_id,
+                StudentModel.is_active != False,
+            )
             total_students = (await db.execute(stu_stmt)).scalar() or 0
 
             sub_stmt = select(func.count(SubmissionModel.submission_id)).where(
@@ -82,16 +95,32 @@ async def list_assignments(
 async def get_assignment_batch_blanks_pdf(
     assignment_id: str,
     class_id: str = Query(..., description="Class ID whose students to generate blanks for"),
+    current_user: UserModel = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
-    from app.routers.classes import get_class_batch_blanks_pdf
-    return await get_class_batch_blanks_pdf(class_id=class_id, assignment_id=assignment_id, db=db)
+    import io
+    from fastapi.responses import StreamingResponse
+    from app.services.classes_service import ClassesService
+
+    classes_service = ClassesService(db)
+    pdf_bytes = await classes_service.generate_batch_blanks(
+        class_id=class_id,
+        assignment_id=assignment_id,
+        current_user=current_user,
+    )
+    filename = f"batch_blanks_{class_id}_{assignment_id}.pdf"
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{filename}"'},
+    )
 
 
 @router.get("/{assignment_id}/offline-bundle", response_model=OfflineBundleResponse, summary="Download Offline Verification Bundle")
 async def get_offline_bundle(
     assignment_id: str,
     variant: Optional[int] = Query(None, description="Optional variant filter"),
+    current_user: UserModel = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
     stmt = select(AssembledTestModel).where(AssembledTestModel.test_id == assignment_id)

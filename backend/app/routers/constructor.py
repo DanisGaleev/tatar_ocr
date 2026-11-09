@@ -2,14 +2,17 @@ import json
 import uuid
 from typing import List, Optional
 import base64
-from fastapi import APIRouter, Depends, HTTPException, Query, status, File, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status, File, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_
 
 from app.core.database import get_db
 from app.core.config import settings
+from app.core.dependencies import get_current_active_user
+from app.core.security import limiter
 from app.models.task import TaskBankModel
 from app.models.test import AssembledTestModel
+from app.models.user import UserModel
 from app.schemas.task import (
     TaskBankItem,
     CreateTaskRequest,
@@ -329,10 +332,13 @@ async def verify_student_answer(payload: VerifyAnswerRequest):
 
 
 @router.post("/scan-task", response_model=ScanTaskResponse, summary="Scan exercise image via OCR and classify/structure via YandexGPT")
+@limiter.limit("5/minute")
 async def scan_task_from_image(
+    request: Request,
     file: UploadFile = File(..., description="Image file (photo or screenshot) of textbook/workbook exercise"),
     save_to_bank: bool = Query(False, description="Persist directly into task bank if valid"),
     grade_level: Optional[int] = Query(None, ge=5, le=9, description="Optional grade level hint (5..9)"),
+    current_user: UserModel = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -375,8 +381,11 @@ async def scan_task_from_image(
 
 
 @router.post("/scan-task-base64", response_model=ScanTaskResponse, summary="Scan exercise from base64 image via OCR & YandexGPT")
+@limiter.limit("5/minute")
 async def scan_task_from_base64(
+    request: Request,
     payload: ScanTaskRequestBase64,
+    current_user: UserModel = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
     """

@@ -4,6 +4,7 @@ from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.pool import StaticPool
 
+from app.core.config import settings
 from app.main import app, lifespan
 from app.core.database import Base, get_db
 from app.models import TaskBankModel, AssembledTestModel, TeacherModel, ClassModel, StudentModel, SubmissionModel
@@ -28,6 +29,8 @@ async def override_get_db():
 
 @pytest_asyncio.fixture(autouse=True)
 async def prepare_database():
+    settings.ALLOW_LEGACY_TEST_AUTH = True
+    settings.AUTH_ENFORCED_STRICT = False
     app.dependency_overrides[get_db] = override_get_db
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

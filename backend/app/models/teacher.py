@@ -1,11 +1,12 @@
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, Integer, Float, DateTime
+from sqlalchemy import Column, String, Integer, Float, DateTime, ForeignKey
 from app.core.database import Base
 
 class TeacherModel(Base):
     __tablename__ = "teachers"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(String(64), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     teacher_uuid = Column(String(64), unique=True, index=True, nullable=False)
     device_os = Column(String(32), default="android")
     app_version = Column(String(32), default="1.0.4")

@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 import uuid
-from sqlalchemy import Column, String, Integer, Float, DateTime, Text
+from sqlalchemy import Column, String, Integer, Float, DateTime, Text, ForeignKey
 from app.core.database import Base
 
 class SubmissionModel(Base):
@@ -8,6 +8,7 @@ class SubmissionModel(Base):
 
     submission_id = Column(String(64), primary_key=True, index=True, default=lambda: f"sub_{uuid.uuid4().hex[:8]}")
     client_submission_uuid = Column(String(64), unique=True, index=True, nullable=True)
+    teacher_id = Column(String(64), ForeignKey("users.id", ondelete="SET NULL"), index=True, nullable=True)
     assignment_id = Column(String(64), index=True, nullable=False)
     class_id = Column(String(64), index=True, nullable=False)
     student_id = Column(String(64), index=True, nullable=False)
