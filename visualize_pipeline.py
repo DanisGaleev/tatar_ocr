@@ -7,7 +7,6 @@ Tatar OCR - Pipeline Visualizer & Web Uploader.
 - Использует актуальную модель v4 INT8.
 """
 
-import os
 import sys
 import json
 import time
@@ -16,7 +15,6 @@ import argparse
 import webbrowser
 from pathlib import Path
 from http.server import HTTPServer, BaseHTTPRequestHandler
-import urllib.parse
 
 WORKSPACE_DIR = Path(__file__).resolve().parent
 if str(WORKSPACE_DIR) not in sys.path:
@@ -28,6 +26,47 @@ import numpy as np
 from blank_pipeline import BlankOCRScanner
 
 DEFAULT_MODEL = "models/tatar_ocr_v4_handwritten39_int8.onnx"
+LOW_CONF_THRESHOLD = 85.0
+ANNOTATED_MAX_WIDTH = 1400
+JPEG_QUALITY = 82
+DEFAULT_PORT = 8080
+PORT_SCAN_RANGE = 10
+
+
+def _serialize_cells(cells: list[dict]) -> list[dict]:
+    """Extract JSON-safe cell prediction dicts including Top-3 candidates."""
+    serialized = []
+    for cell in cells:
+        raw_top3 = cell.get("top3") or cell.get("result", {}).get("top3", [])
+        top3 = [(str(ch), round(float(conf), 1)) for ch, conf in raw_top3]
+        cell_idx = cell.get("cell_idx")
+        serialized.append({
+            "cell_idx": int(cell_idx) if cell_idx is not None else None,
+            "char": cell.get("char", " "),
+            "confidence": round(float(cell.get("confidence", 0.0)), 1),
+            "is_empty": bool(cell.get("is_empty", True)),
+            "top3": top3,
+        })
+    return serialized
+
+
+def _build_clean_result(result: dict) -> dict:
+    """Build a JSON-serializable summary payload from a BlankOCRScanner result."""
+    return {
+        "status": result.get("status"),
+        "student_name": result.get("student_name"),
+        "student_name_cells": _serialize_cells(result.get("student_name_cells", [])),
+        "rectification_method": result.get("rectification_method"),
+        "questions": [
+            {
+                "q_num": q.get("q_num"),
+                "text": q.get("text"),
+                "cells": _serialize_cells(q.get("cells", [])),
+            }
+            for q in result.get("questions", [])
+        ],
+        "stats": result.get("stats", {}),
+    }
 
 
 def format_cli_output(result: dict) -> str:
@@ -51,8 +90,12 @@ def format_cli_output(result: dict) -> str:
         filled_confs = [c.get("confidence", 0.0) for c in cells if not c.get("is_empty")]
         avg_conf = (sum(filled_confs) / len(filled_confs)) if filled_confs else 100.0
         
-        # Подсветка сомнительных букв (< 85%)
-        uncertain = [f"яч.{c['cell_idx']} '{c['char']}' ({c['confidence']:.1f}%)" for c in cells if not c.get("is_empty") and c.get("confidence", 0.0) < 85.0]
+        # Подсветка сомнительных букв (< LOW_CONF_THRESHOLD)
+        uncertain = [
+            f"яч.{c['cell_idx']} '{c['char']}' ({c['confidence']:.1f}%)"
+            for c in cells
+            if not c.get("is_empty") and c.get("confidence", 0.0) < LOW_CONF_THRESHOLD
+        ]
         unc_str = f"  [Внимание: {', '.join(uncertain)}]" if uncertain else "  [OK]"
         
         lines.append(f"  Вопрос {q_num:>2d}: {text:<16s} (уверенность: {avg_conf:5.1f}%){unc_str}")
@@ -91,29 +134,7 @@ def process_single_image(scanner: BlankOCRScanner, image_path: Path, output_dir:
 
     # Сохранение JSON
     out_json_path = output_dir / f"result_{image_path.stem}.json"
-    clean_res = {
-        "status": result.get("status"),
-        "student_name": result.get("student_name"),
-        "rectification_method": result.get("rectification_method"),
-        "questions": [
-            {
-                "q_num": q.get("q_num"),
-                "text": q.get("text"),
-                "cells": [
-                    {
-                        "cell_idx": c.get("cell_idx"),
-                        "char": c.get("char"),
-                        "confidence": c.get("confidence"),
-                        "is_empty": c.get("is_empty"),
-                        "top3": c.get("result", {}).get("top3", [])
-                    }
-                    for c in q.get("cells", [])
-                ]
-            }
-            for q in result.get("questions", [])
-        ],
-        "stats": result.get("stats")
-    }
+    clean_res = _build_clean_result(result)
     with open(out_json_path, "w", encoding="utf-8") as f:
         json.dump(clean_res, f, ensure_ascii=False, indent=2)
     print(f"[✓] JSON результат сохранен: {out_json_path}")
@@ -184,6 +205,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
           <div class="text-xs text-slate-400 uppercase font-semibold">ФИО Ученика</div>
           <div id="resName" class="text-xl font-bold text-white mt-1"></div>
+          <div id="resNameCells" class="flex flex-wrap gap-1 mt-2"></div>
         </div>
         <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
           <div class="text-xs text-slate-400 uppercase font-semibold">Всего букв</div>
@@ -281,8 +303,20 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       });
     }
 
+    function renderCellBadge(c, showEmpty) {
+      if (c.is_empty) {
+        return showEmpty ? '<span class="inline-block w-8 h-10 border border-slate-800 rounded bg-slate-950/40"></span>' : '';
+      }
+      const borderCol = c.confidence >= 85
+        ? 'border-emerald-500/40 text-emerald-300'
+        : 'border-amber-500/60 text-amber-300 bg-amber-500/10';
+      const top3Tooltip = (c.top3 || []).map(t => `${t[0]}: ${t[1]}%`).join(' | ');
+      return `<span title="Top-3: ${top3Tooltip}" class="inline-flex flex-col items-center justify-center w-8 h-10 border ${borderCol} rounded font-bold text-base bg-slate-800/80 cursor-help">${c.char}</span>`;
+    }
+
     function displayResults(data) {
       document.getElementById('resName').textContent = data.student_name || '(не заполнено)';
+      document.getElementById('resNameCells').innerHTML = (data.student_name_cells || []).map(c => renderCellBadge(c, false)).join('');
       document.getElementById('resLetters').textContent = data.stats.total_letters;
       document.getElementById('resConf').textContent = data.stats.avg_confidence + '%';
       document.getElementById('resMethod').textContent = data.rectification_method;
@@ -304,12 +338,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         if (qAvg < 85) badgeCol = 'bg-amber-500/10 text-amber-400 border-amber-500/30';
         if (qAvg < 70) badgeCol = 'bg-rose-500/10 text-rose-400 border-rose-500/30';
 
-        let cellsHtml = q.cells.map(c => {
-          if (c.is_empty) return '<span class="inline-block w-8 h-10 border border-slate-800 rounded bg-slate-950/40"></span>';
-          let borderCol = c.confidence >= 85 ? 'border-emerald-500/40 text-emerald-300' : 'border-amber-500/60 text-amber-300 bg-amber-500/10';
-          let top3Tooltip = (c.top3 || []).map(t => `${t[0]}: ${t[1]}%`).join(' | ');
-          return `<span title="Top-3: ${top3Tooltip}" class="inline-flex flex-col items-center justify-center w-8 h-10 border ${borderCol} rounded font-bold text-base bg-slate-800/80 cursor-help">${c.char}</span>`;
-        }).join('');
+        const cellsHtml = q.cells.map(c => renderCellBadge(c, true)).join('');
 
         card.innerHTML = `
           <div class="flex items-center justify-between mb-2">
@@ -393,38 +422,16 @@ class OCRRequestHandler(BaseHTTPRequestHandler):
             if res.get("annotated_bgr") is not None:
                 ann = res["annotated_bgr"]
                 h, w = ann.shape[:2]
-                max_w = 1400
-                if w > max_w:
-                    scale = max_w / float(w)
+                if w > ANNOTATED_MAX_WIDTH:
+                    scale = ANNOTATED_MAX_WIDTH / float(w)
                     ann = cv2.resize(ann, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
-                succ, buf = cv2.imencode(".jpg", ann, [int(cv2.IMWRITE_JPEG_QUALITY), 82])
+                succ, buf = cv2.imencode(".jpg", ann, [int(cv2.IMWRITE_JPEG_QUALITY), JPEG_QUALITY])
                 if succ:
                     ann_b64 = "data:image/jpeg;base64," + base64.b64encode(buf).decode("utf-8")
 
-            response_data = {
-                "status": "success",
-                "student_name": res.get("student_name"),
-                "rectification_method": res.get("rectification_method"),
-                "questions": [
-                    {
-                        "q_num": q.get("q_num"),
-                        "text": q.get("text"),
-                        "cells": [
-                            {
-                                "cell_idx": c.get("cell_idx"),
-                                "char": c.get("char"),
-                                "confidence": round(float(c.get("confidence", 0.0)), 1),
-                                "is_empty": bool(c.get("is_empty")),
-                                "top3": c.get("result", {}).get("top3", [])
-                            }
-                            for c in q.get("cells", [])
-                        ]
-                    }
-                    for q in res.get("questions", [])
-                ],
-                "stats": res.get("stats", {}),
-                "annotated_b64": ann_b64
-            }
+            response_data = _build_clean_result(res)
+            response_data["status"] = "success"
+            response_data["annotated_b64"] = ann_b64
 
             self.send_response(200)
             self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -435,14 +442,13 @@ class OCRRequestHandler(BaseHTTPRequestHandler):
             self.end_headers()
 
 
-def run_web_server(scanner: BlankOCRScanner, port: int = 8080):
+def run_web_server(scanner: BlankOCRScanner, port: int = DEFAULT_PORT):
     """Запускает простой локальный веб-сервер для загрузки фото бланков."""
     OCRRequestHandler.scanner = scanner
-    server_address = ("127.0.0.1", port)
-    
+
     # Попытка открыть порт (если занят, берем следующий)
     httpd = None
-    for p in range(port, port + 10):
+    for p in range(port, port + PORT_SCAN_RANGE):
         try:
             httpd = HTTPServer(("127.0.0.1", p), OCRRequestHandler)
             port = p
@@ -474,12 +480,16 @@ def run_web_server(scanner: BlankOCRScanner, port: int = 8080):
 
 
 def main():
+    """CLI entry point for single-image OCR visualization or Web UI server."""
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+
     parser = argparse.ArgumentParser(description="Tatar OCR - Простой просмотрщик и распознаватель бланков")
     parser.add_argument("image", nargs="?", default=None, help="Путь к фото любого бланка (JPG, PNG). Если не указан — открывается веб-интерфейс загрузки.")
     parser.add_argument("--model", default=DEFAULT_MODEL, help=f"Путь к модели (по умолчанию: {DEFAULT_MODEL})")
     parser.add_argument("--output", default="output", help="Директория для сохранения результатов")
     parser.add_argument("--web", action="store_true", help="Принудительно запустить локальный веб-интерфейс для загрузки файлов")
-    parser.add_argument("--port", type=int, default=8080, help="Порт локального веб-сервера (по умолчанию: 8080)")
+    parser.add_argument("--port", type=int, default=DEFAULT_PORT, help=f"Порт локального веб-сервера (по умолчанию: {DEFAULT_PORT})")
     args = parser.parse_args()
 
     # Инициализация сканера

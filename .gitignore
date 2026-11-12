@@ -37,6 +37,12 @@ realdataset/
 .mplconfig/
 **/.mplconfig/
 
+# Native C++ build artifacts & dependencies
+.native_deps/
+native/build/
+*.pyd
+tatar_ocr_native*.so
+
 
 
 output/
