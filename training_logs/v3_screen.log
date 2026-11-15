@@ -1,0 +1,47 @@
+===========================================================================
+TATAR OCR v3 ARCHITECTURAL SCREENING SHOOTOUT (Device: cuda)
+Running 5 epochs per candidate on combined Real + Synthetic dataset
+===========================================================================
+
+Loading real and synthetic datasets...
+
+>>> [Testing Candidate: ResSE] <<<
+  Parameters: 939,495 (3.58 MB float32)
+    Epoch 1/5 | Train Loss: 2.5948 | Train Acc: 37.1% | Real Val Acc: 61.6%
+    Epoch 2/5 | Train Loss: 1.2524 | Train Acc: 74.8% | Real Val Acc: 81.1%
+    Epoch 3/5 | Train Loss: 0.8194 | Train Acc: 87.4% | Real Val Acc: 87.5%
+    Epoch 4/5 | Train Loss: 0.6661 | Train Acc: 90.6% | Real Val Acc: 90.9%
+    Epoch 5/5 | Train Loss: 0.5940 | Train Acc: 93.0% | Real Val Acc: 92.6%
+  Evaluating ResSE on 12 test blanks...
+BlankOCRScanner: Loaded ONNX model from /root/tatar_ocr/models/tatar_ocr_v2_handwritten39_int8.onnx
+
+>>> [Testing Candidate: Mobile] <<<
+  Parameters: 753,111 (2.87 MB float32)
+    Epoch 1/5 | Train Loss: 2.0760 | Train Acc: 54.0% | Real Val Acc: 70.4%
+    Epoch 2/5 | Train Loss: 0.8980 | Train Acc: 85.2% | Real Val Acc: 88.9%
+    Epoch 3/5 | Train Loss: 0.6580 | Train Acc: 91.3% | Real Val Acc: 89.6%
+    Epoch 4/5 | Train Loss: 0.5423 | Train Acc: 94.2% | Real Val Acc: 92.6%
+    Epoch 5/5 | Train Loss: 0.4852 | Train Acc: 95.7% | Real Val Acc: 94.3%
+  Evaluating Mobile on 12 test blanks...
+BlankOCRScanner: Loaded ONNX model from /root/tatar_ocr/models/tatar_ocr_v2_handwritten39_int8.onnx
+
+>>> [Testing Candidate: MultiScale] <<<
+  Parameters: 939,495 (3.58 MB float32)
+    Epoch 1/5 | Train Loss: 2.5655 | Train Acc: 37.6% | Real Val Acc: 59.6%
+    Epoch 2/5 | Train Loss: 1.1404 | Train Acc: 78.2% | Real Val Acc: 86.9%
+    Epoch 3/5 | Train Loss: 0.7482 | Train Acc: 89.1% | Real Val Acc: 87.9%
+    Epoch 4/5 | Train Loss: 0.6097 | Train Acc: 92.7% | Real Val Acc: 90.6%
+    Epoch 5/5 | Train Loss: 0.5373 | Train Acc: 94.4% | Real Val Acc: 90.9%
+  Evaluating MultiScale on 12 test blanks...
+BlankOCRScanner: Loaded ONNX model from /root/tatar_ocr/models/tatar_ocr_v2_handwritten39_int8.onnx
+
+=====================================================================================
+SCREENING RESULTS SUMMARY
+=====================================================================================
+ Candidate   |  Params   |  Val Acc  |  Acc_char  |   CER   |  R_Tatar  |   FEM   | Lat (ms) 
+-------------------------------------------------------------------------------------
+   ResSE     |   939,495 |   92.59% |    94.88% |  5.12% |   96.00% | 66.67% |  64.321 ms
+   Mobile    |   753,111 |   94.28% |    94.88% |  5.12% |   96.00% | 68.42% |  62.372 ms
+ MultiScale  |   939,495 |   90.91% |    95.10% |  4.90% |   97.33% | 68.42% |  75.569 ms
+=====================================================================================
+Saved screening report to /root/tatar_ocr/v3/screening_results.json

@@ -1,0 +1,38 @@
+{
+  "ResSE": {
+    "params": 939495,
+    "train_time_sec": 424.71,
+    "latency_ms": 64.321,
+    "real_val_acc": 92.59,
+    "Acc_char": 94.88,
+    "CER": 5.12,
+    "R_Tatar": 96.0,
+    "FEM": 66.67,
+    "HCER_80": 0.45,
+    "errors_count": 23
+  },
+  "Mobile": {
+    "params": 753111,
+    "train_time_sec": 447.89,
+    "latency_ms": 62.372,
+    "real_val_acc": 94.28,
+    "Acc_char": 94.88,
+    "CER": 5.12,
+    "R_Tatar": 96.0,
+    "FEM": 68.42,
+    "HCER_80": 0.67,
+    "errors_count": 23
+  },
+  "MultiScale": {
+    "params": 939495,
+    "train_time_sec": 389.61,
+    "latency_ms": 75.569,
+    "real_val_acc": 90.91,
+    "Acc_char": 95.1,
+    "CER": 4.9,
+    "R_Tatar": 97.33,
+    "FEM": 68.42,
+    "HCER_80": 0.89,
+    "errors_count": 22
+  }
+}
