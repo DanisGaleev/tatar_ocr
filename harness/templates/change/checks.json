@@ -1,0 +1,30 @@
+{
+  "change_id": "<slug>",
+  "default_policy": "FAIL_UNTIL_EVIDENCE",
+  "checks": [
+    {
+      "id": "AC-1",
+      "description": "<mirrors AC-1 from spec.md>",
+      "status": "FAIL",
+      "command": "",
+      "evidence": "",
+      "verified_at": ""
+    },
+    {
+      "id": "GATE-BACKEND",
+      "description": "Backend pytest suite passes after final edit (or N/A with justification)",
+      "status": "FAIL",
+      "command": ".\\.venv\\Scripts\\python.exe -m pytest backend\\tests -q",
+      "evidence": "",
+      "verified_at": ""
+    },
+    {
+      "id": "GATE-SPECS",
+      "description": "Living specs (OpenAPI/api_specification/PIPELINE/pipeline_spec/ADR) synced with spec.md deltas",
+      "status": "FAIL",
+      "command": "",
+      "evidence": "",
+      "verified_at": ""
+    }
+  ]
+}
