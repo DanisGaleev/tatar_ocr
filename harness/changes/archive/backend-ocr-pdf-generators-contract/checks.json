@@ -1,0 +1,94 @@
+{
+  "change_id": "backend-ocr-pdf-generators-contract",
+  "default_policy": "FAIL_UNTIL_EVIDENCE",
+  "checks": [
+    {
+      "id": "AC-1",
+      "description": "pipeline_spec.json and native C++20 support 1..12 question cells via short_h without regressing canonical blanks",
+      "status": "PASS",
+      "command": "cmake --build native\\build --config Release && C:\\Users\\galee\\PycharmProjects\\tatar_ocr\\.venv\\Scripts\\python.exe -m pytest backend\\tests\\test_stage2_ocr_pdf_generators.py -k test_e2e_render_blank_image -q",
+      "evidence": "pipeline_spec.json short_h=[75,1], cell_count_range=[1,12]; E2E render_blank_image -> NativeBlankScanner detects [1, 4, 6, 8, 12] cells & 15 name cells; included in 157 passed suite.",
+      "verified_at": "2026-11-28T23:02:51+03:00"
+    },
+    {
+      "id": "AC-2",
+      "description": "pdf_blank.py matches pipeline_spec.json SSOT, renders title/full prompt/stu_id QR, moves 1-cell hint; assignments.py returns 404 on unknown variant/student_id",
+      "status": "PASS",
+      "command": "C:\\Users\\galee\\PycharmProjects\\tatar_ocr\\.venv\\Scripts\\python.exe -m pytest backend\\tests -q",
+      "evidence": "test_e2e_render_blank_image_to_native_scanner_1_to_12_cells_and_qr verifies 15 name cells, 1..12 question geometry & QR tid/stu_id; test_assignments_blank_pdf_validation_and_404_guards verifies 422 on variant=0 and 404 on missing variant/student_id.",
+      "verified_at": "2026-11-28T23:02:51+03:00"
+    },
+    {
+      "id": "AC-3",
+      "description": "All 24 generators & create_custom_task enforce 39-letter OCR alphabet, find_error_sentence uses А-Г, MC options shuffle, PossessiveCase never >12 on built-ins, registry reaches all 24 types",
+      "status": "PASS",
+      "command": "C:\\Users\\galee\\PycharmProjects\\tatar_ocr\\.venv\\Scripts\\python.exe -m pytest backend\\tests -q",
+      "evidence": "test_create_custom_task_phonetics_error_and_numeric_answer rejects digit '2' (422) and accepts 'Б' (201); test_exhaustive_24_generators_ocr_alphabet_and_bounds (24 types x 20 seeds), test_find_error_cyrillic_and_mc_generators_shuffle_answers, and test_possessive_case_and_registry_coverage (100 seeds) all pass.",
+      "verified_at": "2026-11-28T23:02:51+03:00"
+    },
+    {
+      "id": "AC-4",
+      "description": "phonetics.py & lexicon.py linguistic fixes (is_front_vowel, comparative, possessive elision/ипи, number!='sg', төзәт, ҖИТЕЗ, куян, topic_name_tt alignment)",
+      "status": "PASS",
+      "command": "C:\\Users\\galee\\PycharmProjects\\tatar_ocr\\.venv\\Scripts\\python.exe -m pytest backend\\tests -q",
+      "evidence": "test_phonetics_and_lexicon_fixes, test_phonetics.py, test_ground_truth_lexicon.py, and test_new_generators.py all pass within 157 passed.",
+      "verified_at": "2026-11-28T23:02:51+03:00"
+    },
+    {
+      "id": "AC-5",
+      "description": "constructor.py & schemas/task.py fix task_type, order, seed, distinct variants, case_code/stems validation, ready-tests logging, upload cap, and base64 checks",
+      "status": "PASS",
+      "command": "C:\\Users\\galee\\PycharmProjects\\tatar_ocr\\.venv\\Scripts\\python.exe -m pytest backend\\tests -q",
+      "evidence": "test_constructor_generate_validation_and_assemble_order_seed (422 on unsupported case_code/custom_stems, task_type persistence, sorted order, distinct seed-shuffled Variant 2) and test_scan_task_base64_mime_and_data_uri_prefix pass.",
+      "verified_at": "2026-11-28T23:02:51+03:00"
+    },
+    {
+      "id": "AC-6",
+      "description": "task_extractor enforces explicit config instead of silent mock fallback, grade_hint priority, explicit is_supported=false, confidence=null, 512-char cap, and task_type",
+      "status": "PASS",
+      "command": "C:\\Users\\galee\\PycharmProjects\\tatar_ocr\\.venv\\Scripts\\python.exe -m pytest backend\\tests -q",
+      "evidence": "test_task_extractor_config_and_parsing_hardening & test_task_extractor.py verify ValueError when YANDEX_API_KEY empty, explicit is_supported=false, confidence=null->0.9, safe non-int parsing, grade_hint priority, <=512 prompt cap, and 39-alphabet filtering.",
+      "verified_at": "2026-11-28T23:02:51+03:00"
+    },
+    {
+      "id": "AC-7",
+      "description": "Exhaustive 24-generator test and real E2E render_blank_image -> tatar_ocr_native test pass",
+      "status": "PASS",
+      "command": "C:\\Users\\galee\\PycharmProjects\\tatar_ocr\\.venv\\Scripts\\python.exe -m pytest backend\\tests\\test_stage2_ocr_pdf_generators.py -q",
+      "evidence": "Full 24-generator x 20-seed sweep + real E2E render_blank_image -> NativeBlankScanner ([1, 4, 6, 8, 12] cells & 15 name cells) pass inside 157 passed suite.",
+      "verified_at": "2026-11-28T23:02:51+03:00"
+    },
+    {
+      "id": "GATE-NATIVE",
+      "description": "native/ CMake Release build passes for both TATAR_OCR_BUILD_PYTHON=ON and OFF",
+      "status": "PASS",
+      "command": "cmake --build native\\build --config Release && cmake -S native -B native\\build_core -DTATAR_OCR_BUILD_PYTHON=OFF ... && cmake --build native\\build_core --config Release && Remove-Item -Recurse -Force native\\build_core",
+      "evidence": "Both TATAR_OCR_BUILD_PYTHON=ON (tatar_ocr_native.cp312-win_amd64.pyd) and OFF (tatar_ocr_core.lib in native/build_core, removed after verification) exited 0 with zero warnings.",
+      "verified_at": "2026-11-28T23:00:16+03:00"
+    },
+    {
+      "id": "GATE-BENCHMARK",
+      "description": "12-sheet canonical benchmark (v3/evaluate_blanks.py) shows zero regression vs v4 INT8 baseline",
+      "status": "PASS",
+      "command": "C:\\Users\\galee\\PycharmProjects\\tatar_ocr\\.venv\\Scripts\\python.exe v3\\evaluate_blanks.py --model models\\tatar_ocr_v4_handwritten39_int8.onnx",
+      "evidence": "Acc_char=96.88% (435/449), CER=3.12% (14 edits), R_Tatar=97.33% (73/75), FEM=78.95% (45/57), FFM(Lev<=1)=96.49% (55/57) — 0-diff parity with HEAD-equivalent spec run (exact=45, ffm<=1=55, edits=14).",
+      "verified_at": "2026-11-28T23:00:42+03:00"
+    },
+    {
+      "id": "GATE-BACKEND",
+      "description": "Backend pytest suite passes after final edit",
+      "status": "PASS",
+      "command": "C:\\Users\\galee\\PycharmProjects\\tatar_ocr\\.venv\\Scripts\\python.exe -m pytest backend\\tests -q",
+      "evidence": "157 passed, 7 warnings in 17.16s (exit code 0, task-497).",
+      "verified_at": "2026-11-28T23:02:51+03:00"
+    },
+    {
+      "id": "GATE-SPECS",
+      "description": "pipeline_spec.json updated cleanly; OpenAPI/api_specification Stage 2 deltas documented for Stage 3 sync",
+      "status": "PASS",
+      "command": "git status --short",
+      "evidence": "pipeline_spec.json updated cleanly with short_h=[75,1] and cell_count_range=[1,12]; Stage 1 & Stage 2 OpenAPI/api_specification deltas explicitly deferred to Stage 3 per user instruction and tracked in docs/STATUS.md.",
+      "verified_at": "2026-11-28T23:02:51+03:00"
+    }
+  ]
+}

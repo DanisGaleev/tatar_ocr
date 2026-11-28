@@ -1,10 +1,14 @@
 from pathlib import Path
 from pydantic_settings import BaseSettings
 
+BACKEND_DIR = Path(__file__).resolve().parents[2]
+
+
 class Settings(BaseSettings):
     PROJECT_NAME: str = "Кара куян (Tatar OCR) Task Generator"
     API_V1_STR: str = "/api/v1"
-    DATABASE_URL: str = "sqlite+aiosqlite:///./tatar_ocr.db"
+    DATABASE_URL: str = f"sqlite+aiosqlite:///{(BACKEND_DIR / 'tatar_ocr.db').as_posix()}"
+    CORS_ORIGINS: list[str] = ["*"]
     
     # OCR and A4 Physical Template Specs
     MAX_QUESTIONS_PER_PAGE: int = 8

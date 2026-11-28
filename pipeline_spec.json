@@ -62,6 +62,7 @@
     "bridge_h": [9, 1],
     "bridge_v": [1, 9],
     "long_h": [180, 1],
+    "short_h": [75, 1],
     "long_v": [1, 50],
     "peak_radius": 2,
     "cluster_max_gap": 10,
@@ -96,7 +97,7 @@
       "v_inset_y": 10,
       "pitch_range": [85, 115],
       "chain_tol": 15,
-      "cell_count_range": [8, 12],
+      "cell_count_range": [1, 12],
       "default_start_x": 224,
       "default_pitch": 100.0,
       "default_cell_count": 8

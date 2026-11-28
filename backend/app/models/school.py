@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, ForeignKey, DateTime
+from sqlalchemy import Column, String, ForeignKey, DateTime, UniqueConstraint
 from sqlalchemy.orm import relationship
 from app.core.database import Base
 
@@ -34,10 +34,13 @@ class StudentModel(Base):
 
 class ClassAssignmentModel(Base):
     __tablename__ = "class_assignments"
+    __table_args__ = (
+        UniqueConstraint("class_id", "assignment_id", name="uq_class_assignment"),
+    )
 
     id = Column(String(64), primary_key=True, index=True)
-    class_id = Column(String(64), ForeignKey("classes.class_id"), index=True, nullable=False)
-    assignment_id = Column(String(64), ForeignKey("assembled_tests.test_id"), index=True, nullable=False)
+    class_id = Column(String(64), ForeignKey("classes.class_id", ondelete="CASCADE"), index=True, nullable=False)
+    assignment_id = Column(String(64), ForeignKey("assembled_tests.test_id", ondelete="CASCADE"), index=True, nullable=False)
     assigned_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     due_date = Column(DateTime, nullable=True)
     status = Column(String(32), default="active")  # active, completed, archived

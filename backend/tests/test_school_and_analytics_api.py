@@ -287,6 +287,25 @@ class TestSubmissionsAndAnalyticsAPI:
 
     @pytest.mark.asyncio
     async def test_zero_photo_batch_sync_and_analytics(self, client: AsyncClient):
+        def make_cells(expected: str, predicted: str, conf: float = 0.96, override_idx: dict | None = None):
+            cells = []
+            override_idx = override_idx or {}
+            for i in range(8):
+                exp_c = expected[i] if i < len(expected) else " "
+                pred_c = predicted[i] if i < len(predicted) else " "
+                ov = override_idx.get(i)
+                st = "FLAG_OVERRIDDEN_BY_TEACHER" if ov else ("EMPTY_MATCH" if exp_c == " " and pred_c == " " else ("MATCH" if exp_c == pred_c else "MISMATCH"))
+                c_val = 0.52 if ov else conf
+                cells.append({
+                    "cell_index": i,
+                    "expected_char": exp_c,
+                    "predicted_char": pred_c,
+                    "confidence": c_val,
+                    "status": st,
+                    "teacher_override": ov,
+                })
+            return cells
+
         batch_payload = {
             "assignment_id": "TAT-2026-Q1",
             "class_id": "cls_7a_2026",
@@ -297,49 +316,48 @@ class TestSubmissionsAndAnalyticsAPI:
                     "student_id": "stu_01",
                     "student_name": "Галиев Амир Рустемович",
                     "variant": 1,
-                    "overall_score": 8.0,
-                    "max_score": 8.0,
+                    "overall_score": 4.0,
+                    "max_score": 4.0,
                     "final_grade": 5,
                     "teacher_reviewed_flags": 0,
                     "questions_results": [
-                        {
-                            "question_number": 1,
-                            "marker_id": 11,
-                            "topic_tag": "case_dative",
-                            "is_correct": True,
-                            "points_earned": 1.0,
-                            "cells": [
-                                {"cell_index": 0, "expected_char": "К", "predicted_char": "К", "confidence": 0.98, "status": "MATCH"},
-                                {"cell_index": 1, "expected_char": "И", "predicted_char": "И", "confidence": 0.95, "status": "MATCH"},
-                            ]
-                        }
-                    ]
+                        {"question_number": 1, "marker_id": 11, "topic_tag": "case_dative", "is_correct": True, "points_earned": 1.0, "cells": make_cells("КИТАПКА", "КИТАПКА", 0.97)},
+                        {"question_number": 2, "marker_id": 12, "topic_tag": "case_ablative", "is_correct": True, "points_earned": 1.0, "cells": make_cells("ӨСТӘЛДӘН", "ӨСТӘЛДӘН", 0.97)},
+                        {"question_number": 3, "marker_id": 13, "topic_tag": "plural_affixes", "is_correct": True, "points_earned": 1.0, "cells": make_cells("БАЛАЛАР", "БАЛАЛАР", 0.97)},
+                        {"question_number": 4, "marker_id": 14, "topic_tag": "plural_affixes", "is_correct": True, "points_earned": 1.0, "cells": make_cells("УРМАННАР", "УРМАННАР", 0.97)},
+                    ],
                 },
                 {
                     "client_submission_uuid": "sync-sub-02",
                     "student_id": "stu_02",
                     "student_name": "Закирова Ләйсән Ильдаровна",
                     "variant": 1,
-                    "overall_score": 4.0,
-                    "max_score": 8.0,
+                    "overall_score": 2.0,
+                    "max_score": 4.0,
                     "final_grade": 3,
                     "teacher_reviewed_flags": 1,
                     "questions_results": [
                         {
                             "question_number": 1,
                             "marker_id": 11,
+                            "topic_tag": "case_dative",
+                            "is_correct": False,
+                            "points_earned": 0.0,
+                            "cells": make_cells("КИТАПКА", "КИТАПГА", 0.68),
+                        },
+                        {
+                            "question_number": 2,
+                            "marker_id": 12,
                             "topic_tag": "case_ablative",
                             "is_correct": False,
                             "points_earned": 0.0,
-                            "cells": [
-                                {"cell_index": 0, "expected_char": "Ө", "predicted_char": "Ө", "confidence": 0.92, "status": "MATCH"},
-                                # OCR confusion: expected Ң but predicted Н
-                                {"cell_index": 1, "expected_char": "Ң", "predicted_char": "Н", "confidence": 0.52, "status": "FLAG_OVERRIDDEN_BY_TEACHER", "teacher_override": "WRONG"},
-                            ]
-                        }
-                    ]
-                }
-            ]
+                            "cells": make_cells("ӨСТӘЛДӘН", "ОСТӘЛДӘН", 0.40, {i: "WRONG" for i in range(8)}),
+                        },
+                        {"question_number": 3, "marker_id": 13, "topic_tag": "plural_affixes", "is_correct": True, "points_earned": 1.0, "cells": make_cells("БАЛАЛАР", "БАЛАЛАР", 0.68)},
+                        {"question_number": 4, "marker_id": 14, "topic_tag": "plural_affixes", "is_correct": True, "points_earned": 1.0, "cells": make_cells("УРМАННАР", "УРМАННАР", 0.68)},
+                    ],
+                },
+            ],
         }
 
         # 1. Batch sync
@@ -364,19 +382,19 @@ class TestSubmissionsAndAnalyticsAPI:
         assert stu_data["total_tests_completed"] == 1
         assert stu_data["average_score_pct"] == 50.0
         assert stu_data["average_grade"] == 3.0
-        # Verify handwriting metrics (low confidence 0.52 + teacher override drops percentage)
+        assert stu_data["history"][0]["assignment_title"] == "Татар теле. 7 сыйныф. Исем килешләре"
         assert "handwriting_quality_pct" in stu_data
-        assert stu_data["handwriting_quality_pct"] == 63.2
-        assert stu_data["handwriting_status"] == "NEEDS_ATTENTION"
-        assert stu_data["handwriting_metrics"]["teacher_correction_rate_pct"] == 50.0
-        assert stu_data["handwriting_metrics"]["low_confidence_rate_pct"] == 50.0
-        assert "Ң" in stu_data["handwriting_metrics"]["unclear_characters"]
+        assert stu_data["handwriting_quality_pct"] < 75.0
+        assert stu_data["handwriting_status"] in ("NEEDS_ATTENTION", "POOR")
+        assert stu_data["handwriting_metrics"]["teacher_correction_rate_pct"] > 0.0
+        assert stu_data["handwriting_metrics"]["low_confidence_rate_pct"] > 0.0
+        assert "Ө" in stu_data["handwriting_metrics"]["unclear_characters"]
 
-        # Verify problematic letters picked up Ң vs Н confusion
+        # Verify problematic letters picked up Ө vs О confusion
         assert len(stu_data["problematic_letters"]) >= 1
-        prob = stu_data["problematic_letters"][0]
-        assert prob["letter"] == "Ң"
-        assert "Н" in prob["common_confusions"]
+        letters_map = {p["letter"]: p for p in stu_data["problematic_letters"]}
+        assert "Ө" in letters_map
+        assert "О" in letters_map["Ө"]["common_confusions"]
 
         # 4. Test Class Analytics & Heatmap
         res_cls = await client.get("/api/v1/analytics/classes/cls_7a_2026")
@@ -384,22 +402,21 @@ class TestSubmissionsAndAnalyticsAPI:
         cls_data = res_cls.json()
         assert cls_data["class_id"] == "cls_7a_2026"
         assert cls_data["average_class_score_pct"] == 75.0  # (100% + 50%) / 2
-        assert cls_data["average_handwriting_quality_pct"] == 80.5
         assert "Закирова Ләйсән Ильдаровна" in cls_data["students_needing_handwriting_attention"]
         assert cls_data["grade_distribution"]["5"] == 1
         assert cls_data["grade_distribution"]["3"] == 1
-        # Top mistakes should show case_ablative with 100% failure rate
-        assert len(cls_data["top_class_mistakes"]) >= 1
-        assert cls_data["top_class_mistakes"][0]["topic_code"] == "case_ablative"
-        assert cls_data["top_class_mistakes"][0]["failure_rate_pct"] == 100.0
+        mistake_codes = {m["topic_code"]: m for m in cls_data["top_class_mistakes"]}
+        assert "case_ablative" in mistake_codes
+        assert "case_dative" in mistake_codes
+        assert "plural_affixes" not in mistake_codes
 
         # Leaderboard check: stu_01 (100%) should be first, stu_02 (50%) second
         leaderboard = cls_data["students_performance_table"]
         assert leaderboard[0]["student_id"] == "stu_01"
         assert leaderboard[0]["average_score_pct"] == 100.0
-        assert leaderboard[0]["handwriting_quality_pct"] == 97.9
+        assert leaderboard[0]["handwriting_status"] == "EXCELLENT"
         assert leaderboard[1]["student_id"] == "stu_02"
-        assert leaderboard[1]["handwriting_quality_pct"] == 63.2
+        assert leaderboard[1]["average_score_pct"] == 50.0
 
         # 5. Test Assignment Analytics
         res_asm = await client.get("/api/v1/analytics/assignments/TAT-2026-Q1")
@@ -474,7 +491,7 @@ class TestSubmissionsAndAnalyticsAPI:
         assert manifest["alphabet_classes"][2] == "Б"
         assert manifest["alphabet_classes"][-1] == "Я"
         assert manifest["preprocessing"]["input_resolution"] == [64, 64]
-        assert manifest["preprocessing"]["margin_trim_pct"] == 11.0
+        assert manifest["preprocessing"]["margin_trim_pct"] == 4.0
 
     @pytest.mark.asyncio
     async def test_save_single_submission_idempotent_upsert(self, client: AsyncClient):

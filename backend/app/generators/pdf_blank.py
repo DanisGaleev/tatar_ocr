@@ -1,6 +1,8 @@
 import io
 import os
 import json
+import textwrap
+from functools import lru_cache
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 import numpy as np
@@ -16,6 +18,7 @@ matplotlib.use('Agg')
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_pdf import FigureCanvasPdf, PdfPages
+from matplotlib.backends.backend_agg import FigureCanvasAgg
 import matplotlib.patches as patches
 import matplotlib.font_manager as fm
 
@@ -42,9 +45,27 @@ if _FONT_PATH is not None and _FONT_PATH.exists():
 else:
     _FONT_NAME = "sans-serif"
 
+_ARUCO_DICT_MAP = {
+    "DICT_4X4_50": cv2.aruco.DICT_4X4_50,
+    "DICT_4X4_100": cv2.aruco.DICT_4X4_100,
+    "DICT_5X5_50": cv2.aruco.DICT_5X5_50,
+    "DICT_6X6_50": cv2.aruco.DICT_6X6_50,
+}
+_ARUCO_DICT_CACHE: Dict[int, Any] = {}
+
+
+@lru_cache(maxsize=1)
+def _load_pipeline_spec() -> Dict[str, Any]:
+    spec_path = _PROJECT_ROOT / "pipeline_spec.json"
+    with open(spec_path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
 
 def generate_aruco_img(marker_id: int, size_px: int = 140, dict_type=cv2.aruco.DICT_4X4_50) -> np.ndarray:
-    aruco_dict = cv2.aruco.getPredefinedDictionary(dict_type)
+    aruco_dict = _ARUCO_DICT_CACHE.get(dict_type)
+    if aruco_dict is None:
+        aruco_dict = cv2.aruco.getPredefinedDictionary(dict_type)
+        _ARUCO_DICT_CACHE[dict_type] = aruco_dict
     return cv2.aruco.generateImageMarker(aruco_dict, marker_id, size_px)
 
 
@@ -68,39 +89,56 @@ def _draw_blank_page(
     variant_id: int,
     questions: List[Dict[str, Any]],
     student_name: Optional[str] = None,
+    student_id: Optional[str] = None,
 ):
     """
-    Renders elements of an official A4 (210 x 297 mm) Tatar OCR test blank onto given Axes.
+    Renders elements of an official A4 (210 x 297 mm) Tatar OCR test blank onto given Axes
+    strictly aligned with pipeline_spec.json SSOT coordinates (10 px/mm).
     """
-    page_w_mm, page_h_mm = 210.0, 297.0
+    spec = _load_pipeline_spec()
+    canvas_spec = spec["canvas"]
+    aruco_spec = spec["aruco"]
+    sn_spec = spec["grid"]["student_name"]
+    q_spec = spec["grid"]["questions"]
 
-    # 1. Page Corner ArUco Markers (Printer-safe 6mm paper margin)
+    px_per_mm = 10.0
+    page_w_mm = canvas_spec["width"] / px_per_mm
+    page_h_mm = canvas_spec["height"] / px_per_mm
+    dict_type = _ARUCO_DICT_MAP.get(aruco_spec.get("dict", "DICT_4X4_50"), cv2.aruco.DICT_4X4_50)
+
+    # 1. Page Corner ArUco Markers aligned with canvas.dst_corners (6mm..204mm, 6mm..291mm)
     corner_size_mm = 14.0
-    margin_corner_mm = 6.0
+    margin_corner_mm = canvas_spec["dst_corners"][0][0] / px_per_mm
 
     corner_positions = {
-        0: (margin_corner_mm, margin_corner_mm),                               # TL
-        1: (page_w_mm - margin_corner_mm - corner_size_mm, margin_corner_mm), # TR
-        2: (margin_corner_mm, page_h_mm - margin_corner_mm - corner_size_mm), # BL
-        3: (page_w_mm - margin_corner_mm - corner_size_mm, page_h_mm - margin_corner_mm - corner_size_mm), # BR
+        0: (margin_corner_mm, margin_corner_mm),
+        1: (page_w_mm - margin_corner_mm - corner_size_mm, margin_corner_mm),
+        2: (margin_corner_mm, page_h_mm - margin_corner_mm - corner_size_mm),
+        3: (page_w_mm - margin_corner_mm - corner_size_mm, page_h_mm - margin_corner_mm - corner_size_mm),
     }
 
     for cid, (cx, cy) in corner_positions.items():
-        c_img = generate_aruco_img(cid, size_px=140)
+        c_img = generate_aruco_img(cid, size_px=140, dict_type=dict_type)
         ax.imshow(c_img, cmap='gray', extent=(cx, cx + corner_size_mm, cy + corner_size_mm, cy), zorder=10)
+
+    max_questions = int(q_spec["max_questions"])
+    rendered_questions = questions[:max_questions]
 
     # 2. Header Section
     header_top_y = 6.0
     header_left_x = 23.0
 
-    # QR Code with Test Metadata
-    qr_payload = json.dumps({
+    # QR Code with Test Metadata (includes stu_id when personalized)
+    qr_dict: Dict[str, Any] = {
         "tid": assignment_id,
         "var": variant_id,
         "page": 1,
         "tot": 1,
-        "n_q": len(questions),
-    }, separators=(',', ':'))
+        "n_q": len(rendered_questions),
+    }
+    if student_id:
+        qr_dict["stu_id"] = student_id
+    qr_payload = json.dumps(qr_dict, separators=(',', ':'), ensure_ascii=False)
 
     qr_img = generate_qr_img(qr_payload)
     qr_size_mm = 18.0
@@ -109,26 +147,31 @@ def _draw_blank_page(
     ax.imshow(qr_img, extent=(qr_x, qr_x + qr_size_mm, qr_y + qr_size_mm, qr_y), zorder=10)
 
     ax.text(
-        qr_x + qr_size_mm / 2.0, qr_y + qr_size_mm + 2.5,
+        qr_x + qr_size_mm / 2.0, qr_y + qr_size_mm + 2.2,
         f"{assignment_id} (Вар. {variant_id})",
-        fontsize=5.5, fontname='sans-serif', ha='center', va='top', color='#475569'
+        fontsize=5.5, fontname=_FONT_NAME, ha='center', va='top', color='#475569'
     )
 
-    # Header Warnings & Student Identification (Markers, QR, and cell coordinates preserved)
-    title_x = qr_x + qr_size_mm + 6.0
-    ax.text(title_x, header_top_y + 3.0, "Внимание: заполняйте печатными заглавными буквами",
-            fontsize=7.5, fontname=_FONT_NAME, ha='left', va='top', color='#334155')
+    # Header Title, Warnings & Student Identification
+    name_cells_start_x = sn_spec["default_start_x"] / px_per_mm
+    title_x = name_cells_start_x
+    title_str = (title or "").strip()
+    if title_str:
+        title_display = title_str if len(title_str) <= 68 else title_str[:65] + "..."
+        ax.text(title_x, header_top_y + 0.5, title_display,
+                fontsize=7.6, fontname=_FONT_NAME, weight='bold', ha='left', va='top', color='#0f172a')
 
-    # Student Identification Field (16 cells x 8.0 mm = 128 mm; ends at x = 175 mm, leaving 15 mm quiet zone before ArUco at x=190 mm)
-    name_lbl_y = header_top_y + 11.5
-    ax.text(title_x, name_lbl_y, "ФИО ученика:",
+    ax.text(title_x, header_top_y + 5.2, "Внимание: заполняйте печатными заглавными буквами",
+            fontsize=6.9, fontname=_FONT_NAME, ha='left', va='top', color='#334155')
+
+    # Student Identification Field (15 cells x 8.8 mm = 132 mm, matching pipeline_spec.json)
+    ax.text(title_x, header_top_y + 10.6, "ФИО ученика:",
             fontsize=7.2, fontname=_FONT_NAME, ha='left', va='top', color='#1e293b')
 
-    name_cell_w = 8.0
-    name_cell_h = 8.0
-    num_name_cells = 16
-    name_cells_start_x = title_x
-    name_cells_start_y = name_lbl_y + 4.2
+    name_cell_w = sn_spec["default_pitch"] / px_per_mm
+    name_cells_start_y = sn_spec["default_top_y"] / px_per_mm
+    name_cell_h = (sn_spec["default_bot_y"] - sn_spec["default_top_y"]) / px_per_mm
+    num_name_cells = int(sn_spec["cell_count"])
 
     name_letters = list(student_name.upper()) if student_name else []
 
@@ -147,65 +190,75 @@ def _draw_blank_page(
     ax.plot([margin_corner_mm, page_w_mm - margin_corner_mm], [header_sep_y, header_sep_y],
             color='#cbd5e1', linewidth=0.8)
 
-    # 3. Modular Question Blocks (Up to 8 Questions)
+    # 3. Modular Question Blocks (aligned with canonical_anchors & grid.questions)
     q_marker_size_mm = 11.0
-    q_start_y = 38.0
-    q_pitch_y = 28.0
-    cell_w_mm = 10.0
-    cell_h_mm = 10.0
+    base_id = int(aruco_spec.get("question_marker_base_id", 10))
+    anchors = aruco_spec.get("canonical_anchors", {})
+    cells_x = q_spec["default_start_x"] / px_per_mm
+    cell_w_mm = q_spec["default_pitch"] / px_per_mm
+    cell_h_mm = q_spec["default_row_h"] / px_per_mm
+    default_top_offset_mm = q_spec["default_top_offset"] / px_per_mm
+    fallback_base_y_px = q_spec["fallback_base_y"]
+    fallback_step_y_px = q_spec["fallback_step_y"]
 
-    for idx, q in enumerate(questions[:8]):
-        block_y = q_start_y + idx * q_pitch_y
-        marker_id = q.get("marker_id", 11 + idx)
+    for idx, q in enumerate(rendered_questions):
+        marker_id = int(q.get("marker_id", base_id + idx + 1))
+        anchor_px = anchors.get(str(marker_id), [125.0, fallback_base_y_px + idx * fallback_step_y_px])
+        cx_mm = anchor_px[0] / px_per_mm
+        cy_mm = anchor_px[1] / px_per_mm
 
-        # Left Margin ArUco Anchor
-        marker_x = 6.0
-        marker_y = block_y + 4.0
-        m_img = generate_aruco_img(marker_id, size_px=110)
+        marker_x = cx_mm - q_marker_size_mm / 2.0
+        marker_y = cy_mm - q_marker_size_mm / 2.0
+        m_img = generate_aruco_img(marker_id, size_px=110, dict_type=dict_type)
         ax.imshow(m_img, cmap='gray',
                   extent=(marker_x, marker_x + q_marker_size_mm, marker_y + q_marker_size_mm, marker_y),
                   zorder=10)
 
-        # Marker ID label
-        ax.text(marker_x + q_marker_size_mm / 2.0, marker_y + q_marker_size_mm + 1.8,
-                f"ID {marker_id}", fontsize=5.5, fontname='sans-serif', ha='center', va='top', color='#64748b')
+        ax.text(marker_x + q_marker_size_mm / 2.0, marker_y + q_marker_size_mm + 1.5,
+                f"ID {marker_id}", fontsize=5.5, fontname=_FONT_NAME, ha='center', va='top', color='#64748b')
 
-        # Question Prompt Text & Dynamic Layout
-        import textwrap
+        cells_y = cy_mm + default_top_offset_mm
+
+        # Question Prompt Text & Dynamic Full-Line Wrapping (never truncate lines)
         prompt_text = q.get("prompt", q.get("prompt_tt", f"Сорау №{idx+1}"))
         q_prefix = f"{idx+1}) "
 
-        text_x = 22.0
-        text_y = block_y + 1.0
+        def _wrap_lines(raw_text: str, width: int) -> List[str]:
+            wrapped: List[str] = []
+            for rl in raw_text.split("\n"):
+                if len(rl) > width:
+                    wrapped.extend(textwrap.wrap(rl, width=width))
+                else:
+                    wrapped.append(rl)
+            return wrapped
 
-        # Handle multi-line prompts or wrap long single-line prompts
-        raw_lines = prompt_text.split("\n")
-        lines = []
-        for rl in raw_lines:
-            if len(rl) > 75:
-                lines.extend(textwrap.wrap(rl, width=75))
-            else:
-                lines.append(rl)
+        lines = _wrap_lines(prompt_text, 75)
+        if len(lines) >= 3:
+            lines = _wrap_lines(prompt_text, 96)
+
+        if len(lines) >= 4:
+            font_size = 5.4
+            text_y = cells_y - 12.2
+        elif len(lines) == 3:
+            font_size = 6.2
+            text_y = cells_y - 11.2
+        elif len(lines) == 2:
+            font_size = 7.2
+            text_y = cells_y - 9.5
+        else:
+            font_size = 8.0 if len(q_prefix + lines[0]) <= 65 else 7.0
+            text_y = cells_y - 7.5
 
         if len(lines) > 1:
-            q_full_text = q_prefix + lines[0] + "\n" + "   " + "\n   ".join(lines[1:3])
-            font_size = 6.8 if len(lines) > 2 or any(len(l) > 65 for l in lines) else 7.4
-            cells_y = block_y + 12.0
+            q_full_text = q_prefix + lines[0] + "\n   " + "\n   ".join(lines[1:])
         else:
             q_full_text = q_prefix + lines[0]
-            font_size = 8.2 if len(q_full_text) <= 65 else 7.2
-            cells_y = block_y + 9.5
 
-        ax.text(text_x, text_y, q_full_text, fontsize=font_size, fontname=_FONT_NAME,
+        ax.text(cells_x, text_y, q_full_text, fontsize=font_size, fontname=_FONT_NAME,
                 ha='left', va='top', color='#0f172a')
 
-        # 10mm x 10mm Answer Cells
-        cells_x = 22.0
-        cell_count = max(1, min(q.get("cell_count", 8), 12))
-
-        if cell_count == 1:
-            ax.text(cells_x - 1.5, cells_y + cell_h_mm / 2.0, "Җавап:",
-                    fontsize=6.5, fontname=_FONT_NAME, ha='right', va='center', color='#64748b')
+        # 10mm x 10mm Answer Cells (1..12)
+        cell_count = max(1, min(int(q.get("cell_count", 8)), 12))
 
         for c in range(cell_count):
             cx = cells_x + c * cell_w_mm
@@ -213,9 +266,13 @@ def _draw_blank_page(
                                      linewidth=0.8, edgecolor='#000000', facecolor='none')
             ax.add_patch(rect)
 
+        if cell_count == 1:
+            ax.text(cells_x + cell_w_mm + 2.5, cells_y + cell_h_mm / 2.0, "<- 1 хәреф",
+                    fontsize=6.5, fontname=_FONT_NAME, ha='left', va='center', color='#64748b')
+
         # Separator line between questions
-        if idx < min(len(questions), 8) - 1:
-            sep_y = block_y + q_pitch_y - 2.5
+        if idx < len(rendered_questions) - 1:
+            sep_y = cells_y + cell_h_mm + 3.2
             ax.plot([20.0, page_w_mm - 10.0], [sep_y, sep_y], color='#e2e8f0', linewidth=0.6, linestyle='--')
 
     # 4. Footer Instructions (Russian warnings only)
@@ -230,30 +287,93 @@ def _draw_blank_page(
             fontsize=7.0, fontname=_FONT_NAME, ha='center', va='top', color='#475569', multialignment='center')
 
 
-def render_blank_pdf(
+def _create_blank_figure(
     assignment_id: str,
     title: str,
     variant_id: int,
     questions: List[Dict[str, Any]],
     student_name: Optional[str] = None,
-) -> bytes:
-    """
-    Renders an official A4 (210 x 297 mm) Tatar OCR test blank with ArUco markers,
-    QR code, student name header, and 10x10 mm answer boxes.
-    """
-    page_w_mm, page_h_mm = 210.0, 297.0
+    student_id: Optional[str] = None,
+    dpi: int = 300,
+) -> Figure:
+    spec = _load_pipeline_spec()
+    page_w_mm = spec["canvas"]["width"] / 10.0
+    page_h_mm = spec["canvas"]["height"] / 10.0
     fig_w_in, fig_h_in = page_w_mm / 25.4, page_h_mm / 25.4
 
-    fig = Figure(figsize=(fig_w_in, fig_h_in), dpi=300)
+    fig = Figure(figsize=(fig_w_in, fig_h_in), dpi=dpi)
     ax = fig.add_axes([0, 0, 1, 1])
     ax.set_xlim(0, page_w_mm)
     ax.set_ylim(0, page_h_mm)
     ax.invert_yaxis()
     ax.axis('off')
 
-    _draw_blank_page(ax, assignment_id, title, variant_id, questions, student_name)
+    _draw_blank_page(
+        ax,
+        assignment_id=assignment_id,
+        title=title,
+        variant_id=variant_id,
+        questions=questions,
+        student_name=student_name,
+        student_id=student_id,
+    )
+    return fig
 
-    # Render to PDF in-memory buffer
+
+def render_blank_image(
+    assignment_id: str,
+    title: str,
+    variant_id: int,
+    questions: List[Dict[str, Any]],
+    student_name: Optional[str] = None,
+    student_id: Optional[str] = None,
+) -> np.ndarray:
+    """
+    Renders the blank onto a canonical 2100x2970 BGR canvas image (for OCR E2E verification).
+    """
+    fig = _create_blank_figure(
+        assignment_id=assignment_id,
+        title=title,
+        variant_id=variant_id,
+        questions=questions,
+        student_name=student_name,
+        student_id=student_id,
+        dpi=254,
+    )
+    canvas = FigureCanvasAgg(fig)
+    canvas.draw()
+    rgba = np.asarray(canvas.buffer_rgba())
+    bgr = cv2.cvtColor(rgba, cv2.COLOR_RGBA2BGR)
+    spec = _load_pipeline_spec()
+    target_w = int(spec["canvas"]["width"])
+    target_h = int(spec["canvas"]["height"])
+    if bgr.shape[1] != target_w or bgr.shape[0] != target_h:
+        bgr = cv2.resize(bgr, (target_w, target_h), interpolation=cv2.INTER_AREA)
+    return bgr
+
+
+def render_blank_pdf(
+    assignment_id: str,
+    title: str,
+    variant_id: int,
+    questions: List[Dict[str, Any]],
+    student_name: Optional[str] = None,
+    student_id: Optional[str] = None,
+) -> bytes:
+    """
+    Renders an official A4 (210 x 297 mm) Tatar OCR test blank with ArUco markers,
+    QR code, student name header, and 10x10 mm answer boxes.
+    """
+    fig = _create_blank_figure(
+        assignment_id=assignment_id,
+        title=title,
+        variant_id=variant_id,
+        questions=questions,
+        student_name=student_name,
+        student_id=student_id,
+        dpi=300,
+    )
+
     buf = io.BytesIO()
     FigureCanvasPdf(fig).print_pdf(buf)
     buf.seek(0)
@@ -270,14 +390,11 @@ def render_batch_blanks_pdf(
     Renders a multi-page PDF with one pre-named test blank per student in the class,
     automatically alternating variants across the roster.
     """
-    page_w_mm, page_h_mm = 210.0, 297.0
-    fig_w_in, fig_h_in = page_w_mm / 25.4, page_h_mm / 25.4
-
     buf = io.BytesIO()
     num_variants = max(1, len(variants))
 
     with PdfPages(buf) as pdf:
-        target_students = students if students else [{"student_id": "generic", "full_name": None}]
+        target_students = students if students else [{"student_id": "", "full_name": None}]
 
         for idx, student in enumerate(target_students):
             var_idx = idx % num_variants
@@ -285,19 +402,19 @@ def render_batch_blanks_pdf(
             variant_id = var_obj.get("variant_id", var_idx + 1)
             questions = var_obj.get("questions", [])
             stu_name = student.get("full_name") or student.get("student_name")
+            stu_id = student.get("student_id") or None
 
-            fig = Figure(figsize=(fig_w_in, fig_h_in), dpi=300)
+            fig = _create_blank_figure(
+                assignment_id=assignment_id,
+                title=title,
+                variant_id=variant_id,
+                questions=questions,
+                student_name=stu_name,
+                student_id=stu_id,
+                dpi=300,
+            )
             FigureCanvasPdf(fig)
-            ax = fig.add_axes([0, 0, 1, 1])
-            ax.set_xlim(0, page_w_mm)
-            ax.set_ylim(0, page_h_mm)
-            ax.invert_yaxis()
-            ax.axis('off')
-
-            _draw_blank_page(ax, assignment_id, title, variant_id, questions, stu_name)
-
             pdf.savefig(fig, dpi=300, bbox_inches=None)
 
     buf.seek(0)
     return buf.getvalue()
-

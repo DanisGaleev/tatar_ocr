@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.generators.registry import registry
-from app.generators.phonetics import clean_word
+from app.generators.phonetics import validate_ocr_answer
 from app.models.task import TaskBankModel
 from app.schemas.task import TaskBankItem, ScanTaskResponse
 from app.services.task_extractor.base import (
@@ -98,6 +98,7 @@ class TaskExtractorService:
         for idx, item in enumerate(candidate_items, start=1):
             raw_ans = (item.expected_answer or "").strip().strip(".,;:!?\"'«»()[]-")
             if not raw_ans:
+                validation_errors.append(f"Пункт {idx}: пустой ожидаемый ответ.")
                 continue
 
             # Skip or reject if answer contains multiple words or punctuation
@@ -105,9 +106,9 @@ class TaskExtractorService:
                 validation_errors.append(f"Пункт {idx}: ответ '{raw_ans}' содержит несколько слов или знаки препинания.")
                 continue
 
-            # Tatar Cyrillic validation
+            # Strict 39-letter Tatar OCR alphabet validation
             try:
-                clean_ans = clean_word(raw_ans).upper()
+                clean_ans = validate_ocr_answer(raw_ans)
             except Exception as err:
                 validation_errors.append(f"Пункт {idx}: ответ '{raw_ans}' содержит недопустимые символы: {err}")
                 continue
@@ -122,12 +123,12 @@ class TaskExtractorService:
             if len(clean_ans) > cell_count:
                 cell_count = len(clean_ans)
 
-            grade_level = item.grade_level or grade_hint or extracted.grade_level or 7
+            grade_level = grade_hint or item.grade_level or extracted.grade_level or 7
             grade_level = max(5, min(9, grade_level))
 
             topic_tag = item.topic_tag or extracted.topic_tag or "custom"
             topic_name_tt = item.topic_name_tt or extracted.topic_name_tt or "Үзләштерү биреме"
-            prompt_tt = (item.prompt_tt or raw_ocr_text).strip()
+            prompt_tt = (item.prompt_tt or raw_ocr_text).strip()[:512]
             item_task_type = item.task_type or extracted.task_type or "custom"
 
             task_id = f"tsk_{uuid.uuid4().hex[:8]}"
@@ -140,6 +141,7 @@ class TaskExtractorService:
                 grade_level=grade_level,
                 topic_tag=topic_tag,
                 topic_name_tt=topic_name_tt,
+                task_type=item_task_type,
                 is_public_in_bank=save_to_bank,
             )
             valid_tasks.append(task_item)
@@ -162,6 +164,9 @@ class TaskExtractorService:
             await db.commit()
             logger.info("Persisted %d scanned sub-tasks into task bank.", len(valid_tasks))
 
+        if validation_errors and valid_tasks:
+            logger.warning("Some extracted sub-tasks were skipped: %s", "; ".join(validation_errors))
+
         if not valid_tasks:
             reasons = "; ".join(validation_errors) if validation_errors else "Не удалось сформировать ни одного подходящего задания."
             return ScanTaskResponse(
@@ -176,7 +181,7 @@ class TaskExtractorService:
         return ScanTaskResponse(
             is_supported=True,
             unsupported_reason=None,
-            task_type=valid_tasks[0].task_type if hasattr(valid_tasks[0], "task_type") else extracted.task_type,
+            task_type=valid_tasks[0].task_type or extracted.task_type,
             task=valid_tasks[0],
             tasks=valid_tasks,
             raw_ocr_text=raw_ocr_text,
@@ -187,16 +192,16 @@ class TaskExtractorService:
 
 def get_task_extractor_service(use_mock: Optional[bool] = None) -> TaskExtractorService:
     """
-    Factory creating TaskExtractorService. Uses mock if specified or if API key is missing.
+    Factory creating TaskExtractorService. Raises ValueError if live mode is requested without YANDEX_API_KEY.
     """
     mock_mode = use_mock if use_mock is not None else settings.TASK_EXTRACTOR_MOCK_MODE
-    if not settings.YANDEX_API_KEY:
-        mock_mode = True
 
     if mock_mode:
         ocr_client = MockOCRClient()
         llm_classifier = MockLLMTaskClassifier()
     else:
+        if not settings.YANDEX_API_KEY:
+            raise ValueError("YANDEX_API_KEY is not configured; cannot run live task extractor.")
         ocr_client = YandexOCRClient()
         llm_classifier = YandexGPTClient()
 

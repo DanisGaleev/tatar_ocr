@@ -1,5 +1,4 @@
 from typing import List, Dict, Optional
-from datetime import datetime
 from pydantic import BaseModel
 
 class FrequentWeakTopic(BaseModel):
@@ -26,8 +25,8 @@ class StudentHistoryItem(BaseModel):
     grade: int
 
 class HandwritingMetrics(BaseModel):
-    quality_pct: float
-    status: str  # "EXCELLENT", "GOOD", "NEEDS_ATTENTION", "POOR"
+    quality_pct: Optional[float] = None
+    status: str  # "EXCELLENT", "GOOD", "NEEDS_ATTENTION", "POOR", "NO_DATA"
     average_confidence: float
     teacher_correction_rate_pct: float
     low_confidence_rate_pct: float
@@ -45,8 +44,8 @@ class StudentAnalyticsResponse(BaseModel):
     frequent_weak_topics: List[FrequentWeakTopic]
     problematic_letters: List[ProblematicLetter]
     history: List[StudentHistoryItem]
-    handwriting_quality_pct: float = 100.0
-    handwriting_status: str = "EXCELLENT"
+    handwriting_quality_pct: Optional[float] = None
+    handwriting_status: str = "NO_DATA"
     handwriting_metrics: Optional[HandwritingMetrics] = None
 
 class TopClassMistake(BaseModel):
@@ -65,15 +64,15 @@ class StudentPerformanceRow(BaseModel):
     average_score_pct: float
     average_grade: float
     tests_completed: int
-    handwriting_quality_pct: float = 100.0
-    handwriting_status: str = "EXCELLENT"
+    handwriting_quality_pct: Optional[float] = None
+    handwriting_status: str = "NO_DATA"
 
 class ClassAnalyticsResponse(BaseModel):
     class_id: str
     class_name: str
     students_count: int
     average_class_score_pct: float
-    average_handwriting_quality_pct: float = 100.0
+    average_handwriting_quality_pct: Optional[float] = None
     grade_distribution: Dict[str, int]
     top_class_mistakes: List[TopClassMistake]
     difficult_characters_across_class: List[DifficultCharacter]
@@ -86,6 +85,7 @@ class WrongSubmissionItem(BaseModel):
     written_answer: str
 
 class QuestionAnalyticsItem(BaseModel):
+    variant_id: int = 1
     question_number: int
     marker_id: int
     prompt: str

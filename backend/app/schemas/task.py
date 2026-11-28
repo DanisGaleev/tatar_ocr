@@ -11,6 +11,7 @@ class TaskBankItem(BaseModel):
     grade_level: int = Field(..., ge=5, le=9)
     topic_tag: str
     topic_name_tt: str
+    task_type: Optional[str] = "custom"
     is_public_in_bank: bool = False
 
 
@@ -25,7 +26,7 @@ class CreateTaskRequest(BaseModel):
     task_type: Optional[str] = "custom"
 
 class GenerateTasksRequest(BaseModel):
-    task_type: str = Field(..., description="One of: case_inflection, plural_affixes, antonyms, translation")
+    task_type: str = Field(..., description="Supported generator task type (see GET /api/v1/constructor/task-types)")
     count: int = Field(default=1, ge=1, le=10)
     seed: Optional[int] = Field(default=None, description="Optional seed for deterministic reproducibility")
     grade_level: int = Field(default=7, ge=5, le=9)
@@ -42,7 +43,7 @@ class GenerateTasksResponse(BaseModel):
 class VerifyAnswerRequest(BaseModel):
     expected_answer: str
     student_answer: str
-    cell_count: int = 8
+    cell_count: int = Field(default=8, ge=1, le=12)
     topic_tag: str = "general"
 
 class CellStatusItem(BaseModel):

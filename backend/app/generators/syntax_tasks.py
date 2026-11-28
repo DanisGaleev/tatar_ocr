@@ -1,5 +1,5 @@
 import random
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Union
 from app.generators.base import BaseTaskGenerator, TaskDraft
 from app.generators.lexicon import (
     SENTENCE_CLOZE_SETS,
@@ -7,6 +7,8 @@ from app.generators.lexicon import (
     FIND_ERROR_SETS,
     WORD_ORDER_SETS,
 )
+
+_CYR_LETTERS = ["А", "Б", "В", "Г"]
 
 
 class SentenceMCClozeGenerator(BaseTaskGenerator):
@@ -32,26 +34,32 @@ class SentenceMCClozeGenerator(BaseTaskGenerator):
         item = rng.choice(SENTENCE_CLOZE_SETS)
         sent, opts, ans = item
 
-        opts_str = f"А) {opts[0]}   Б) {opts[1]}   В) {opts[2]}"
+        orig_idx = _CYR_LETTERS.index(ans.upper()) if ans.upper() in _CYR_LETTERS else 0
+        paired = [(opt, i == orig_idx) for i, opt in enumerate(opts[:3])]
+        rng.shuffle(paired)
+        shuffled_opts = [p[0] for p in paired]
+        new_ans = next(_CYR_LETTERS[i] for i, (_, is_ans) in enumerate(paired) if is_ans)
+
+        opts_str = "   ".join(f"{_CYR_LETTERS[i]}) {opt}" for i, opt in enumerate(shuffled_opts))
         prompt = f"«{sent}»\nДөрес кушымчаны сайлагыз: {opts_str}"
 
         return TaskDraft(
             task_type=self.task_type,
-            topic_tag="sentence_cloze",
-            topic_name_tt="Җөмләдә кушымча",
+            topic_tag=self.default_topic_tag,
+            topic_name_tt=self.topic_name_tt,
             prompt_tt=prompt,
-            expected_answer=ans.upper(),
+            expected_answer=new_ans,
             cell_count=1,
             grade_level=grade_level,
-            metadata={"sentence": sent, "options": opts},
+            metadata={"sentence": sent, "options": shuffled_opts},
         )
 
     def create_custom(self, sentence: str, options: List[str], correct_letter: str, grade_level: int = 7, **kwargs: Any) -> TaskDraft:
-        opts_str = "   ".join(f"{chr(65+i)}) {opt}" for i, opt in enumerate(options[:3]))
+        opts_str = "   ".join(f"{_CYR_LETTERS[i]}) {opt}" for i, opt in enumerate(options[:3]))
         return TaskDraft(
             task_type=self.task_type,
-            topic_tag="sentence_cloze",
-            topic_name_tt="Җөмләдә кушымча",
+            topic_tag=self.default_topic_tag,
+            topic_name_tt=self.topic_name_tt,
             prompt_tt=f"«{sentence.strip()}»\nДөрес кушымчаны сайлагыз: {opts_str}",
             expected_answer=correct_letter.strip().upper(),
             cell_count=1,
@@ -88,8 +96,8 @@ class TrueFalseGrammarGenerator(BaseTaskGenerator):
 
         return TaskDraft(
             task_type=self.task_type,
-            topic_tag="true_false",
-            topic_name_tt="Дөрес яки ялгыш",
+            topic_tag=self.default_topic_tag,
+            topic_name_tt=self.topic_name_tt,
             prompt_tt=prompt,
             expected_answer=ans,
             cell_count=1,
@@ -101,8 +109,8 @@ class TrueFalseGrammarGenerator(BaseTaskGenerator):
         ans = "Д" if is_true else "Я"
         return TaskDraft(
             task_type=self.task_type,
-            topic_tag="true_false",
-            topic_name_tt="Дөрес яки ялгыш",
+            topic_tag=self.default_topic_tag,
+            topic_name_tt=self.topic_name_tt,
             prompt_tt=f"{statement.strip()} — Раслау дөресме? (Д — дөрес, Я — ялгыш)",
             expected_answer=ans,
             cell_count=1,
@@ -122,7 +130,7 @@ class FindErrorSentenceGenerator(BaseTaskGenerator):
 
     @property
     def topic_name_tt(self) -> str:
-        return "Хатаны тап (җөмлә санын)"
+        return "Хатаны тап (җөмлә хәрефен)"
 
     def generate(
         self,
@@ -132,33 +140,57 @@ class FindErrorSentenceGenerator(BaseTaskGenerator):
     ) -> TaskDraft:
         rng = random.Random(seed) if seed is not None else random.Random()
         item = rng.choice(FIND_ERROR_SETS)
-        sentences, err_num = item
+        sentences, err_idx = item
 
-        sents_formatted = "   ".join(sentences)
-        prompt = f"Кайсы җөмләдә грамматик хата бар? (1-4 языгыз): {sents_formatted}"
+        paired = [(s, i == err_idx) for i, s in enumerate(sentences[:4])]
+        rng.shuffle(paired)
+        labeled = [f"{_CYR_LETTERS[i]}) {s}" for i, (s, _) in enumerate(paired)]
+        ans_letter = next(_CYR_LETTERS[i] for i, (_, is_err) in enumerate(paired) if is_err)
+
+        sents_formatted = "   ".join(labeled)
+        prompt = f"Кайсы җөмләдә грамматик хата бар? (А–Г языгыз): {sents_formatted}"
 
         return TaskDraft(
             task_type=self.task_type,
-            topic_tag="find_error",
-            topic_name_tt="Хатаны тап",
+            topic_tag=self.default_topic_tag,
+            topic_name_tt=self.topic_name_tt,
             prompt_tt=prompt,
-            expected_answer=str(err_num),
+            expected_answer=ans_letter,
             cell_count=1,
             grade_level=grade_level,
-            metadata={"sentences": sentences},
+            metadata={"sentences": labeled},
         )
 
-    def create_custom(self, sentences: List[str], error_number: int, grade_level: int = 7, **kwargs: Any) -> TaskDraft:
-        sents_formatted = "   ".join(sentences)
+    def create_custom(
+        self,
+        sentences: List[str],
+        error_number: Union[int, str],
+        grade_level: int = 7,
+        **kwargs: Any,
+    ) -> TaskDraft:
+        if isinstance(error_number, int):
+            if not 1 <= error_number <= 4:
+                raise ValueError("error_number must be between 1 and 4.")
+            ans_letter = _CYR_LETTERS[error_number - 1]
+        else:
+            ans_letter = str(error_number).strip().upper()
+            if ans_letter not in _CYR_LETTERS:
+                raise ValueError("error_number letter must be one of А, Б, В, Г.")
+
+        labeled = [
+            s if s.lstrip().startswith(tuple(f"{ltr})" for ltr in _CYR_LETTERS)) else f"{_CYR_LETTERS[i]}) {s}"
+            for i, s in enumerate(sentences[:4])
+        ]
+        sents_formatted = "   ".join(labeled)
         return TaskDraft(
             task_type=self.task_type,
-            topic_tag="find_error",
-            topic_name_tt="Хатаны тап",
-            prompt_tt=f"Кайсы җөмләдә грамматик хата бар? (1-4 языгыз): {sents_formatted}",
-            expected_answer=str(error_number),
+            topic_tag=self.default_topic_tag,
+            topic_name_tt=self.topic_name_tt,
+            prompt_tt=f"Кайсы җөмләдә грамматик хата бар? (А–Г языгыз): {sents_formatted}",
+            expected_answer=ans_letter,
             cell_count=1,
             grade_level=grade_level,
-            metadata={"sentences": sentences, "is_custom": True},
+            metadata={"sentences": labeled, "is_custom": True},
         )
 
 
@@ -190,8 +222,8 @@ class WordOrderGenerator(BaseTaskGenerator):
 
         return TaskDraft(
             task_type=self.task_type,
-            topic_tag="word_order",
-            topic_name_tt="Сүзләр тәртибе",
+            topic_tag=self.default_topic_tag,
+            topic_name_tt=self.topic_name_tt,
             prompt_tt=prompt,
             expected_answer=ans_order.upper(),
             cell_count=len(ans_order),
@@ -204,8 +236,8 @@ class WordOrderGenerator(BaseTaskGenerator):
         clean_order = correct_order.strip().upper()
         return TaskDraft(
             task_type=self.task_type,
-            topic_tag="word_order",
-            topic_name_tt="Сүзләр тәртибе",
+            topic_tag=self.default_topic_tag,
+            topic_name_tt=self.topic_name_tt,
             prompt_tt=f"Җөмлә төзегез (хәрефләр тәртибен языгыз): {parts_formatted}",
             expected_answer=clean_order,
             cell_count=len(clean_order),

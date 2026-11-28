@@ -232,14 +232,14 @@ std::vector<int> match_grid_chain(const std::vector<int>& peaks, int pitch_min, 
     return best_chain;
 }
 
-std::pair<int, int> find_row_vertical_bounds(const cv::Mat& h_lines, int y_min, int y_max, int x_min, int x_max,
-                                             double rel_thresh, int h_min, int h_max, int default_top, int default_h,
-                                             int radius, bool sort_by_strength) {
+std::tuple<int, int, bool> find_row_vertical_bounds_ex(const cv::Mat& h_lines, int y_min, int y_max, int x_min, int x_max,
+                                                        double rel_thresh, int h_min, int h_max, int default_top,
+                                                        int default_h, int radius, bool sort_by_strength) {
     y_min = std::max(0, y_min);
     y_max = std::min(h_lines.rows, y_max);
     x_min = std::max(0, x_min);
     x_max = std::min(h_lines.cols, x_max);
-    if (y_max <= y_min || x_max <= x_min) return {default_top, default_h};
+    if (y_max <= y_min || x_max <= x_min) return {default_top, default_h, false};
 
     cv::Mat roi = h_lines(cv::Range(y_min, y_max), cv::Range(x_min, x_max));
     cv::Mat prof;
@@ -252,10 +252,18 @@ std::pair<int, int> find_row_vertical_bounds(const cv::Mat& h_lines, int y_min, 
     for (size_t i = 0; i < peaks.size(); ++i) {
         for (size_t j = i + 1; j < peaks.size(); ++j) {
             int dist = std::abs(peaks[i].pos - peaks[j].pos);
-            if (h_min <= dist && dist <= h_max) return {std::min(peaks[i].pos, peaks[j].pos), dist};
+            if (h_min <= dist && dist <= h_max) return {std::min(peaks[i].pos, peaks[j].pos), dist, true};
         }
     }
-    return {default_top, default_h};
+    return {default_top, default_h, false};
+}
+
+std::pair<int, int> find_row_vertical_bounds(const cv::Mat& h_lines, int y_min, int y_max, int x_min, int x_max,
+                                             double rel_thresh, int h_min, int h_max, int default_top, int default_h,
+                                             int radius, bool sort_by_strength) {
+    auto [top, h, _] = find_row_vertical_bounds_ex(
+        h_lines, y_min, y_max, x_min, x_max, rel_thresh, h_min, h_max, default_top, default_h, radius, sort_by_strength);
+    return {top, h};
 }
 
 std::vector<int> snap_row_grid(const cv::Mat& v_lines, int row_top, int row_h, int x_min, int x_max, int inset_y,
@@ -763,6 +771,7 @@ PipelineSpec PipelineSpec::load(const std::string& spec_path) {
         read_size(g, "bridge_h", s.bridge_h);
         read_size(g, "bridge_v", s.bridge_v);
         read_size(g, "long_h", s.long_h);
+        read_size(g, "short_h", s.short_h);
         read_size(g, "long_v", s.long_v);
         read_opt(g, "peak_radius", s.peak_radius);
         read_opt(g, "cluster_max_gap", s.cluster_max_gap);
@@ -1080,10 +1089,11 @@ std::pair<std::vector<CellBox>, std::vector<QuestionRow>> NativeBlankScanner::ex
     cv::adaptiveThreshold(enhanced, thresh, 255, cv::ADAPTIVE_THRESH_GAUSSIAN_C, cv::THRESH_BINARY_INV,
                           spec_.adapt_block, spec_.adapt_c);
 
-    cv::Mat h_closed, v_closed, h_lines, v_lines;
+    cv::Mat h_closed, v_closed, h_lines, h_lines_short, v_lines;
     cv::morphologyEx(thresh, h_closed, cv::MORPH_CLOSE, cv::getStructuringElement(cv::MORPH_RECT, spec_.bridge_h));
     cv::morphologyEx(thresh, v_closed, cv::MORPH_CLOSE, cv::getStructuringElement(cv::MORPH_RECT, spec_.bridge_v));
     cv::morphologyEx(h_closed, h_lines, cv::MORPH_OPEN, cv::getStructuringElement(cv::MORPH_RECT, spec_.long_h));
+    cv::morphologyEx(h_closed, h_lines_short, cv::MORPH_OPEN, cv::getStructuringElement(cv::MORPH_RECT, spec_.short_h));
     cv::morphologyEx(v_closed, v_lines, cv::MORPH_OPEN, cv::getStructuringElement(cv::MORPH_RECT, spec_.long_v));
 
     // Student Name row
@@ -1132,11 +1142,23 @@ std::pair<std::vector<CellBox>, std::vector<QuestionRow>> NativeBlankScanner::ex
             est_my = (m.at<float>(0, 1) + m.at<float>(1, 1) + m.at<float>(2, 1) + m.at<float>(3, 1)) * 0.25;
         }
 
-        auto [row_top, row_h] = find_row_vertical_bounds(
+        auto [row_top, row_h, h_found] = find_row_vertical_bounds_ex(
             h_lines, static_cast<int>(est_my - spec_.q_h_search_up), static_cast<int>(est_my + spec_.q_h_search_down),
             spec_.q_h_x_range[0], spec_.q_h_x_range[1], spec_.q_peak_rel_thresh, spec_.q_row_h_range[0],
             spec_.q_row_h_range[1], py_round(est_my + spec_.q_default_top_offset), spec_.q_default_row_h,
             spec_.peak_radius, true);
+        if (!h_found) {
+            int short_x_max = std::min(spec_.q_h_x_range[1], spec_.q_h_x_range[0] + 240);
+            auto [s_top, s_h, s_found] = find_row_vertical_bounds_ex(
+                h_lines_short, static_cast<int>(est_my - spec_.q_h_search_up),
+                static_cast<int>(est_my + spec_.q_h_search_down), spec_.q_h_x_range[0], short_x_max,
+                spec_.q_peak_rel_thresh, spec_.q_row_h_range[0], spec_.q_row_h_range[1], row_top, row_h,
+                spec_.peak_radius, true);
+            if (s_found) {
+                row_top = s_top;
+                row_h = s_h;
+            }
+        }
         auto best_chain = snap_row_grid(v_lines, row_top, row_h, spec_.q_v_x_range[0], spec_.q_v_x_range[1],
                                         spec_.q_v_inset_y, spec_.q_peak_rel_thresh, spec_.q_pitch_range[0],
                                         spec_.q_pitch_range[1], spec_.q_chain_tol, spec_.peak_radius,

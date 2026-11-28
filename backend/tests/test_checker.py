@@ -192,3 +192,61 @@ class TestVerificationAndCheckingMechanism:
         assert result.max_score == 4.0
         assert result.score_percentage == 75.0
         assert result.final_grade == 4
+
+    def test_verify_question_cells_rejects_overflow_zero_and_extra_chars(self):
+        with pytest.raises(ValueError, match="exceeds cell_count"):
+            verify_question_cells(1, 11, "general", "СӘЛАМӘТЛЕК", 8, [])
+
+        with pytest.raises(ValueError, match="cell_count must be >= 1"):
+            verify_question_cells(1, 11, "general", "А", 0, [])
+
+        res_extra = verify_question_cells(
+            1,
+            11,
+            "general",
+            "АК",
+            4,
+            [
+                {"cell_index": 0, "predicted_char": "А", "confidence": None},
+                {"cell_index": 1, "predicted_char": "К"},
+                {"cell_index": 5, "predicted_char": "Х"},
+            ],
+        )
+        assert res_extra.is_correct is False
+        assert res_extra.cells[0].confidence == 1.0
+
+    def test_expected_homoglyph_nfc_and_rounded_grade_threshold(self):
+        # Expected answer with Latin homoglyph 'A' matches Cyrillic 'А', and NFD 'Й' normalizes to NFC
+        res = verify_question_cells(
+            1,
+            11,
+            "general",
+            "A\u0418\u0306",  # Latin A + NFD Й
+            4,
+            [
+                {"cell_index": 0, "predicted_char": "А"},
+                {"cell_index": 1, "predicted_char": "Й"},
+            ],
+        )
+        assert res.is_correct is True
+
+        with pytest.raises(ValueError, match="questions cannot be empty"):
+            verify_test_submission([], [])
+
+        # 17 / 20 = 85.0% -> Grade 5; test boundary where round(pct, 1) == 85.0
+        questions = [
+            {"question_number": i, "expected_answer": "АК", "cell_count": 2}
+            for i in range(1, 2001)
+        ]
+        # 1699 / 2000 = 84.95% -> rounds to 85.0 -> grade 5
+        subs = [
+            {"question_number": i, "cells": [{"cell_index": 0, "predicted_char": "А"}, {"cell_index": 1, "predicted_char": "К" if i <= 1699 else "Г"}]}
+            for i in range(1, 2001)
+        ]
+        result = verify_test_submission(
+            questions,
+            subs,
+            GradingScale(grade_5_min_pct=85, grade_4_min_pct=70, grade_3_min_pct=50),
+        )
+        assert result.score_percentage == 85.0
+        assert result.final_grade == 5

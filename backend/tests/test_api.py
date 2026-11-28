@@ -292,7 +292,7 @@ class TestConstructorAndAssignmentsAPI:
         res_bad = await client.post("/api/v1/constructor/tasks", json=bad_payload)
         assert res_bad.status_code == 422
 
-        # 2. Numeric answer (e.g. for find_error_sentence) is allowed
+        # 2. Numeric answer (not in 39-letter Tatar OCR alphabet) must return 422
         num_payload = {
             "prompt_tt": "Кайсы җөмләдә грамматик хата бар? (1-4 языгыз)",
             "expected_answer": "2",
@@ -303,6 +303,20 @@ class TestConstructorAndAssignmentsAPI:
             "task_type": "find_error_sentence",
         }
         res_num = await client.post("/api/v1/constructor/tasks", json=num_payload)
-        assert res_num.status_code == 201
-        assert res_num.json()["expected_answer"] == "2"
+        assert res_num.status_code == 422
+
+        # 3. Single Cyrillic letter answer (А-Г) for 1-cell task is allowed
+        cyr_payload = {
+            "prompt_tt": "Кайсы җөмләдә грамматик хата бар? (А-Г языгыз)",
+            "expected_answer": "Б",
+            "cell_count": 1,
+            "grade_level": 7,
+            "topic_tag": "find_error",
+            "topic_name_tt": "Хатаны тап",
+            "task_type": "find_error_sentence",
+        }
+        res_cyr = await client.post("/api/v1/constructor/tasks", json=cyr_payload)
+        assert res_cyr.status_code == 201
+        assert res_cyr.json()["expected_answer"] == "Б"
+        assert res_cyr.json()["task_type"] == "find_error_sentence"
 

@@ -1,10 +1,13 @@
-from typing import Optional
+import re
 import uuid
+from datetime import datetime
+from typing import Optional
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 
 from app.core.database import get_db
+from app.core.teacher_scope import assert_class_access, normalize_teacher_uuid
 from app.models.school import ClassModel, StudentModel, ClassAssignmentModel
 from app.models.test import AssembledTestModel
 from app.models.submission import SubmissionModel
@@ -37,9 +40,10 @@ async def list_classes(
         ClassModel.class_id == StudentModel.class_id,
     ).group_by(ClassModel.class_id)
 
-    if x_teacher_uuid:
-        # Filter if teacher_uuid is set, or return all classes if teacher_uuid is None on class
-        stmt = stmt.where((ClassModel.teacher_uuid == x_teacher_uuid) | (ClassModel.teacher_uuid.is_(None)))
+    teacher_uuid = normalize_teacher_uuid(x_teacher_uuid)
+    if teacher_uuid:
+        # Filter if teacher_uuid is set, or return legacy shared classes where teacher_uuid is None
+        stmt = stmt.where((ClassModel.teacher_uuid == teacher_uuid) | (ClassModel.teacher_uuid.is_(None)))
 
     res = await db.execute(stmt)
     rows = res.all()
@@ -74,6 +78,8 @@ async def get_class_students(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Class '{class_id}' not found.",
         )
+    teacher_uuid = normalize_teacher_uuid(x_teacher_uuid)
+    assert_class_access(cls_obj, teacher_uuid)
 
     stmt_stu = select(StudentModel).where(StudentModel.class_id == class_id).order_by(StudentModel.last_name, StudentModel.first_name)
     res_stu = await db.execute(stmt_stu)
@@ -108,6 +114,11 @@ async def bulk_import_students(
     x_teacher_uuid: Optional[str] = Header(None, alias="X-Teacher-UUID"),
     db: AsyncSession = Depends(get_db),
 ):
+    teacher_uuid = normalize_teacher_uuid(x_teacher_uuid)
+    lines = [line.strip() for line in payload.raw_text.splitlines() if line.strip()]
+    if not lines:
+        return BulkImportStudentsResponse(added_count=0, students=[])
+
     stmt_cls = select(ClassModel).where(ClassModel.class_id == class_id)
     res_cls = await db.execute(stmt_cls)
     cls_obj = res_cls.scalar_one_or_none()
@@ -117,16 +128,18 @@ async def bulk_import_students(
         cls_obj = ClassModel(
             class_id=class_id,
             name=class_id,
-            teacher_uuid=x_teacher_uuid,
+            teacher_uuid=teacher_uuid,
             subject="tatar_language",
             academic_year="2026-2027",
         )
         db.add(cls_obj)
-        await db.commit()
+    else:
+        assert_class_access(cls_obj, teacher_uuid)
 
-    lines = [line.strip() for line in payload.raw_text.splitlines() if line.strip()]
-    if not lines:
-        return BulkImportStudentsResponse(added_count=0, students=[])
+    existing_students = (
+        await db.execute(select(StudentModel.full_name).where(StudentModel.class_id == class_id))
+    ).scalars().all()
+    seen_names = {name.strip().casefold() for name in existing_students if name}
 
     imported_items = []
     for line in lines:
@@ -135,11 +148,16 @@ async def bulk_import_students(
             continue
         last_name = parts[0]
         first_name = parts[1] if len(parts) > 1 else ""
-        middle_name = parts[2] if len(parts) > 2 else ""
+        middle_name = " ".join(parts[2:]) if len(parts) > 2 else ""
         full_name = " ".join(parts)
+        norm_key = full_name.casefold()
+        if norm_key in seen_names:
+            continue
+        seen_names.add(norm_key)
+
         short_name = f"{last_name} {first_name[0]}." if first_name else last_name
 
-        student_id = f"stu_{uuid.uuid4().hex[:6]}"
+        student_id = f"stu_{uuid.uuid4().hex[:8]}"
         student_obj = StudentModel(
             student_id=student_id,
             class_id=class_id,
@@ -169,6 +187,7 @@ async def bulk_import_students(
 async def assign_test_to_class(
     class_id: str,
     payload: AssignTestToClassRequest,
+    x_teacher_uuid: Optional[str] = Header(None, alias="X-Teacher-UUID"),
     db: AsyncSession = Depends(get_db),
 ):
     stmt_cls = select(ClassModel).where(ClassModel.class_id == class_id)
@@ -176,6 +195,7 @@ async def assign_test_to_class(
     cls_obj = res_cls.scalar_one_or_none()
     if not cls_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Class '{class_id}' not found.")
+    assert_class_access(cls_obj, normalize_teacher_uuid(x_teacher_uuid))
 
     stmt_test = select(AssembledTestModel).where(AssembledTestModel.test_id == payload.assignment_id)
     res_test = await db.execute(stmt_test)
@@ -190,13 +210,15 @@ async def assign_test_to_class(
     res_ca = await db.execute(stmt_ca)
     ca_obj = res_ca.scalar_one_or_none()
 
-    from datetime import datetime
     due_dt = None
     if payload.due_date:
         try:
             due_dt = datetime.fromisoformat(payload.due_date.replace("Z", "+00:00"))
-        except Exception:
-            pass
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=f"Invalid ISO due_date: '{payload.due_date}'",
+            ) from exc
 
     if not ca_obj:
         ca_obj = ClassAssignmentModel(
@@ -204,11 +226,11 @@ async def assign_test_to_class(
             class_id=class_id,
             assignment_id=payload.assignment_id,
             due_date=due_dt,
-            status=payload.status or "active",
+            status=payload.status,
         )
         db.add(ca_obj)
     else:
-        if due_dt:
+        if due_dt is not None:
             ca_obj.due_date = due_dt
         if payload.status:
             ca_obj.status = payload.status
@@ -216,9 +238,21 @@ async def assign_test_to_class(
     await db.commit()
     await db.refresh(ca_obj)
 
-    # Count students
     stu_stmt = select(func.count(StudentModel.student_id)).where(StudentModel.class_id == class_id)
     stu_cnt = (await db.execute(stu_stmt)).scalar() or 0
+
+    subs = (
+        await db.execute(
+            select(SubmissionModel).where(
+                (SubmissionModel.class_id == class_id)
+                & (SubmissionModel.assignment_id == payload.assignment_id)
+            )
+        )
+    ).scalars().all()
+    checked_cnt = len(subs)
+    pending_cnt = max(0, stu_cnt - checked_cnt)
+    valid_pcts = [s.overall_score / s.max_score * 100.0 for s in subs if s.max_score > 0]
+    avg_pct = round(sum(valid_pcts) / len(valid_pcts), 1) if valid_pcts else 0.0
 
     return ClassAssignmentItem(
         id=ca_obj.id,
@@ -230,9 +264,9 @@ async def assign_test_to_class(
         due_date=ca_obj.due_date.isoformat() if ca_obj.due_date else None,
         status=ca_obj.status,
         total_students=stu_cnt,
-        checked_submissions_count=0,
-        pending_submissions_count=stu_cnt,
-        average_score_pct=0.0,
+        checked_submissions_count=checked_cnt,
+        pending_submissions_count=pending_cnt,
+        average_score_pct=avg_pct,
     )
 
 
@@ -243,6 +277,7 @@ async def assign_test_to_class(
 )
 async def list_class_assignments(
     class_id: str,
+    x_teacher_uuid: Optional[str] = Header(None, alias="X-Teacher-UUID"),
     db: AsyncSession = Depends(get_db),
 ):
     stmt_cls = select(ClassModel).where(ClassModel.class_id == class_id)
@@ -250,6 +285,7 @@ async def list_class_assignments(
     cls_obj = res_cls.scalar_one_or_none()
     if not cls_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Class '{class_id}' not found.")
+    assert_class_access(cls_obj, normalize_teacher_uuid(x_teacher_uuid))
 
     stu_stmt = select(func.count(StudentModel.student_id)).where(StudentModel.class_id == class_id)
     total_students = (await db.execute(stu_stmt)).scalar() or 0
@@ -272,7 +308,8 @@ async def list_class_assignments(
         subs = (await db.execute(sub_stmt)).scalars().all()
         checked_cnt = len(subs)
         pending_cnt = max(0, total_students - checked_cnt)
-        avg_pct = round(sum(s.overall_score / s.max_score * 100.0 for s in subs if s.max_score > 0) / checked_cnt, 1) if checked_cnt > 0 else 0.0
+        valid_pcts = [s.overall_score / s.max_score * 100.0 for s in subs if s.max_score > 0]
+        avg_pct = round(sum(valid_pcts) / len(valid_pcts), 1) if valid_pcts else 0.0
 
         items.append(
             ClassAssignmentItem(
@@ -306,6 +343,7 @@ async def list_class_assignments(
 async def get_class_batch_blanks_pdf(
     class_id: str,
     assignment_id: str,
+    x_teacher_uuid: Optional[str] = Header(None, alias="X-Teacher-UUID"),
     db: AsyncSession = Depends(get_db),
 ):
     import io
@@ -317,6 +355,7 @@ async def get_class_batch_blanks_pdf(
     cls_obj = (await db.execute(stmt_cls)).scalar_one_or_none()
     if not cls_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Class '{class_id}' not found.")
+    assert_class_access(cls_obj, normalize_teacher_uuid(x_teacher_uuid))
 
     stmt_stu = select(StudentModel).where(StudentModel.class_id == class_id).order_by(StudentModel.last_name, StudentModel.first_name)
     students = (await db.execute(stmt_stu)).scalars().all()
@@ -328,7 +367,13 @@ async def get_class_batch_blanks_pdf(
     if not test_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Assignment '{assignment_id}' not found.")
 
-    bundle_dict = json.loads(test_obj.bundle_json)
+    try:
+        bundle_dict = json.loads(test_obj.bundle_json)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Corrupted test bundle JSON for '{assignment_id}'.",
+        ) from exc
     variants = bundle_dict.get("variants", [])
 
     pdf_bytes = await run_in_threadpool(
@@ -339,7 +384,9 @@ async def get_class_batch_blanks_pdf(
         students=[{"student_id": s.student_id, "full_name": s.full_name} for s in students],
     )
 
-    filename = f"batch_blanks_{class_id}_{assignment_id}.pdf"
+    safe_cls = re.sub(r"[^A-Za-z0-9._-]", "_", class_id)
+    safe_asm = re.sub(r"[^A-Za-z0-9._-]", "_", assignment_id)
+    filename = f"batch_blanks_{safe_cls}_{safe_asm}.pdf"
     return StreamingResponse(
         io.BytesIO(pdf_bytes),
         media_type="application/pdf",

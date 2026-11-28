@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 import random
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field
-from app.generators.phonetics import build_expected_cells
+from app.generators.phonetics import build_expected_cells, validate_ocr_answer
 
 class TaskDraft(BaseModel):
     task_type: str
@@ -16,6 +16,11 @@ class TaskDraft(BaseModel):
     expected_cells: List[Dict[str, Any]] = Field(default_factory=list)
 
     def model_post_init(self, __context: Any) -> None:
+        self.expected_answer = validate_ocr_answer(self.expected_answer)
+        if len(self.expected_answer) > self.cell_count or self.cell_count > 12:
+            raise ValueError(
+                f"Answer '{self.expected_answer}' ({len(self.expected_answer)} chars) is invalid for cell_count={self.cell_count}."
+            )
         if not self.expected_cells:
             self.expected_cells = build_expected_cells(self.expected_answer, self.cell_count)
 

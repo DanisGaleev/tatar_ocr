@@ -1,8 +1,10 @@
 import io
 import csv
-from typing import Optional
+import re
+from typing import Optional, Any, List
 from fastapi import APIRouter, Depends, Header, Query, HTTPException, status
 from fastapi.responses import StreamingResponse
+from starlette.concurrency import run_in_threadpool
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 import openpyxl
@@ -10,11 +12,122 @@ from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 
 from app.core.database import get_db
+from app.core.teacher_scope import assert_class_access, normalize_teacher_uuid
 from app.models.school import ClassModel
 from app.models.submission import SubmissionModel
 from app.models.test import AssembledTestModel
 
 router = APIRouter(prefix="/reports", tags=["Gradebook Exports"])
+
+_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _sanitize_spreadsheet_value(val: Any) -> Any:
+    if isinstance(val, str):
+        stripped = val.lstrip()
+        if val.startswith(_FORMULA_PREFIXES) or stripped.startswith(_FORMULA_PREFIXES):
+            return "'" + val
+    return val
+
+
+def _safe_sheet_title(raw: str) -> str:
+    cleaned = re.sub(r"[:\\/?*\[\]]", "_", raw).strip("'")
+    return (cleaned[:31] or "Журнал")
+
+
+def _safe_filename_part(raw: str) -> str:
+    return re.sub(r"[^A-Za-z0-9._-]", "_", raw)
+
+
+def _build_gradebook_xlsx(
+    class_name: str,
+    test_title: str,
+    assignment_id: str,
+    headers: List[str],
+    rows: List[List[Any]],
+    submissions_count: int,
+) -> bytes:
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = _safe_sheet_title(f"Журнал {class_name}")
+
+    safe_title = _sanitize_spreadsheet_value(test_title)
+    safe_class = _sanitize_spreadsheet_value(class_name)
+
+    title_font = Font(name="Calibri", size=14, bold=True, color="1B5E20")
+    ws.merge_cells("A1:F1")
+    ws["A1"] = _sanitize_spreadsheet_value(f"«Кара куян» — Ведомость оценок: {safe_title} ({safe_class})")
+    ws["A1"].font = title_font
+    ws["A1"].alignment = Alignment(vertical="center")
+    ws.row_dimensions[1].height = 28
+
+    ws["A2"] = _sanitize_spreadsheet_value(
+        f"Сыйныф: {safe_class} | Эш коды: {assignment_id} | Барлыгы укучылар: {submissions_count}"
+    )
+    ws["A2"].font = Font(name="Calibri", size=10, italic=True, color="555555")
+
+    header_fill = PatternFill(start_color="2E7D32", end_color="2E7D32", fill_type="solid")
+    header_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
+    thin_border = Border(
+        left=Side(style="thin", color="CCCCCC"),
+        right=Side(style="thin", color="CCCCCC"),
+        top=Side(style="thin", color="CCCCCC"),
+        bottom=Side(style="thin", color="CCCCCC"),
+    )
+
+    header_row_idx = 4
+    ws.row_dimensions[header_row_idx].height = 24
+    for col_idx, h_text in enumerate(headers, start=1):
+        cell = ws.cell(row=header_row_idx, column=col_idx, value=h_text)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.border = thin_border
+
+    zebra_fill = PatternFill(start_color="F9FBF9", end_color="F9FBF9", fill_type="solid")
+    grade_5_fill = PatternFill(start_color="E8F5E9", end_color="E8F5E9", fill_type="solid")
+    grade_2_fill = PatternFill(start_color="FFEBEE", end_color="FFEBEE", fill_type="solid")
+
+    for r_idx, row_data in enumerate(rows, start=header_row_idx + 1):
+        ws.row_dimensions[r_idx].height = 20
+        is_even = (r_idx % 2 == 0)
+        grade_val = row_data[4]
+
+        for c_idx, val in enumerate(row_data, start=1):
+            cell = ws.cell(row=r_idx, column=c_idx, value=_sanitize_spreadsheet_value(val))
+            cell.border = thin_border
+            cell.font = Font(name="Calibri", size=11)
+
+            if c_idx in (2, 3, 4, 5, 6):
+                cell.alignment = Alignment(horizontal="center", vertical="center")
+            else:
+                cell.alignment = Alignment(horizontal="left", vertical="center")
+
+            if c_idx == 5:
+                if grade_val == 5:
+                    cell.fill = grade_5_fill
+                    cell.font = Font(name="Calibri", size=11, bold=True, color="1B5E20")
+                elif grade_val == 2:
+                    cell.fill = grade_2_fill
+                    cell.font = Font(name="Calibri", size=11, bold=True, color="B71C1C")
+                else:
+                    cell.fill = zebra_fill if is_even else PatternFill(fill_type=None)
+            elif is_even:
+                cell.fill = zebra_fill
+
+    for col in ws.columns:
+        max_len = 0
+        col_letter = get_column_letter(col[0].column)
+        for cell in col:
+            val_str = str(cell.value or "")
+            if len(val_str) > max_len and cell.row > 2:
+                max_len = len(val_str)
+        ws.column_dimensions[col_letter].width = max(max_len + 4, 12)
+
+    excel_stream = io.BytesIO()
+    wb.save(excel_stream)
+    return excel_stream.getvalue()
+
 
 @router.get(
     "/assignments/{assignment_id}/gradebook.xlsx",
@@ -31,12 +144,23 @@ async def export_gradebook(
     stmt_test = select(AssembledTestModel).where(AssembledTestModel.test_id == assignment_id)
     res_test = await db.execute(stmt_test)
     test_obj = res_test.scalar_one_or_none()
-    test_title = test_obj.title if test_obj else assignment_id
+    if not test_obj:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Assignment '{assignment_id}' not found.",
+        )
+    test_title = test_obj.title
 
     stmt_cls = select(ClassModel).where(ClassModel.class_id == class_id)
     res_cls = await db.execute(stmt_cls)
     cls_obj = res_cls.scalar_one_or_none()
-    class_name = cls_obj.name if cls_obj else class_id
+    if not cls_obj:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Class '{class_id}' not found.",
+        )
+    assert_class_access(cls_obj, normalize_teacher_uuid(x_teacher_uuid))
+    class_name = cls_obj.name
 
     stmt_sub = (
         select(SubmissionModel)
@@ -67,112 +191,43 @@ async def export_gradebook(
             date_str,
         ])
 
+    safe_cls_id = _safe_filename_part(class_id)
+    safe_asm_id = _safe_filename_part(assignment_id)
+
     if format == "csv":
         output = io.StringIO()
-        # UTF-8 BOM for Excel compatibility with Tatar Cyrillic
         output.write("\ufeff")
         writer = csv.writer(output, delimiter=";")
-        writer.writerow([f"Контрольная работа: {test_title} | Класс: {class_name}"])
+        writer.writerow([
+            _sanitize_spreadsheet_value(f"Контрольная работа: {test_title} | Класс: {class_name}")
+        ])
         writer.writerow([])
         writer.writerow(headers)
         for r in rows:
-            writer.writerow(r)
+            writer.writerow([_sanitize_spreadsheet_value(val) for val in r])
 
         output.seek(0)
         csv_bytes = output.getvalue().encode("utf-8")
-        filename = f"gradebook_{class_id}_{assignment_id}.csv"
+        filename = f"gradebook_{safe_cls_id}_{safe_asm_id}.csv"
         return StreamingResponse(
             io.BytesIO(csv_bytes),
             media_type="text/csv",
             headers={"Content-Disposition": f'attachment; filename="{filename}"'},
         )
 
-    # Excel (.xlsx) output
-    wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = f"Журнал {class_name}"
-
-    # Document Header Title
-    title_font = Font(name="Calibri", size=14, bold=True, color="1B5E20")
-    ws.merge_cells("A1:F1")
-    ws["A1"] = f"«Кара куян» — Ведомость оценок: {test_title} ({class_name})"
-    ws["A1"].font = title_font
-    ws["A1"].alignment = Alignment(vertical="center")
-    ws.row_dimensions[1].height = 28
-
-    ws["A2"] = f"Сыйныф: {class_name} | Эш коды: {assignment_id} | Барлыгы укучылар: {len(submissions)}"
-    ws["A2"].font = Font(name="Calibri", size=10, italic=True, color="555555")
-
-    # Table Header Row
-    header_fill = PatternFill(start_color="2E7D32", end_color="2E7D32", fill_type="solid")
-    header_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
-    thin_border = Border(
-        left=Side(style="thin", color="CCCCCC"),
-        right=Side(style="thin", color="CCCCCC"),
-        top=Side(style="thin", color="CCCCCC"),
-        bottom=Side(style="thin", color="CCCCCC"),
+    xlsx_bytes = await run_in_threadpool(
+        _build_gradebook_xlsx,
+        class_name=class_name,
+        test_title=test_title,
+        assignment_id=assignment_id,
+        headers=headers,
+        rows=rows,
+        submissions_count=len(submissions),
     )
 
-    header_row_idx = 4
-    ws.row_dimensions[header_row_idx].height = 24
-    for col_idx, h_text in enumerate(headers, start=1):
-        cell = ws.cell(row=header_row_idx, column=col_idx, value=h_text)
-        cell.fill = header_fill
-        cell.font = header_font
-        cell.alignment = Alignment(horizontal="center", vertical="center")
-        cell.border = thin_border
-
-    # Data Rows
-    zebra_fill = PatternFill(start_color="F9FBF9", end_color="F9FBF9", fill_type="solid")
-    grade_5_fill = PatternFill(start_color="E8F5E9", end_color="E8F5E9", fill_type="solid")
-    grade_2_fill = PatternFill(start_color="FFEBEE", end_color="FFEBEE", fill_type="solid")
-
-    for r_idx, row_data in enumerate(rows, start=header_row_idx + 1):
-        ws.row_dimensions[r_idx].height = 20
-        is_even = (r_idx % 2 == 0)
-        grade_val = row_data[4]
-
-        for c_idx, val in enumerate(row_data, start=1):
-            cell = ws.cell(row=r_idx, column=c_idx, value=val)
-            cell.border = thin_border
-            cell.font = Font(name="Calibri", size=11)
-
-            # Center alignment for numbers and date
-            if c_idx in (2, 3, 4, 5, 6):
-                cell.alignment = Alignment(horizontal="center", vertical="center")
-            else:
-                cell.alignment = Alignment(horizontal="left", vertical="center")
-
-            # Highlighting
-            if c_idx == 5:
-                if grade_val == 5:
-                    cell.fill = grade_5_fill
-                    cell.font = Font(name="Calibri", size=11, bold=True, color="1B5E20")
-                elif grade_val == 2:
-                    cell.fill = grade_2_fill
-                    cell.font = Font(name="Calibri", size=11, bold=True, color="B71C1C")
-                else:
-                    cell.fill = zebra_fill if is_even else PatternFill(fill_type=None)
-            elif is_even:
-                cell.fill = zebra_fill
-
-    # Auto-adjust column widths
-    for col in ws.columns:
-        max_len = 0
-        col_letter = get_column_letter(col[0].column)
-        for cell in col:
-            val_str = str(cell.value or "")
-            if len(val_str) > max_len and cell.row > 2:
-                max_len = len(val_str)
-        ws.column_dimensions[col_letter].width = max(max_len + 4, 12)
-
-    excel_stream = io.BytesIO()
-    wb.save(excel_stream)
-    excel_stream.seek(0)
-
-    filename = f"gradebook_{class_id}_{assignment_id}.xlsx"
+    filename = f"gradebook_{safe_cls_id}_{safe_asm_id}.xlsx"
     return StreamingResponse(
-        excel_stream,
+        io.BytesIO(xlsx_bytes),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

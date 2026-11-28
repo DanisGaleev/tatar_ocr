@@ -1,4 +1,9 @@
+import inspect
 import json
+import logging
+import random
+import re
+import unicodedata
 import uuid
 from typing import List, Optional
 import base64
@@ -27,9 +32,12 @@ from app.schemas.test import (
     OfflineBundleResponse,
 )
 from app.generators.registry import registry
-from app.generators.phonetics import clean_word, build_expected_cells, PhoneticsError
+from app.generators.phonetics import validate_ocr_answer, build_expected_cells, PhoneticsError
 from app.generators.checker import verify_question_cells
 from app.services.task_extractor import get_task_extractor_service
+from app.services.task_extractor.service import MAX_IMAGE_SIZE_BYTES
+
+logger = logging.getLogger("tatar_ocr.constructor")
 
 
 router = APIRouter(prefix="/constructor", tags=["Assignment Constructor"])
@@ -43,7 +51,7 @@ async def search_task_bank(
     query: Optional[str] = Query(None, description="Search term in prompt or answer"),
     topic_tag: Optional[str] = Query(None),
     grade_level: Optional[int] = Query(None, ge=5, le=9),
-    max_cells: Optional[int] = Query(None, le=12),
+    max_cells: Optional[int] = Query(None, ge=1, le=12),
     scope: Optional[str] = Query("all", pattern="^(all|my_tasks)$"),
     db: AsyncSession = Depends(get_db),
 ):
@@ -74,19 +82,16 @@ async def create_custom_task(
     db: AsyncSession = Depends(get_db),
 ):
     raw_ans = payload.expected_answer.strip()
-    if raw_ans.isdigit():
-        clean_ans = raw_ans
-    else:
-        try:
-            clean_ans = clean_word(raw_ans).upper()
-        except PhoneticsError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=str(exc),
-            )
+    try:
+        clean_ans = validate_ocr_answer(raw_ans)
+    except PhoneticsError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=str(exc),
+        )
     if len(clean_ans) > payload.cell_count:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"Expected answer '{clean_ans}' ({len(clean_ans)} chars) exceeds specified cell count ({payload.cell_count}).",
         )
         
@@ -116,6 +121,18 @@ async def generate_tasks(
     except ValueError as err:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(err))
 
+    gen_params = inspect.signature(gen.generate).parameters
+    if payload.case_code is not None and "case_code" not in gen_params:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"Parameter 'case_code' is not supported for task_type '{payload.task_type}'.",
+        )
+    if payload.custom_stems is not None and "stems" not in gen_params:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"Parameter 'custom_stems' is not supported for task_type '{payload.task_type}'.",
+        )
+
     try:
         drafts = gen.generate_batch(
             count=payload.count,
@@ -125,7 +142,7 @@ async def generate_tasks(
             case_code=payload.case_code,
         )
     except Exception as err:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"Generation error: {err}")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=f"Generation error: {err}")
 
     tasks_out: List[TaskBankItem] = []
     for draft in drafts:
@@ -138,6 +155,7 @@ async def generate_tasks(
             grade_level=draft.grade_level,
             topic_tag=draft.topic_tag,
             topic_name_tt=draft.topic_name_tt,
+            task_type=draft.task_type,
             is_public_in_bank=payload.save_to_bank,
         )
         tasks_out.append(task_item)
@@ -176,7 +194,7 @@ async def assemble_modular_test(
     if payload.task_items:
         if len(payload.task_items) > settings.MAX_QUESTIONS_PER_PAGE:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=f"Selected {len(payload.task_items)} questions exceeds maximum A4 physical blank limit ({settings.MAX_QUESTIONS_PER_PAGE}).",
             )
             
@@ -192,13 +210,23 @@ async def assemble_modular_test(
                 detail=f"Tasks not found in bank: {missing_ids}",
             )
             
-        # Build variants from selected tasks
+        # Build variants from selected tasks sorted by explicit order
+        ordered_items = sorted(payload.task_items, key=lambda t: t.order)
         variants_data = []
         for v_idx in range(1, payload.generate_variants_count + 1):
-            q_list = list(payload.task_items)
-            if payload.shuffle_questions_in_variants and v_idx > 1:
-                # Deterministic rotation for variants
-                q_list = q_list[1:] + q_list[:1]
+            q_list = list(ordered_items)
+            if payload.shuffle_questions_in_variants and v_idx > 1 and len(q_list) > 1:
+                if payload.seed is not None:
+                    rng = random.Random(payload.seed + v_idx * 1337)
+                    rng.shuffle(q_list)
+                    if q_list == ordered_items:
+                        shift = (v_idx - 1) % len(q_list) or 1
+                        q_list = ordered_items[shift:] + ordered_items[:shift]
+                else:
+                    shift = (v_idx - 1) % len(q_list)
+                    if shift == 0:
+                        shift = 1
+                    q_list = q_list[shift:] + q_list[:shift]
                 
             questions = []
             for order_idx, ref in enumerate(q_list, start=1):
@@ -278,15 +306,16 @@ async def get_ready_tests(db: AsyncSession = Depends(get_db)):
     
     result = []
     for rec in records:
-        q_count = 8
+        q_count = 0
         if rec.bundle_json:
             try:
                 b = json.loads(rec.bundle_json)
                 variants = b.get("variants", [])
                 if variants and "questions" in variants[0]:
                     q_count = len(variants[0]["questions"])
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Corrupted bundle_json for ready test '%s': %s", rec.test_id, exc)
+                q_count = 0
         result.append(
             ReadyTestItem(
                 test_id=rec.test_id,
@@ -299,19 +328,26 @@ async def get_ready_tests(db: AsyncSession = Depends(get_db)):
 
 @router.post("/verify-answer", response_model=VerifyAnswerResponse, summary="Verify student answer against expected answer")
 async def verify_student_answer(payload: VerifyAnswerRequest):
-    st_clean = payload.student_answer.strip().upper()
+    st_clean = unicodedata.normalize("NFC", payload.student_answer).strip().upper()
+    total_student_slots = max(payload.cell_count, len(st_clean))
     student_cells = [
         {"cell_index": i, "predicted_char": st_clean[i] if i < len(st_clean) else " "}
-        for i in range(payload.cell_count)
+        for i in range(total_student_slots)
     ]
-    res = verify_question_cells(
-        question_number=1,
-        marker_id=11,
-        topic_tag=payload.topic_tag,
-        expected_answer=payload.expected_answer,
-        cell_count=payload.cell_count,
-        student_cells=student_cells,
-    )
+    try:
+        res = verify_question_cells(
+            question_number=1,
+            marker_id=11,
+            topic_tag=payload.topic_tag,
+            expected_answer=payload.expected_answer,
+            cell_count=payload.cell_count,
+            student_cells=student_cells,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=str(exc),
+        )
     return VerifyAnswerResponse(
         is_correct=res.is_correct,
         points_earned=res.points_earned,
@@ -348,14 +384,22 @@ async def scan_task_from_image(
             detail=f"Invalid file content type '{file.content_type}'. Must be an image (JPEG, PNG, WEBP).",
         )
 
-    image_bytes = await file.read()
+    image_bytes = await file.read(MAX_IMAGE_SIZE_BYTES + 1)
     if not image_bytes:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Uploaded file is empty.",
         )
+    if len(image_bytes) > MAX_IMAGE_SIZE_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Image size exceeds {MAX_IMAGE_SIZE_BYTES // (1024 * 1024)} MB limit.",
+        )
 
-    service = get_task_extractor_service()
+    try:
+        service = get_task_extractor_service()
+    except ValueError as err:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(err))
     try:
         result = await service.extract_from_image(
             image_bytes=image_bytes,
@@ -382,15 +426,33 @@ async def scan_task_from_base64(
     """
     Base64 variant for mobile apps or JSON-only clients.
     """
+    if not payload.mime_type or not payload.mime_type.startswith("image/"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid mime_type '{payload.mime_type}'. Must be an image (JPEG, PNG, WEBP).",
+        )
+
+    b64_data = payload.image_base64.strip()
+    if b64_data.startswith("data:") and ";base64," in b64_data:
+        b64_data = b64_data.split(";base64,", 1)[1]
+
     try:
-        image_bytes = base64.b64decode(payload.image_base64)
+        image_bytes = base64.b64decode(b64_data, validate=True)
     except Exception as err:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid base64 payload: {err}",
         )
+    if len(image_bytes) > MAX_IMAGE_SIZE_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Image size exceeds {MAX_IMAGE_SIZE_BYTES // (1024 * 1024)} MB limit.",
+        )
 
-    service = get_task_extractor_service()
+    try:
+        service = get_task_extractor_service()
+    except ValueError as err:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(err))
     try:
         result = await service.extract_from_image(
             image_bytes=image_bytes,

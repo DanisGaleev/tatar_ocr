@@ -44,8 +44,8 @@ class NounProfessionGenerator(BaseTaskGenerator):
         cell_count = max(8, len(expected_answer))
         return TaskDraft(
             task_type=self.task_type,
-            topic_tag="noun_profession",
-            topic_name_tt="Һөнәр сүзләре",
+            topic_tag=self.default_topic_tag,
+            topic_name_tt=self.topic_name_tt,
             prompt_tt=prompt,
             expected_answer=expected_answer,
             cell_count=cell_count,
@@ -60,8 +60,8 @@ class NounProfessionGenerator(BaseTaskGenerator):
         cell_count = max(8, len(expected_answer))
         return TaskDraft(
             task_type=self.task_type,
-            topic_tag="noun_profession",
-            topic_name_tt="Һөнәр сүзләре",
+            topic_tag=self.default_topic_tag,
+            topic_name_tt=self.topic_name_tt,
             prompt_tt=prompt,
             expected_answer=expected_answer,
             cell_count=cell_count,
@@ -100,8 +100,8 @@ class AbstractNounGenerator(BaseTaskGenerator):
         cell_count = max(8, len(expected_answer))
         return TaskDraft(
             task_type=self.task_type,
-            topic_tag="abstract_noun",
-            topic_name_tt="Абстракт исемнәр",
+            topic_tag=self.default_topic_tag,
+            topic_name_tt=self.topic_name_tt,
             prompt_tt=prompt,
             expected_answer=expected_answer,
             cell_count=cell_count,
@@ -116,8 +116,8 @@ class AbstractNounGenerator(BaseTaskGenerator):
         cell_count = max(8, len(expected_answer))
         return TaskDraft(
             task_type=self.task_type,
-            topic_tag="abstract_noun",
-            topic_name_tt="Абстракт исемнәр",
+            topic_tag=self.default_topic_tag,
+            topic_name_tt=self.topic_name_tt,
             prompt_tt=prompt,
             expected_answer=expected_answer,
             cell_count=cell_count,

@@ -1,1117 +1,97 @@
-openapi: 3.0.3
+openapi: 3.1.0
 info:
   title: «Кара куян» (Tatar OCR) — API Contract Specification
-  version: 1.0.0
-  description: |
-    This document provides the definitive API contracts and architectural design for **«Кара куян»**, built around two foundational principles:
-    1. **Zero-Photo Transmission**: Camera images never leave the teacher's phone. All ArUco perspective rectifications, cell cropping, and TFLite neural network character recognitions happen 100% locally on the device in memory.
-    2. **Backend Analytical Processing**: The phone uploads only lightweight structured verification results (1–2 KB JSON per sheet). The backend performs all heavy historical data aggregation, student learning curve analysis, class heatmaps, error categorizations, and gradebook exports.
-servers:
-  - url: /
-    description: Base Server URL
-
-components:
-  securitySchemes:
-    TeacherUUID:
-      type: apiKey
-      in: header
-      name: X-Teacher-UUID
-      description: Teacher UUID v4 generated upon first install
-
-  parameters:
-    HeaderTeacherUUIDRequired:
-      name: X-Teacher-UUID
-      in: header
-      required: true
-      description: Teacher UUID v4 generated upon first install
-      schema:
-        type: string
-        format: uuid
-        example: "c56a4180-65aa-42ec-a945-5fd21dec0538"
-    HeaderTeacherUUID:
-      name: X-Teacher-UUID
-      in: header
-      required: false
-      description: Teacher UUID v4
-      schema:
-        type: string
-        format: uuid
-        example: "c56a4180-65aa-42ec-a945-5fd21dec0538"
-
-  schemas:
-    GradingScale:
-      type: object
-      properties:
-        grade_5_min_pct:
-          type: integer
-          example: 85
-        grade_4_min_pct:
-          type: integer
-          example: 70
-        grade_3_min_pct:
-          type: integer
-          example: 50
-
-    DeviceHandshakeRequest:
-      type: object
-      required:
-        - device_os
-        - app_version
-        - teacher_name
-        - school_name
-        - grading_scale
-      properties:
-        device_os:
-          type: string
-          example: "android"
-        app_version:
-          type: string
-          example: "1.0.4"
-        teacher_name:
-          type: string
-          example: "Каримова Гөлнара Илдар кызы"
-        school_name:
-          type: string
-          example: "Гимназия №2 им. Ш. Марджани"
-        grading_scale:
-          $ref: '#/components/schemas/GradingScale'
-
-    TeacherPreferences:
-      type: object
-      properties:
-        grading_scale:
-          $ref: '#/components/schemas/GradingScale'
-        confidence_flag_threshold:
-          type: number
-          format: float
-          example: 0.65
-
-    DeviceHandshakeResponse:
-      type: object
-      properties:
-        status:
-          type: string
-          example: "active"
-        teacher_uuid:
-          type: string
-          format: uuid
-          example: "c56a4180-65aa-42ec-a945-5fd21dec0538"
-        teacher_name:
-          type: string
-          example: "Каримова Гөлнара Илдар кызы"
-        preferences:
-          $ref: '#/components/schemas/TeacherPreferences'
-
-    ClassItem:
-      type: object
-      properties:
-        class_id:
-          type: string
-          example: "cls_7a_2026"
-        name:
-          type: string
-          example: "7-А"
-        subject:
-          type: string
-          example: "tatar_language"
-        academic_year:
-          type: string
-          example: "2026-2027"
-        student_count:
-          type: integer
-          example: 25
-
-    ClassesListResponse:
-      type: object
-      properties:
-        classes:
-          type: array
-          items:
-            $ref: '#/components/schemas/ClassItem'
-
-    StudentRosterItem:
-      type: object
-      properties:
-        student_id:
-          type: string
-          example: "stu_01"
-        last_name:
-          type: string
-          example: "Галиев"
-        first_name:
-          type: string
-          example: "Амир"
-        middle_name:
-          type: string
-          example: "Рустемович"
-        full_name:
-          type: string
-          example: "Галиев Амир Рустемович"
-        short_name:
-          type: string
-          example: "Галиев А."
-
-    ClassStudentsResponse:
-      type: object
-      properties:
-        class_id:
-          type: string
-          example: "cls_7a_2026"
-        class_name:
-          type: string
-          example: "7-А"
-        students:
-          type: array
-          items:
-            $ref: '#/components/schemas/StudentRosterItem'
-
-    BulkImportStudentsRequest:
-      type: object
-      required:
-        - raw_text
-      properties:
-        raw_text:
-          type: string
-          example: "Галиев Амир Рустемович\nЗакирова Ләйсән Ильдаровна\nХабибуллин Тимур Маратович"
-
-    ImportedStudentItem:
-      type: object
-      properties:
-        student_id:
-          type: string
-          example: "stu_01"
-        full_name:
-          type: string
-          example: "Галиев Амир Рустемович"
-
-    BulkImportStudentsResponse:
-      type: object
-      properties:
-        added_count:
-          type: integer
-          example: 3
-        students:
-          type: array
-          items:
-            $ref: '#/components/schemas/ImportedStudentItem'
-
-    AssignmentMetadataResponse:
-      type: object
-      description: Metadata, title, grade level, topic tags, points.
-      properties:
-        assignment_id:
-          type: string
-          example: "TAT-2026-Q1"
-        title:
-          type: string
-          example: "Татар теле. 7 сыйныф. Исем килешләре"
-        grade_level:
-          type: integer
-          example: 7
-        topic_tags:
-          type: array
-          items:
-            type: string
-          example: ["case_dative", "case_ablative"]
-        points:
-          type: number
-          example: 8.0
-
-    TemplateCellDimensions:
-      type: object
-      properties:
-        width:
-          type: number
-          example: 10.0
-        height:
-          type: number
-          example: 10.0
-
-    TemplateGeometry:
-      type: object
-      properties:
-        format:
-          type: string
-          example: "A4"
-        corner_aruco_dict:
-          type: string
-          example: "DICT_4X4_50"
-        corner_aruco_ids:
-          type: array
-          items:
-            type: integer
-          example: [0, 1, 2, 3]
-        cell_dimensions_mm:
-          $ref: '#/components/schemas/TemplateCellDimensions'
-
-    ExpectedCell:
-      type: object
-      properties:
-        index:
-          type: integer
-          example: 0
-        char:
-          type: string
-          example: "К"
-        unicode:
-          type: string
-          example: "U+041A"
-        is_empty_allowed:
-          type: boolean
-          example: true
-
-    OfflineBundleQuestion:
-      type: object
-      properties:
-        question_number:
-          type: integer
-          example: 1
-        marker_id:
-          type: integer
-          example: 11
-        prompt:
-          type: string
-          example: "Куегыз сүзне юнәлеш килешендә: китап ->"
-        topic_tag:
-          type: string
-          example: "case_dative"
-        topic_name_tt:
-          type: string
-          example: "Юнәлеш килеше"
-        cell_count:
-          type: integer
-          example: 8
-        expected_answer:
-          type: string
-          example: "КИТАПКА"
-        expected_cells:
-          type: array
-          items:
-            $ref: '#/components/schemas/ExpectedCell'
-
-    OfflineBundleVariant:
-      type: object
-      properties:
-        variant_id:
-          type: integer
-          example: 1
-        qr_signature:
-          type: string
-          example: "{\"tid\":\"TAT-2026-Q1\",\"var\":1,\"page\":1,\"tot\":1,\"n_q\":8}"
-        template_geometry:
-          $ref: '#/components/schemas/TemplateGeometry'
-        questions:
-          type: array
-          items:
-            $ref: '#/components/schemas/OfflineBundleQuestion'
-
-    OfflineBundleResponse:
-      type: object
-      properties:
-        assignment_id:
-          type: string
-          example: "TAT-2026-Q1"
-        title:
-          type: string
-          example: "Татар теле. 7 сыйныф. Исем килешләре"
-        total_variants:
-          type: integer
-          example: 2
-        variants:
-          type: array
-          items:
-            $ref: '#/components/schemas/OfflineBundleVariant'
-
-    TaskBankItem:
-      type: object
-      properties:
-        task_id:
-          type: string
-          example: "tsk_8201"
-        prompt_tt:
-          type: string
-          example: "Сүзгә күплек сан кушымчасын ялгагыз: дус ->"
-        expected_answer:
-          type: string
-          example: "ДУСЛАР"
-        cell_count:
-          type: integer
-          example: 6
-        grade_level:
-          type: integer
-          example: 5
-        topic_tag:
-          type: string
-          example: "plural_affixes"
-        topic_name_tt:
-          type: string
-          example: "Күплек сан"
-        is_public_in_bank:
-          type: boolean
-          example: false
-
-    CreateTaskRequest:
-      type: object
-      required:
-        - prompt_tt
-        - expected_answer
-        - cell_count
-        - grade_level
-        - topic_tag
-        - topic_name_tt
-      properties:
-        prompt_tt:
-          type: string
-          example: "Сүзгә күплек сан кушымчасын ялгагыз: дус ->"
-        expected_answer:
-          type: string
-          example: "ДУСЛАР"
-        cell_count:
-          type: integer
-          example: 6
-        grade_level:
-          type: integer
-          example: 5
-        topic_tag:
-          type: string
-          example: "plural_affixes"
-        topic_name_tt:
-          type: string
-          example: "Күплек сан"
-        is_public_in_bank:
-          type: boolean
-          example: false
-
-    ReadyTestItem:
-      type: object
-      description: Curated 8-question sheet with pre-configured A4 template
-      properties:
-        test_id:
-          type: string
-          example: "test_curated_01"
-        title:
-          type: string
-          example: "7 сыйныф. Исем килешләре"
-        grade_level:
-          type: integer
-          example: 7
-        questions_count:
-          type: integer
-          example: 8
-
-    ConstructorTaskRef:
-      type: object
-      required:
-        - task_id
-        - order
-      properties:
-        task_id:
-          type: string
-          example: "tsk_8201"
-        order:
-          type: integer
-          example: 1
-
-    AssembleTestRequest:
-      type: object
-      required:
-        - title
-        - grade_level
-        - generate_variants_count
-        - task_items
-      properties:
-        title:
-          type: string
-          example: "7 сыйныф. 1 нче чирек контроль эше"
-        grade_level:
-          type: integer
-          example: 7
-        generate_variants_count:
-          type: integer
-          example: 2
-        task_items:
-          type: array
-          items:
-            $ref: '#/components/schemas/ConstructorTaskRef'
-        shuffle_questions_in_variants:
-          type: boolean
-          example: true
-
-    ForkTestResponse:
-      type: object
-      properties:
-        status:
-          type: string
-          example: "cloned"
-        new_test_id:
-          type: string
-          example: "test_curated_01_copy"
-
-    SubmissionCellResult:
-      type: object
-      properties:
-        cell_index:
-          type: integer
-          example: 0
-        expected_char:
-          type: string
-          example: "К"
-        predicted_char:
-          type: string
-          example: "К"
-        confidence:
-          type: number
-          format: float
-          example: 0.96
-        status:
-          type: string
-          example: "MATCH"
-        teacher_override:
-          type: string
-          example: "WRONG"
-
-    SubmissionQuestionResult:
-      type: object
-      properties:
-        question_number:
-          type: integer
-          example: 1
-        marker_id:
-          type: integer
-          example: 11
-        topic_tag:
-          type: string
-          example: "case_dative"
-        is_correct:
-          type: boolean
-          example: true
-        points_earned:
-          type: number
-          example: 1.0
-        cells:
-          type: array
-          items:
-            $ref: '#/components/schemas/SubmissionCellResult'
-
-    SubmissionItem:
-      type: object
-      properties:
-        client_submission_uuid:
-          type: string
-          format: uuid
-          example: "d290f1ee-6c54-4b01-90e6-d701748f0851"
-        student_id:
-          type: string
-          example: "stu_01"
-        student_name:
-          type: string
-          example: "Галиев Амир Рустемович"
-        variant:
-          type: integer
-          example: 1
-        checked_at:
-          type: string
-          format: date-time
-          example: "2026-09-18T12:20:10Z"
-        overall_score:
-          type: number
-          example: 7.0
-        max_score:
-          type: number
-          example: 8.0
-        final_grade:
-          type: integer
-          example: 4
-        teacher_reviewed_flags:
-          type: integer
-          example: 1
-        questions_results:
-          type: array
-          items:
-            $ref: '#/components/schemas/SubmissionQuestionResult'
-
-    BatchSyncSubmissionsRequest:
-      type: object
-      required:
-        - assignment_id
-        - class_id
-        - synced_at
-        - submissions
-      properties:
-        assignment_id:
-          type: string
-          example: "TAT-2026-Q1"
-        class_id:
-          type: string
-          example: "cls_7a_2026"
-        synced_at:
-          type: string
-          format: date-time
-          example: "2026-09-18T13:00:00Z"
-        submissions:
-          type: array
-          items:
-            $ref: '#/components/schemas/SubmissionItem'
-
-    BatchSyncSubmissionsResponse:
-      type: object
-      properties:
-        status:
-          type: string
-          example: "synced"
-        received_count:
-          type: integer
-          example: 1
-        inserted_count:
-          type: integer
-          example: 1
-        updated_count:
-          type: integer
-          example: 0
-        analytics_recalculated:
-          type: boolean
-          example: true
-
-    SingleSubmissionSaveRequest:
-      type: object
-      properties:
-        assignment_id:
-          type: string
-          example: "TAT-2026-Q1"
-        class_id:
-          type: string
-          example: "cls_7a_2026"
-        submission:
-          $ref: '#/components/schemas/SubmissionItem'
-
-    SingleSubmissionSaveResponse:
-      type: object
-      properties:
-        status:
-          type: string
-          example: "saved"
-        submission_id:
-          type: string
-          example: "sub_8f23a"
-
-    FrequentWeakTopic:
-      type: object
-      properties:
-        topic_code:
-          type: string
-          example: "case_locative"
-        topic_name_tt:
-          type: string
-          example: "Урын-вакыт килеше (-да/-дә, -та/-тә)"
-        total_questions:
-          type: integer
-          example: 10
-        wrong_count:
-          type: integer
-          example: 4
-        accuracy_pct:
-          type: number
-          format: float
-          example: 60.0
-
-    ProblematicLetter:
-      type: object
-      properties:
-        letter:
-          type: string
-          example: "Ң"
-        total_occurrences:
-          type: integer
-          example: 14
-        misrecognized_or_wrong:
-          type: integer
-          example: 4
-        accuracy_pct:
-          type: number
-          format: float
-          example: 71.4
-        common_confusions:
-          type: array
-          items:
-            type: string
-          example: ["Н"]
-
-    StudentHistoryItem:
-      type: object
-      properties:
-        submission_id:
-          type: string
-          example: "sub_8f23a"
-        assignment_id:
-          type: string
-          example: "TAT-2026-Q1"
-        assignment_title:
-          type: string
-          example: "Исем килешләре"
-        date:
-          type: string
-          format: date-time
-          example: "2026-09-17T09:30:00Z"
-        score:
-          type: number
-          example: 7
-        max_score:
-          type: number
-          example: 8
-        grade:
-          type: integer
-          example: 4
-
-    StudentAnalyticsResponse:
-      type: object
-      properties:
-        student_id:
-          type: string
-          example: "stu_01"
-        full_name:
-          type: string
-          example: "Галиев Амир Рустемович"
-        class_name:
-          type: string
-          example: "7-А"
-        total_tests_completed:
-          type: integer
-          example: 12
-        average_score_pct:
-          type: number
-          format: float
-          example: 82.5
-        average_grade:
-          type: number
-          format: float
-          example: 4.3
-        grade_distribution:
-          type: object
-          additionalProperties:
-            type: integer
-          example:
-            "5": 5
-            "4": 5
-            "3": 2
-            "2": 0
-        frequent_weak_topics:
-          type: array
-          items:
-            $ref: '#/components/schemas/FrequentWeakTopic'
-        problematic_letters:
-          type: array
-          items:
-            $ref: '#/components/schemas/ProblematicLetter'
-        history:
-          type: array
-          items:
-            $ref: '#/components/schemas/StudentHistoryItem'
-
-    TopClassMistake:
-      type: object
-      properties:
-        topic_code:
-          type: string
-          example: "case_ablative"
-        topic_name_tt:
-          type: string
-          example: "Чыгыш килешендә сингармонизм ялгышлары (-дан/-дән, -тан/-тән)"
-        failure_rate_pct:
-          type: number
-          format: float
-          example: 42.3
-        affected_students_count:
-          type: integer
-          example: 11
-
-    DifficultCharacter:
-      type: object
-      properties:
-        letter:
-          type: string
-          example: "Ң"
-        error_rate_pct:
-          type: number
-          format: float
-          example: 36.5
-
-    StudentPerformanceRow:
-      type: object
-      properties:
-        student_id:
-          type: string
-          example: "stu_02"
-        full_name:
-          type: string
-          example: "Закирова Ләйсән Ильдаровна"
-        average_score_pct:
-          type: number
-          format: float
-          example: 94.0
-        average_grade:
-          type: number
-          format: float
-          example: 4.8
-        tests_completed:
-          type: integer
-          example: 8
-
-    ClassAnalyticsResponse:
-      type: object
-      properties:
-        class_id:
-          type: string
-          example: "cls_7a_2026"
-        class_name:
-          type: string
-          example: "7-А"
-        students_count:
-          type: integer
-          example: 25
-        average_class_score_pct:
-          type: number
-          format: float
-          example: 81.2
-        grade_distribution:
-          type: object
-          additionalProperties:
-            type: integer
-          example:
-            "5": 9
-            "4": 11
-            "3": 4
-            "2": 1
-        top_class_mistakes:
-          type: array
-          items:
-            $ref: '#/components/schemas/TopClassMistake'
-        difficult_characters_across_class:
-          type: array
-          items:
-            $ref: '#/components/schemas/DifficultCharacter'
-        students_performance_table:
-          type: array
-          items:
-            $ref: '#/components/schemas/StudentPerformanceRow'
-
-    WrongSubmissionItem:
-      type: object
-      properties:
-        student_id:
-          type: string
-          example: "stu_03"
-        student_name:
-          type: string
-          example: "Хабибуллин Тимур"
-        written_answer:
-          type: string
-          example: "КИТАПГА"
-
-    QuestionAnalyticsItem:
-      type: object
-      properties:
-        question_number:
-          type: integer
-          example: 1
-        marker_id:
-          type: integer
-          example: 11
-        prompt:
-          type: string
-          example: "Куегыз сүзне юнәлеш килешендә: китап ->"
-        expected_answer:
-          type: string
-          example: "КИТАПКА"
-        accuracy_pct:
-          type: number
-          format: float
-          example: 92.0
-        wrong_submissions:
-          type: array
-          items:
-            $ref: '#/components/schemas/WrongSubmissionItem'
-
-    AssignmentAnalyticsResponse:
-      type: object
-      properties:
-        assignment_id:
-          type: string
-          example: "TAT-2026-Q1"
-        title:
-          type: string
-          example: "Исем килешләре һәм кушымчалар"
-        total_submissions:
-          type: integer
-          example: 25
-        average_score_pct:
-          type: number
-          format: float
-          example: 83.2
-        questions_analytics:
-          type: array
-          items:
-            $ref: '#/components/schemas/QuestionAnalyticsItem'
-
+  description: FastAPI Backend for «Кара куян» (Tatar OCR) with Deterministic Task Generator
+  version: 1.1.0
 paths:
-  /api/v1/auth/device-handshake:
-    post:
-      tags:
-        - Teacher Identity
-      summary: Registers or verifies the teacher device UUID generated upon first install.
-      description: Registers or verifies the teacher device UUID generated upon first install.
-      parameters:
-        - $ref: '#/components/parameters/HeaderTeacherUUIDRequired'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/DeviceHandshakeRequest'
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/DeviceHandshakeResponse'
-
-  /api/v1/classes:
+  /api/v1/constructor/task-types:
     get:
       tags:
-        - Classes & Students
-      summary: List all classes belonging to the teacher.
-      description: List all classes belonging to the teacher.
-      parameters:
-        - $ref: '#/components/parameters/HeaderTeacherUUID'
+      - Assignment Constructor
+      summary: List supported task generator types
+      operationId: list_task_types_api_v1_constructor_task_types_get
       responses:
         '200':
-          description: OK
+          description: Successful Response
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/ClassesListResponse'
-
-  /api/v1/classes/{class_id}/students:
-    get:
-      tags:
-        - Classes & Students
-      summary: Returns the student roster for caching on the mobile device.
-      description: Returns the student roster for caching on the mobile device.
-      parameters:
-        - name: class_id
-          in: path
-          required: true
-          schema:
-            type: string
-          example: "cls_7a_2026"
-        - $ref: '#/components/parameters/HeaderTeacherUUID'
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ClassStudentsResponse'
-
-  /api/v1/classes/{class_id}/students/bulk-import:
-    post:
-      tags:
-        - Classes & Students
-      summary: Batch import students from a pasted plain-text list (from school journal or Excel).
-      description: Batch import students from a pasted plain-text list (from school journal or Excel).
-      parameters:
-        - name: class_id
-          in: path
-          required: true
-          schema:
-            type: string
-          example: "cls_7a_2026"
-        - $ref: '#/components/parameters/HeaderTeacherUUID'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/BulkImportStudentsRequest'
-      responses:
-        '201':
-          description: Created
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/BulkImportStudentsResponse'
-
-  /api/v1/assignments/{assignment_id}:
-    get:
-      tags:
-        - Assignment Delivery
-      summary: Get Assignment Metadata
-      description: Metadata, title, grade level, topic tags, points.
-      parameters:
-        - name: assignment_id
-          in: path
-          required: true
-          schema:
-            type: string
-          example: "TAT-2026-Q1"
-      responses:
-        '200':
-          description: Metadata, title, grade level, topic tags, points.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AssignmentMetadataResponse'
-
-  /api/v1/assignments/{assignment_id}/blank.pdf:
-    get:
-      tags:
-        - Assignment Delivery
-      summary: Download Printable Blank PDF (Generic or Single Student)
-      description: Download Printable Blank PDF (Generic or Single Student)
-      parameters:
-        - name: assignment_id
-          in: path
-          required: true
-          schema:
-            type: string
-          example: "TAT-2026-Q1"
-        - name: variant
-          in: query
-          required: false
-          schema:
-            type: integer
-            default: 1
-          description: Test variant
-        - name: student_id
-          in: query
-          required: false
-          schema:
-            type: string
-          description: Pre-prints student name in header boxes.
-      responses:
-        '200':
-          description: application/pdf binary stream.
-          content:
-            application/pdf:
-              schema:
-                type: string
-                format: binary
-
-  /api/v1/assignments/{assignment_id}/batch-blanks.pdf:
-    get:
-      tags:
-        - Assignment Delivery
-      summary: Download Batch Blank PDFs for Class
-      description: Download Batch Blank PDFs for Class where each sheet is pre-printed with the student's name and personalized QR code.
-      parameters:
-        - name: assignment_id
-          in: path
-          required: true
-          schema:
-            type: string
-          example: "TAT-2026-Q1"
-        - name: class_id
-          in: query
-          required: true
-          schema:
-            type: string
-          example: "cls_7a_2026"
-        - name: alternate_variants
-          in: query
-          required: false
-          schema:
-            type: boolean
-            default: true
-      responses:
-        '200':
-          description: application/pdf where each sheet is pre-printed with the student's name and personalized QR code.
-          content:
-            application/pdf:
-              schema:
-                type: string
-                format: binary
-
-  /api/v1/assignments/{assignment_id}/offline-bundle:
-    get:
-      tags:
-        - Assignment Delivery
-      summary: Download Offline Verification Bundle (Ground-Truth Answer Key)
-      description: Downloads everything the mobile app needs to perform 100% offline grading and answer validation on the phone.
-      parameters:
-        - name: assignment_id
-          in: path
-          required: true
-          schema:
-            type: string
-          example: "TAT-2026-Q1"
-        - $ref: '#/components/parameters/HeaderTeacherUUID'
-        - name: variant
-          in: query
-          required: false
-          schema:
-            type: integer
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/OfflineBundleResponse'
-
+              schema: {}
   /api/v1/constructor/tasks:
     get:
       tags:
-        - Assignment Constructor
+      - Assignment Constructor
       summary: Search Task Bank
-      description: Search Task Bank
+      operationId: search_task_bank_api_v1_constructor_tasks_get
       parameters:
-        - name: query
-          in: query
-          required: false
-          schema:
-            type: string
-        - name: topic_tag
-          in: query
-          required: false
-          schema:
-            type: string
-        - name: grade_level
-          in: query
-          required: false
-          schema:
-            type: integer
-            minimum: 5
+      - name: query
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Search term in prompt or answer
+          title: Query
+        description: Search term in prompt or answer
+      - name: topic_tag
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Topic Tag
+      - name: grade_level
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: integer
             maximum: 9
-          description: 5–9
-        - name: max_cells
-          in: query
-          required: false
-          schema:
-            type: integer
+            minimum: 5
+          - type: 'null'
+          title: Grade Level
+      - name: max_cells
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: integer
             maximum: 12
-          description: <= 12
-        - name: scope
-          in: query
-          required: false
-          schema:
-            type: string
-            enum:
-              - all
-              - my_tasks
+            minimum: 1
+          - type: 'null'
+          title: Max Cells
+      - name: scope
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            pattern: ^(all|my_tasks)$
+          - type: 'null'
+          default: all
+          title: Scope
       responses:
         '200':
-          description: OK
+          description: Successful Response
           content:
             application/json:
               schema:
                 type: array
                 items:
                   $ref: '#/components/schemas/TaskBankItem'
+                title: Response Search Task Bank Api V1 Constructor Tasks Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
     post:
       tags:
-        - Assignment Constructor
+      - Assignment Constructor
       summary: Create Custom Single Task
-      description: Create Custom Single Task
+      operationId: create_custom_task_api_v1_constructor_tasks_post
       requestBody:
         required: true
         content:
@@ -1120,89 +100,657 @@ paths:
               $ref: '#/components/schemas/CreateTaskRequest'
       responses:
         '201':
-          description: Task created
+          description: Successful Response
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/TaskBankItem'
-
-  /api/v1/constructor/ready-tests:
-    get:
-      tags:
-        - Assignment Constructor
-      summary: Browse Ready-Made Complete Tests
-      description: Curated 8-question sheets with pre-configured A4 templates.
-      responses:
-        '200':
-          description: Curated 8-question sheets with pre-configured A4 templates.
+        '422':
+          description: Validation Error
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ReadyTestItem'
-
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/constructor/generate:
+    post:
+      tags:
+      - Assignment Constructor
+      summary: Generate tasks deterministically using linguistic generator
+      operationId: generate_tasks_api_v1_constructor_generate_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateTasksRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerateTasksResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/constructor/tests:
     post:
       tags:
-        - Assignment Constructor
+      - Assignment Constructor
       summary: Assemble Modular Test
-      description: Composes a new test from selected task IDs with A4 physical limit validation (maximum 8 modular question blocks).
+      operationId: assemble_modular_test_api_v1_constructor_tests_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssembleTestRequest'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OfflineBundleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/constructor/ready-tests:
+    get:
+      tags:
+      - Assignment Constructor
+      summary: Browse Ready-Made Complete Tests
+      operationId: get_ready_tests_api_v1_constructor_ready_tests_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/ReadyTestItem'
+                type: array
+                title: Response Get Ready Tests Api V1 Constructor Ready Tests Get
+  /api/v1/constructor/verify-answer:
+    post:
+      tags:
+      - Assignment Constructor
+      summary: Verify student answer against expected answer
+      operationId: verify_student_answer_api_v1_constructor_verify_answer_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyAnswerRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerifyAnswerResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/constructor/scan-task:
+    post:
+      tags:
+      - Assignment Constructor
+      summary: Scan exercise image via OCR and classify/structure via YandexGPT
+      description: 'Analyzes an uploaded photo or screenshot using OCR & YandexGPT:
+
+        1. Extracts text from image via OCR.
+
+        2. Classifies task type against supported taxonomy (or flags unsupported tasks).
+
+        3. Formats prompt, expected answer (<=12 chars), and physical cell count.
+
+        4. Optionally saves to task bank if save_to_bank=True.'
+      operationId: scan_task_from_image_api_v1_constructor_scan_task_post
+      parameters:
+      - name: save_to_bank
+        in: query
+        required: false
+        schema:
+          type: boolean
+          description: Persist directly into task bank if valid
+          default: false
+          title: Save To Bank
+        description: Persist directly into task bank if valid
+      - name: grade_level
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+            maximum: 9
+            minimum: 5
+          - type: 'null'
+          description: Optional grade level hint (5..9)
+          title: Grade Level
+        description: Optional grade level hint (5..9)
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Body_scan_task_from_image_api_v1_constructor_scan_task_post'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScanTaskResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/constructor/scan-task-base64:
+    post:
+      tags:
+      - Assignment Constructor
+      summary: Scan exercise from base64 image via OCR & YandexGPT
+      description: Base64 variant for mobile apps or JSON-only clients.
+      operationId: scan_task_from_base64_api_v1_constructor_scan_task_base64_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScanTaskRequestBase64'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScanTaskResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/assignments:
+    get:
+      tags:
+      - Assignment Delivery
+      summary: List Teacher Assignments
+      operationId: list_assignments_api_v1_assignments_get
+      parameters:
+      - name: class_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Filter assignments by class ID
+          title: Class Id
+        description: Filter assignments by class ID
+      - name: status
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Filter assignments by status
+          title: Status
+        description: Filter assignments by status
+      - name: X-Teacher-UUID
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Teacher-Uuid
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/assignments/{assignment_id}/batch-blanks.pdf:
+    get:
+      tags:
+      - Assignment Delivery
+      summary: Download Batch Printable Blanks PDF (Alias)
+      description: Generates a multi-page PDF containing personalized test blanks for all students in the specified class.
+      operationId: get_assignment_batch_blanks_pdf_api_v1_assignments__assignment_id__batch_blanks_pdf_get
+      parameters:
+      - name: assignment_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Assignment Id
+      - name: class_id
+        in: query
+        required: true
+        schema:
+          type: string
+          description: Class ID whose students to generate blanks for
+          title: Class Id
+        description: Class ID whose students to generate blanks for
+      - name: X-Teacher-UUID
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Teacher-Uuid
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/assignments/{assignment_id}/offline-bundle:
+    get:
+      tags:
+      - Assignment Delivery
+      summary: Download Offline Verification Bundle
+      operationId: get_offline_bundle_api_v1_assignments__assignment_id__offline_bundle_get
+      parameters:
+      - name: assignment_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Assignment Id
+      - name: variant
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+            minimum: 1
+          - type: 'null'
+          description: Optional variant filter
+          title: Variant
+        description: Optional variant filter
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OfflineBundleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/assignments/{assignment_id}:
+    get:
+      tags:
+      - Assignment Delivery
+      summary: Get Assignment Metadata
+      operationId: get_assignment_metadata_api_v1_assignments__assignment_id__get
+      parameters:
+      - name: assignment_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Assignment Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/assignments/{assignment_id}/blank.pdf:
+    get:
+      tags:
+      - Assignment Delivery
+      summary: Download Printable Blank PDF (Generic or Single Student)
+      description: Generates a print-ready A4 test sheet with 4 corner ArUco markers, QR code, and 10x10 mm answer boxes.
+      operationId: get_blank_pdf_api_v1_assignments__assignment_id__blank_pdf_get
+      parameters:
+      - name: assignment_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Assignment Id
+      - name: variant
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          description: Test variant number
+          default: 1
+          title: Variant
+        description: Test variant number
+      - name: student_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Pre-prints student name in header boxes
+          title: Student Id
+        description: Pre-prints student name in header boxes
+      - name: X-Teacher-UUID
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Teacher-Uuid
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/auth/device-handshake:
+    post:
+      tags:
+      - Teacher Identity
+      summary: Registers or verifies the teacher device UUID generated upon first install.
+      operationId: device_handshake_api_v1_auth_device_handshake_post
+      parameters:
+      - name: X-Teacher-UUID
+        in: header
+        required: true
+        schema:
+          type: string
+          title: X-Teacher-Uuid
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/AssembleTestRequest'
-      responses:
-        '201':
-          description: Test created
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  test_id:
-                    type: string
-                    example: "test_8201_assembled"
-                  title:
-                    type: string
-                    example: "7 сыйныф. 1 нче чирек контроль эше"
-                  variants_count:
-                    type: integer
-                    example: 2
-
-  /api/v1/constructor/tests/{test_id}/fork:
-    post:
-      tags:
-        - Assignment Constructor
-      summary: Fork / Clone Test
-      description: Fork / Clone Test
-      parameters:
-        - name: test_id
-          in: path
-          required: true
-          schema:
-            type: string
-          example: "test_curated_01"
+              $ref: '#/components/schemas/DeviceHandshakeRequest'
       responses:
         '200':
-          description: OK
+          description: Successful Response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ForkTestResponse'
-
+                $ref: '#/components/schemas/DeviceHandshakeResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/classes:
+    get:
+      tags:
+      - Classes & Students
+      summary: List all classes
+      operationId: list_classes_api_v1_classes_get
+      parameters:
+      - name: X-Teacher-UUID
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Teacher-Uuid
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClassesListResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/classes/{class_id}/students:
+    get:
+      tags:
+      - Classes & Students
+      summary: Get student roster for class
+      operationId: get_class_students_api_v1_classes__class_id__students_get
+      parameters:
+      - name: class_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Class Id
+      - name: X-Teacher-UUID
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Teacher-Uuid
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClassStudentsResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/classes/{class_id}/students/bulk-import:
+    post:
+      tags:
+      - Classes & Students
+      summary: Batch import students from a pasted plain-text list
+      operationId: bulk_import_students_api_v1_classes__class_id__students_bulk_import_post
+      parameters:
+      - name: class_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Class Id
+      - name: X-Teacher-UUID
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Teacher-Uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BulkImportStudentsRequest'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkImportStudentsResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/classes/{class_id}/assignments:
+    post:
+      tags:
+      - Classes & Students
+      summary: Assign a test to a class
+      operationId: assign_test_to_class_api_v1_classes__class_id__assignments_post
+      parameters:
+      - name: class_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Class Id
+      - name: X-Teacher-UUID
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Teacher-Uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignTestToClassRequest'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClassAssignmentItem'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    get:
+      tags:
+      - Classes & Students
+      summary: List tests assigned to a class with progress
+      operationId: list_class_assignments_api_v1_classes__class_id__assignments_get
+      parameters:
+      - name: class_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Class Id
+      - name: X-Teacher-UUID
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Teacher-Uuid
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClassAssignmentsResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/classes/{class_id}/assignments/{assignment_id}/batch-blanks.pdf:
+    get:
+      tags:
+      - Classes & Students
+      summary: Download Batch Printable Blanks PDF for Class
+      description: Generates a multi-page PDF containing personalized test blanks for all students in the class.
+      operationId: get_class_batch_blanks_pdf_api_v1_classes__class_id__assignments__assignment_id__batch_blanks_pdf_get
+      parameters:
+      - name: class_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Class Id
+      - name: assignment_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Assignment Id
+      - name: X-Teacher-UUID
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Teacher-Uuid
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/submissions/batch-sync:
     post:
       tags:
-        - Submissions Ingestion
-      summary: Batch Sync Graded Submissions (Class Upload)
-      description: |
-        Transmits the entire set of graded papers once the teacher is back online. Average payload for a class of 25 students is **only ~35 KB**.
-        Zero-Photo Policy: Photos remain on the phone. Only structured results (characters, booleans, scores, overrides) are ingested here.
+      - Submissions Ingestion
+      summary: Batch Sync Graded Submissions (Zero-Photo Class Upload)
+      operationId: batch_sync_submissions_api_v1_submissions_batch_sync_post
       parameters:
-        - $ref: '#/components/parameters/HeaderTeacherUUID'
+      - name: X-Teacher-UUID
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Teacher-Uuid
       requestBody:
         required: true
         content:
@@ -1211,53 +759,32 @@ paths:
               $ref: '#/components/schemas/BatchSyncSubmissionsRequest'
       responses:
         '200':
-          description: OK
+          description: Successful Response
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/BatchSyncSubmissionsResponse'
-
-  /api/v1/submissions:
-    get:
-      tags:
-        - Submissions Ingestion
-      summary: Query Submissions
-      description: Query Submissions
-      parameters:
-        - name: class_id
-          in: query
-          required: false
-          schema:
-            type: string
-          example: "cls_7a_2026"
-        - name: assignment_id
-          in: query
-          required: false
-          schema:
-            type: string
-          example: "TAT-2026-Q1"
-        - name: student_id
-          in: query
-          required: false
-          schema:
-            type: string
-          example: "stu_01"
-      responses:
-        '200':
-          description: OK
+        '422':
+          description: Validation Error
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/SubmissionItem'
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/submissions:
     post:
       tags:
-        - Submissions Ingestion
+      - Submissions Ingestion
       summary: Save Single Graded Submission
-      description: Used for live upload when checking while online.
+      operationId: save_single_submission_api_v1_submissions_post
       parameters:
-        - $ref: '#/components/parameters/HeaderTeacherUUID'
+      - name: X-Teacher-UUID
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Teacher-Uuid
       requestBody:
         required: true
         content:
@@ -1266,115 +793,1842 @@ paths:
               $ref: '#/components/schemas/SingleSubmissionSaveRequest'
       responses:
         '200':
-          description: OK
+          description: Successful Response
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/SingleSubmissionSaveResponse'
-
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    get:
+      tags:
+      - Submissions Ingestion
+      summary: Query Submissions
+      operationId: query_submissions_api_v1_submissions_get
+      parameters:
+      - name: class_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Filter by class ID
+          title: Class Id
+        description: Filter by class ID
+      - name: assignment_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Filter by assignment ID
+          title: Assignment Id
+        description: Filter by assignment ID
+      - name: student_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Filter by student ID
+          title: Student Id
+        description: Filter by student ID
+      - name: X-Teacher-UUID
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Teacher-Uuid
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SubmissionItem'
+                title: Response Query Submissions Api V1 Submissions Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/analytics/students/{student_id}:
     get:
       tags:
-        - Backend Analytics Engine
+      - Backend Analytics Engine
       summary: Student Analytics (Individual)
-      description: Computes learning curves, error frequencies by topic, and specific letter confusions for an individual student.
+      operationId: get_student_analytics_api_v1_analytics_students__student_id__get
       parameters:
-        - name: student_id
-          in: path
-          required: true
-          schema:
-            type: string
-          example: "stu_01"
-        - $ref: '#/components/parameters/HeaderTeacherUUID'
+      - name: student_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Student Id
+      - name: X-Teacher-UUID
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Teacher-Uuid
       responses:
         '200':
-          description: OK
+          description: Successful Response
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/StudentAnalyticsResponse'
-
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/analytics/classes/{class_id}:
     get:
       tags:
-        - Backend Analytics Engine
-      summary: Class Aggregated Analytics & Student Leaderboard
-      description: Class heatmap identifies which grammar rules the teacher must re-explain on the next lesson, plus a full pupil performance table.
+      - Backend Analytics Engine
+      summary: Class Aggregated Analytics & Heatmap
+      operationId: get_class_analytics_api_v1_analytics_classes__class_id__get
       parameters:
-        - name: class_id
-          in: path
-          required: true
-          schema:
-            type: string
-          example: "cls_7a_2026"
-        - $ref: '#/components/parameters/HeaderTeacherUUID'
+      - name: class_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Class Id
+      - name: X-Teacher-UUID
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Teacher-Uuid
       responses:
         '200':
-          description: OK
+          description: Successful Response
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ClassAnalyticsResponse'
-
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/analytics/assignments/{assignment_id}:
     get:
       tags:
-        - Backend Analytics Engine
-      summary: Assignment Analytics
-      description: Item analysis per question across all completed sheets.
+      - Backend Analytics Engine
+      summary: Assignment Analytics (Item Analysis)
+      operationId: get_assignment_analytics_api_v1_analytics_assignments__assignment_id__get
       parameters:
-        - name: assignment_id
-          in: path
-          required: true
-          schema:
-            type: string
-          example: "TAT-2026-Q1"
-        - $ref: '#/components/parameters/HeaderTeacherUUID'
+      - name: assignment_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Assignment Id
+      - name: X-Teacher-UUID
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Teacher-Uuid
       responses:
         '200':
-          description: OK
+          description: Successful Response
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/AssignmentAnalyticsResponse'
-
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/reports/assignments/{assignment_id}/gradebook.xlsx:
     get:
       tags:
-        - Gradebook Exports
+      - Gradebook Exports
       summary: Export Electronic Gradebook
-      description: Downloads an Excel spreadsheet ready for direct upload into school electronic gradebooks (e.g., edu.tatar.ru or МЭШ). Columns include Student Full Name, Variant, Points Earned, Max Points, Grade (2–5), Date.
+      description: Downloads an Excel (.xlsx) or CSV spreadsheet ready for direct upload into school electronic gradebooks
+        (e.g., edu.tatar.ru or МЭШ).
+      operationId: export_gradebook_api_v1_reports_assignments__assignment_id__gradebook_xlsx_get
       parameters:
-        - name: assignment_id
-          in: path
-          required: true
-          schema:
-            type: string
-          example: "TAT-2026-Q1"
-        - $ref: '#/components/parameters/HeaderTeacherUUID'
-        - name: class_id
-          in: query
-          required: true
-          schema:
-            type: string
-          example: "cls_7a_2026"
-        - name: format
-          in: query
-          required: false
-          schema:
-            type: string
-            enum:
-              - xlsx
-              - csv
-            default: xlsx
+      - name: assignment_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Assignment Id
+      - name: class_id
+        in: query
+        required: true
+        schema:
+          type: string
+          description: Class ID, e.g. cls_7a_2026
+          title: Class Id
+        description: Class ID, e.g. cls_7a_2026
+      - name: format
+        in: query
+        required: false
+        schema:
+          type: string
+          pattern: ^(xlsx|csv)$
+          description: 'Output format: xlsx or csv'
+          default: xlsx
+          title: Format
+        description: 'Output format: xlsx or csv'
+      - name: X-Teacher-UUID
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Teacher-Uuid
       responses:
         '200':
-          description: OK
+          description: Successful Response
           content:
-            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
               schema:
-                type: string
-                format: binary
-            text/csv:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/model/manifest:
+    get:
+      tags:
+      - Model & Manifest
+      summary: Get OCR Model Manifest and Preprocessing Spec
+      operationId: get_model_manifest_api_v1_model_manifest_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
               schema:
-                type: string
+                $ref: '#/components/schemas/ModelManifestResponse'
+  /health:
+    get:
+      tags:
+      - System
+      summary: Health Check
+      operationId: health_check_health_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+components:
+  schemas:
+    AssembleTestRequest:
+      properties:
+        title:
+          type: string
+          maxLength: 256
+          minLength: 3
+          title: Title
+        grade_level:
+          type: integer
+          maximum: 9.0
+          minimum: 5.0
+          title: Grade Level
+          default: 7
+        generate_variants_count:
+          type: integer
+          maximum: 4.0
+          minimum: 1.0
+          title: Generate Variants Count
+          default: 1
+        task_items:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/ConstructorTaskRef'
+            type: array
+          - type: 'null'
+          title: Task Items
+        shuffle_questions_in_variants:
+          type: boolean
+          title: Shuffle Questions In Variants
+          default: true
+        seed:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Seed
+      type: object
+      required:
+      - title
+      title: AssembleTestRequest
+    AssignTestToClassRequest:
+      properties:
+        assignment_id:
+          type: string
+          title: Assignment Id
+        due_date:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Due Date
+        status:
+          type: string
+          enum:
+          - active
+          - completed
+          - archived
+          title: Status
+          default: active
+      type: object
+      required:
+      - assignment_id
+      title: AssignTestToClassRequest
+    AssignmentAnalyticsResponse:
+      properties:
+        assignment_id:
+          type: string
+          title: Assignment Id
+        title:
+          type: string
+          title: Title
+        total_submissions:
+          type: integer
+          title: Total Submissions
+        average_score_pct:
+          type: number
+          title: Average Score Pct
+        questions_analytics:
+          items:
+            $ref: '#/components/schemas/QuestionAnalyticsItem'
+          type: array
+          title: Questions Analytics
+      type: object
+      required:
+      - assignment_id
+      - title
+      - total_submissions
+      - average_score_pct
+      - questions_analytics
+      title: AssignmentAnalyticsResponse
+    BatchSyncSubmissionsRequest:
+      properties:
+        assignment_id:
+          type: string
+          title: Assignment Id
+        class_id:
+          type: string
+          title: Class Id
+        synced_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Synced At
+        submissions:
+          items:
+            $ref: '#/components/schemas/SubmissionItem'
+          type: array
+          title: Submissions
+      type: object
+      required:
+      - assignment_id
+      - class_id
+      - submissions
+      title: BatchSyncSubmissionsRequest
+    BatchSyncSubmissionsResponse:
+      properties:
+        status:
+          type: string
+          title: Status
+          default: synced
+        received_count:
+          type: integer
+          title: Received Count
+        inserted_count:
+          type: integer
+          title: Inserted Count
+        updated_count:
+          type: integer
+          title: Updated Count
+        analytics_recalculated:
+          type: boolean
+          title: Analytics Recalculated
+          default: true
+      type: object
+      required:
+      - received_count
+      - inserted_count
+      - updated_count
+      title: BatchSyncSubmissionsResponse
+    Body_scan_task_from_image_api_v1_constructor_scan_task_post:
+      properties:
+        file:
+          type: string
+          contentMediaType: application/octet-stream
+          title: File
+          description: Image file (photo or screenshot) of textbook/workbook exercise
+      type: object
+      required:
+      - file
+      title: Body_scan_task_from_image_api_v1_constructor_scan_task_post
+    BulkImportStudentsRequest:
+      properties:
+        raw_text:
+          type: string
+          title: Raw Text
+          description: Pasted student names list, one per line
+      type: object
+      required:
+      - raw_text
+      title: BulkImportStudentsRequest
+    BulkImportStudentsResponse:
+      properties:
+        added_count:
+          type: integer
+          title: Added Count
+        students:
+          items:
+            $ref: '#/components/schemas/ImportedStudentItem'
+          type: array
+          title: Students
+      type: object
+      required:
+      - added_count
+      - students
+      title: BulkImportStudentsResponse
+    CellStatusItem:
+      properties:
+        cell_index:
+          type: integer
+          title: Cell Index
+        expected_char:
+          type: string
+          title: Expected Char
+        predicted_char:
+          type: string
+          title: Predicted Char
+        status:
+          type: string
+          title: Status
+      type: object
+      required:
+      - cell_index
+      - expected_char
+      - predicted_char
+      - status
+      title: CellStatusItem
+    ClassAnalyticsResponse:
+      properties:
+        class_id:
+          type: string
+          title: Class Id
+        class_name:
+          type: string
+          title: Class Name
+        students_count:
+          type: integer
+          title: Students Count
+        average_class_score_pct:
+          type: number
+          title: Average Class Score Pct
+        average_handwriting_quality_pct:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Average Handwriting Quality Pct
+        grade_distribution:
+          additionalProperties:
+            type: integer
+          type: object
+          title: Grade Distribution
+        top_class_mistakes:
+          items:
+            $ref: '#/components/schemas/TopClassMistake'
+          type: array
+          title: Top Class Mistakes
+        difficult_characters_across_class:
+          items:
+            $ref: '#/components/schemas/DifficultCharacter'
+          type: array
+          title: Difficult Characters Across Class
+        students_performance_table:
+          items:
+            $ref: '#/components/schemas/StudentPerformanceRow'
+          type: array
+          title: Students Performance Table
+        students_needing_handwriting_attention:
+          items:
+            type: string
+          type: array
+          title: Students Needing Handwriting Attention
+          default: []
+      type: object
+      required:
+      - class_id
+      - class_name
+      - students_count
+      - average_class_score_pct
+      - grade_distribution
+      - top_class_mistakes
+      - difficult_characters_across_class
+      - students_performance_table
+      title: ClassAnalyticsResponse
+    ClassAssignmentItem:
+      properties:
+        id:
+          type: string
+          title: Id
+        class_id:
+          type: string
+          title: Class Id
+        assignment_id:
+          type: string
+          title: Assignment Id
+        assignment_title:
+          type: string
+          title: Assignment Title
+        total_variants:
+          type: integer
+          title: Total Variants
+          default: 1
+        assigned_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Assigned At
+        due_date:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Due Date
+        status:
+          type: string
+          title: Status
+          default: active
+        total_students:
+          type: integer
+          title: Total Students
+          default: 0
+        checked_submissions_count:
+          type: integer
+          title: Checked Submissions Count
+          default: 0
+        pending_submissions_count:
+          type: integer
+          title: Pending Submissions Count
+          default: 0
+        average_score_pct:
+          type: number
+          title: Average Score Pct
+          default: 0.0
+      type: object
+      required:
+      - id
+      - class_id
+      - assignment_id
+      - assignment_title
+      title: ClassAssignmentItem
+    ClassAssignmentsResponse:
+      properties:
+        class_id:
+          type: string
+          title: Class Id
+        class_name:
+          type: string
+          title: Class Name
+        assignments:
+          items:
+            $ref: '#/components/schemas/ClassAssignmentItem'
+          type: array
+          title: Assignments
+      type: object
+      required:
+      - class_id
+      - class_name
+      - assignments
+      title: ClassAssignmentsResponse
+    ClassItem:
+      properties:
+        class_id:
+          type: string
+          title: Class Id
+        name:
+          type: string
+          title: Name
+        subject:
+          type: string
+          title: Subject
+          default: tatar_language
+        academic_year:
+          type: string
+          title: Academic Year
+          default: 2026-2027
+        student_count:
+          type: integer
+          title: Student Count
+          default: 0
+      type: object
+      required:
+      - class_id
+      - name
+      title: ClassItem
+    ClassStudentsResponse:
+      properties:
+        class_id:
+          type: string
+          title: Class Id
+        class_name:
+          type: string
+          title: Class Name
+        students:
+          items:
+            $ref: '#/components/schemas/StudentRosterItem'
+          type: array
+          title: Students
+      type: object
+      required:
+      - class_id
+      - class_name
+      - students
+      title: ClassStudentsResponse
+    ClassesListResponse:
+      properties:
+        classes:
+          items:
+            $ref: '#/components/schemas/ClassItem'
+          type: array
+          title: Classes
+      type: object
+      required:
+      - classes
+      title: ClassesListResponse
+    ConstructorTaskRef:
+      properties:
+        task_id:
+          type: string
+          title: Task Id
+        order:
+          type: integer
+          title: Order
+      type: object
+      required:
+      - task_id
+      - order
+      title: ConstructorTaskRef
+    CreateTaskRequest:
+      properties:
+        prompt_tt:
+          type: string
+          maxLength: 512
+          minLength: 3
+          title: Prompt Tt
+        expected_answer:
+          type: string
+          maxLength: 12
+          minLength: 1
+          title: Expected Answer
+        cell_count:
+          type: integer
+          maximum: 12.0
+          minimum: 1.0
+          title: Cell Count
+        grade_level:
+          type: integer
+          maximum: 9.0
+          minimum: 5.0
+          title: Grade Level
+        topic_tag:
+          type: string
+          maxLength: 64
+          minLength: 2
+          title: Topic Tag
+        topic_name_tt:
+          type: string
+          maxLength: 128
+          minLength: 2
+          title: Topic Name Tt
+        is_public_in_bank:
+          type: boolean
+          title: Is Public In Bank
+          default: false
+        task_type:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Task Type
+          default: custom
+      type: object
+      required:
+      - prompt_tt
+      - expected_answer
+      - cell_count
+      - grade_level
+      - topic_tag
+      - topic_name_tt
+      title: CreateTaskRequest
+    DeviceHandshakeRequest:
+      properties:
+        device_os:
+          type: string
+          title: Device Os
+          default: android
+          examples:
+          - android
+        app_version:
+          type: string
+          title: App Version
+          default: 1.0.4
+          examples:
+          - 1.0.4
+        teacher_name:
+          type: string
+          maxLength: 256
+          minLength: 1
+          title: Teacher Name
+          examples:
+          - Каримова Гөлнара Илдар кызы
+        school_name:
+          type: string
+          maxLength: 256
+          minLength: 1
+          title: School Name
+          examples:
+          - Гимназия №2 им. Ш. Марджани
+        grading_scale:
+          $ref: '#/components/schemas/GradingScale'
+        confidence_flag_threshold:
+          anyOf:
+          - type: number
+            maximum: 1.0
+            minimum: 0.0
+          - type: 'null'
+          title: Confidence Flag Threshold
+      type: object
+      required:
+      - teacher_name
+      - school_name
+      title: DeviceHandshakeRequest
+    DeviceHandshakeResponse:
+      properties:
+        status:
+          type: string
+          title: Status
+          default: active
+        teacher_uuid:
+          type: string
+          title: Teacher Uuid
+        teacher_name:
+          type: string
+          title: Teacher Name
+        preferences:
+          $ref: '#/components/schemas/TeacherPreferences'
+      type: object
+      required:
+      - teacher_uuid
+      - teacher_name
+      - preferences
+      title: DeviceHandshakeResponse
+    DifficultCharacter:
+      properties:
+        letter:
+          type: string
+          title: Letter
+        error_rate_pct:
+          type: number
+          title: Error Rate Pct
+      type: object
+      required:
+      - letter
+      - error_rate_pct
+      title: DifficultCharacter
+    ExpectedCell:
+      properties:
+        index:
+          type: integer
+          title: Index
+        char:
+          type: string
+          title: Char
+        unicode:
+          type: string
+          title: Unicode
+        is_empty_allowed:
+          type: boolean
+          title: Is Empty Allowed
+          default: false
+      type: object
+      required:
+      - index
+      - char
+      - unicode
+      title: ExpectedCell
+    FrequentWeakTopic:
+      properties:
+        topic_code:
+          type: string
+          title: Topic Code
+        topic_name_tt:
+          type: string
+          title: Topic Name Tt
+        total_questions:
+          type: integer
+          title: Total Questions
+        wrong_count:
+          type: integer
+          title: Wrong Count
+        accuracy_pct:
+          type: number
+          title: Accuracy Pct
+      type: object
+      required:
+      - topic_code
+      - topic_name_tt
+      - total_questions
+      - wrong_count
+      - accuracy_pct
+      title: FrequentWeakTopic
+    GenerateTasksRequest:
+      properties:
+        task_type:
+          type: string
+          title: Task Type
+          description: Supported generator task type (see GET /api/v1/constructor/task-types)
+        count:
+          type: integer
+          maximum: 10.0
+          minimum: 1.0
+          title: Count
+          default: 1
+        seed:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Seed
+          description: Optional seed for deterministic reproducibility
+        grade_level:
+          type: integer
+          maximum: 9.0
+          minimum: 5.0
+          title: Grade Level
+          default: 7
+        custom_stems:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Custom Stems
+          description: Optional list of custom words/stems for the generator
+        case_code:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Case Code
+          description: Specific case code for case_inflection (e.g. case_dative)
+        save_to_bank:
+          type: boolean
+          title: Save To Bank
+          description: Whether to persist generated tasks into task bank
+          default: false
+      type: object
+      required:
+      - task_type
+      title: GenerateTasksRequest
+    GenerateTasksResponse:
+      properties:
+        task_type:
+          type: string
+          title: Task Type
+        seed:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Seed
+        count:
+          type: integer
+          title: Count
+        tasks:
+          items:
+            $ref: '#/components/schemas/TaskBankItem'
+          type: array
+          title: Tasks
+      type: object
+      required:
+      - task_type
+      - seed
+      - count
+      - tasks
+      title: GenerateTasksResponse
+    GradingScale:
+      properties:
+        grade_5_min_pct:
+          type: integer
+          maximum: 100.0
+          minimum: 0.0
+          title: Grade 5 Min Pct
+          description: Min % for Grade 5
+          default: 85
+        grade_4_min_pct:
+          type: integer
+          maximum: 100.0
+          minimum: 0.0
+          title: Grade 4 Min Pct
+          description: Min % for Grade 4
+          default: 70
+        grade_3_min_pct:
+          type: integer
+          maximum: 100.0
+          minimum: 0.0
+          title: Grade 3 Min Pct
+          description: Min % for Grade 3
+          default: 50
+      type: object
+      title: GradingScale
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    HandwritingMetrics:
+      properties:
+        quality_pct:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Quality Pct
+        status:
+          type: string
+          title: Status
+        average_confidence:
+          type: number
+          title: Average Confidence
+        teacher_correction_rate_pct:
+          type: number
+          title: Teacher Correction Rate Pct
+        low_confidence_rate_pct:
+          type: number
+          title: Low Confidence Rate Pct
+        total_characters_analyzed:
+          type: integer
+          title: Total Characters Analyzed
+        unclear_characters:
+          items:
+            type: string
+          type: array
+          title: Unclear Characters
+      type: object
+      required:
+      - status
+      - average_confidence
+      - teacher_correction_rate_pct
+      - low_confidence_rate_pct
+      - total_characters_analyzed
+      - unclear_characters
+      title: HandwritingMetrics
+    ImportedStudentItem:
+      properties:
+        student_id:
+          type: string
+          title: Student Id
+        full_name:
+          type: string
+          title: Full Name
+      type: object
+      required:
+      - student_id
+      - full_name
+      title: ImportedStudentItem
+    ModelManifestResponse:
+      properties:
+        model_name:
+          type: string
+          title: Model Name
+          default: tatar_ocr_v4_handwritten39_int8
+        model_version:
+          type: string
+          title: Model Version
+          default: '1.0'
+        num_classes:
+          type: integer
+          title: Num Classes
+          default: 39
+        alphabet_classes:
+          items:
+            type: string
+          type: array
+          title: Alphabet Classes
+        sha256:
+          type: string
+          title: Sha256
+        preprocessing:
+          $ref: '#/components/schemas/PreprocessingSpec'
+      type: object
+      required:
+      - alphabet_classes
+      - sha256
+      - preprocessing
+      title: ModelManifestResponse
+    OfflineBundleQuestion:
+      properties:
+        question_number:
+          type: integer
+          title: Question Number
+        marker_id:
+          type: integer
+          title: Marker Id
+        prompt:
+          type: string
+          title: Prompt
+        topic_tag:
+          type: string
+          title: Topic Tag
+        topic_name_tt:
+          type: string
+          title: Topic Name Tt
+        cell_count:
+          type: integer
+          title: Cell Count
+        expected_answer:
+          type: string
+          title: Expected Answer
+        expected_cells:
+          items:
+            $ref: '#/components/schemas/ExpectedCell'
+          type: array
+          title: Expected Cells
+      type: object
+      required:
+      - question_number
+      - marker_id
+      - prompt
+      - topic_tag
+      - topic_name_tt
+      - cell_count
+      - expected_answer
+      - expected_cells
+      title: OfflineBundleQuestion
+    OfflineBundleResponse:
+      properties:
+        assignment_id:
+          type: string
+          title: Assignment Id
+        title:
+          type: string
+          title: Title
+        total_variants:
+          type: integer
+          title: Total Variants
+        variants:
+          items:
+            $ref: '#/components/schemas/OfflineBundleVariant'
+          type: array
+          title: Variants
+      type: object
+      required:
+      - assignment_id
+      - title
+      - total_variants
+      - variants
+      title: OfflineBundleResponse
+    OfflineBundleVariant:
+      properties:
+        variant_id:
+          type: integer
+          title: Variant Id
+        qr_signature:
+          type: string
+          title: Qr Signature
+        template_geometry:
+          $ref: '#/components/schemas/TemplateGeometry'
+        questions:
+          items:
+            $ref: '#/components/schemas/OfflineBundleQuestion'
+          type: array
+          title: Questions
+      type: object
+      required:
+      - variant_id
+      - qr_signature
+      - template_geometry
+      - questions
+      title: OfflineBundleVariant
+    PreprocessingSpec:
+      properties:
+        input_resolution:
+          items:
+            type: integer
+          type: array
+          title: Input Resolution
+          default:
+          - 64
+          - 64
+        channels:
+          type: integer
+          title: Channels
+          default: 1
+        color_mode:
+          type: string
+          title: Color Mode
+          default: grayscale
+        margin_trim_pct:
+          type: number
+          title: Margin Trim Pct
+          default: 4.0
+        connected_component_segmentation:
+          type: boolean
+          title: Connected Component Segmentation
+          default: true
+        ink_threshold_offset:
+          type: number
+          title: Ink Threshold Offset
+          default: 22.0
+        ink_min_area_pixels:
+          type: integer
+          title: Ink Min Area Pixels
+          default: 35
+        bounding_box_padding_px:
+          type: integer
+          title: Bounding Box Padding Px
+          default: 2
+        target_occupancy_px:
+          type: number
+          title: Target Occupancy Px
+          default: 48.0
+        canvas_background_val:
+          type: integer
+          title: Canvas Background Val
+          default: 250
+        normalization_formula:
+          type: string
+          title: Normalization Formula
+          default: ((pixel / 255.0) - 0.5) / 0.5
+      type: object
+      title: PreprocessingSpec
+    ProblematicLetter:
+      properties:
+        letter:
+          type: string
+          title: Letter
+        total_occurrences:
+          type: integer
+          title: Total Occurrences
+        misrecognized_or_wrong:
+          type: integer
+          title: Misrecognized Or Wrong
+        accuracy_pct:
+          type: number
+          title: Accuracy Pct
+        common_confusions:
+          items:
+            type: string
+          type: array
+          title: Common Confusions
+      type: object
+      required:
+      - letter
+      - total_occurrences
+      - misrecognized_or_wrong
+      - accuracy_pct
+      - common_confusions
+      title: ProblematicLetter
+    QuestionAnalyticsItem:
+      properties:
+        variant_id:
+          type: integer
+          title: Variant Id
+          default: 1
+        question_number:
+          type: integer
+          title: Question Number
+        marker_id:
+          type: integer
+          title: Marker Id
+        prompt:
+          type: string
+          title: Prompt
+        expected_answer:
+          type: string
+          title: Expected Answer
+        accuracy_pct:
+          type: number
+          title: Accuracy Pct
+        wrong_submissions:
+          items:
+            $ref: '#/components/schemas/WrongSubmissionItem'
+          type: array
+          title: Wrong Submissions
+      type: object
+      required:
+      - question_number
+      - marker_id
+      - prompt
+      - expected_answer
+      - accuracy_pct
+      - wrong_submissions
+      title: QuestionAnalyticsItem
+    ReadyTestItem:
+      properties:
+        test_id:
+          type: string
+          title: Test Id
+        title:
+          type: string
+          title: Title
+        grade_level:
+          type: integer
+          title: Grade Level
+        questions_count:
+          type: integer
+          title: Questions Count
+      type: object
+      required:
+      - test_id
+      - title
+      - grade_level
+      - questions_count
+      title: ReadyTestItem
+    ScanTaskRequestBase64:
+      properties:
+        image_base64:
+          type: string
+          title: Image Base64
+          description: Base64 encoded image string (JPEG/PNG/WEBP)
+        mime_type:
+          type: string
+          title: Mime Type
+          description: MIME type of the image
+          default: image/jpeg
+        grade_level:
+          anyOf:
+          - type: integer
+            maximum: 9.0
+            minimum: 5.0
+          - type: 'null'
+          title: Grade Level
+          description: Optional grade level hint
+        save_to_bank:
+          type: boolean
+          title: Save To Bank
+          description: Persist directly into task bank if valid
+          default: false
+      type: object
+      required:
+      - image_base64
+      title: ScanTaskRequestBase64
+    ScanTaskResponse:
+      properties:
+        is_supported:
+          type: boolean
+          title: Is Supported
+          description: True if task matches a supported type and fits 12-cell physical blanks
+        unsupported_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Unsupported Reason
+          description: Explanation why the task is not supported
+        task_type:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Task Type
+          description: Identified task generator type or 'custom'
+        task:
+          anyOf:
+          - $ref: '#/components/schemas/TaskBankItem'
+          - type: 'null'
+          description: Primary formatted task ready for task bank and test blanks
+        tasks:
+          items:
+            $ref: '#/components/schemas/TaskBankItem'
+          type: array
+          title: Tasks
+          description: All extracted sub-tasks if exercise contains multiple items
+        raw_ocr_text:
+          type: string
+          title: Raw Ocr Text
+          description: Recognized text from image OCR
+          default: ''
+        confidence:
+          type: number
+          title: Confidence
+          description: Overall confidence score of OCR and classification
+          default: 1.0
+        saved_to_bank:
+          type: boolean
+          title: Saved To Bank
+          description: Whether the task was persisted in DB
+          default: false
+      type: object
+      required:
+      - is_supported
+      title: ScanTaskResponse
+    SingleSubmissionSaveRequest:
+      properties:
+        assignment_id:
+          type: string
+          title: Assignment Id
+        class_id:
+          type: string
+          title: Class Id
+        submission:
+          $ref: '#/components/schemas/SubmissionItem'
+      type: object
+      required:
+      - assignment_id
+      - class_id
+      - submission
+      title: SingleSubmissionSaveRequest
+    SingleSubmissionSaveResponse:
+      properties:
+        status:
+          type: string
+          title: Status
+          default: saved
+        submission_id:
+          type: string
+          title: Submission Id
+      type: object
+      required:
+      - submission_id
+      title: SingleSubmissionSaveResponse
+    StudentAnalyticsResponse:
+      properties:
+        student_id:
+          type: string
+          title: Student Id
+        full_name:
+          type: string
+          title: Full Name
+        class_name:
+          type: string
+          title: Class Name
+        total_tests_completed:
+          type: integer
+          title: Total Tests Completed
+        average_score_pct:
+          type: number
+          title: Average Score Pct
+        average_grade:
+          type: number
+          title: Average Grade
+        grade_distribution:
+          additionalProperties:
+            type: integer
+          type: object
+          title: Grade Distribution
+        frequent_weak_topics:
+          items:
+            $ref: '#/components/schemas/FrequentWeakTopic'
+          type: array
+          title: Frequent Weak Topics
+        problematic_letters:
+          items:
+            $ref: '#/components/schemas/ProblematicLetter'
+          type: array
+          title: Problematic Letters
+        history:
+          items:
+            $ref: '#/components/schemas/StudentHistoryItem'
+          type: array
+          title: History
+        handwriting_quality_pct:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Handwriting Quality Pct
+        handwriting_status:
+          type: string
+          title: Handwriting Status
+          default: NO_DATA
+        handwriting_metrics:
+          anyOf:
+          - $ref: '#/components/schemas/HandwritingMetrics'
+          - type: 'null'
+      type: object
+      required:
+      - student_id
+      - full_name
+      - class_name
+      - total_tests_completed
+      - average_score_pct
+      - average_grade
+      - grade_distribution
+      - frequent_weak_topics
+      - problematic_letters
+      - history
+      title: StudentAnalyticsResponse
+    StudentHistoryItem:
+      properties:
+        submission_id:
+          type: string
+          title: Submission Id
+        assignment_id:
+          type: string
+          title: Assignment Id
+        assignment_title:
+          type: string
+          title: Assignment Title
+        date:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Date
+        score:
+          type: number
+          title: Score
+        max_score:
+          type: number
+          title: Max Score
+        grade:
+          type: integer
+          title: Grade
+      type: object
+      required:
+      - submission_id
+      - assignment_id
+      - assignment_title
+      - score
+      - max_score
+      - grade
+      title: StudentHistoryItem
+    StudentPerformanceRow:
+      properties:
+        student_id:
+          type: string
+          title: Student Id
+        full_name:
+          type: string
+          title: Full Name
+        average_score_pct:
+          type: number
+          title: Average Score Pct
+        average_grade:
+          type: number
+          title: Average Grade
+        tests_completed:
+          type: integer
+          title: Tests Completed
+        handwriting_quality_pct:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Handwriting Quality Pct
+        handwriting_status:
+          type: string
+          title: Handwriting Status
+          default: NO_DATA
+      type: object
+      required:
+      - student_id
+      - full_name
+      - average_score_pct
+      - average_grade
+      - tests_completed
+      title: StudentPerformanceRow
+    StudentRosterItem:
+      properties:
+        student_id:
+          type: string
+          title: Student Id
+        last_name:
+          type: string
+          title: Last Name
+        first_name:
+          type: string
+          title: First Name
+        middle_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Middle Name
+          default: ''
+        full_name:
+          type: string
+          title: Full Name
+        short_name:
+          type: string
+          title: Short Name
+      type: object
+      required:
+      - student_id
+      - last_name
+      - first_name
+      - full_name
+      - short_name
+      title: StudentRosterItem
+    SubmissionCellResult:
+      properties:
+        cell_index:
+          type: integer
+          maximum: 11.0
+          minimum: 0.0
+          title: Cell Index
+        expected_char:
+          type: string
+          title: Expected Char
+        predicted_char:
+          type: string
+          title: Predicted Char
+        confidence:
+          type: number
+          maximum: 1.0
+          minimum: 0.0
+          title: Confidence
+        status:
+          type: string
+          enum:
+          - MATCH
+          - MISMATCH
+          - EMPTY_MATCH
+          - EMPTY_MISMATCH
+          - FLAGGED
+          - FLAG_OVERRIDDEN_BY_TEACHER
+          title: Status
+        teacher_override:
+          anyOf:
+          - type: string
+            enum:
+            - CORRECT
+            - WRONG
+          - type: 'null'
+          title: Teacher Override
+      type: object
+      required:
+      - cell_index
+      - expected_char
+      - predicted_char
+      - confidence
+      - status
+      title: SubmissionCellResult
+    SubmissionItem:
+      properties:
+        client_submission_uuid:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Client Submission Uuid
+        student_id:
+          type: string
+          title: Student Id
+        student_name:
+          type: string
+          title: Student Name
+        variant:
+          type: integer
+          minimum: 1.0
+          title: Variant
+          default: 1
+        checked_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Checked At
+        overall_score:
+          type: number
+          minimum: 0.0
+          title: Overall Score
+        max_score:
+          type: number
+          exclusiveMinimum: 0.0
+          title: Max Score
+          default: 8.0
+        final_grade:
+          type: integer
+          maximum: 5.0
+          minimum: 2.0
+          title: Final Grade
+          default: 2
+        teacher_reviewed_flags:
+          type: integer
+          minimum: 0.0
+          title: Teacher Reviewed Flags
+          default: 0
+        questions_results:
+          items:
+            $ref: '#/components/schemas/SubmissionQuestionResult'
+          type: array
+          title: Questions Results
+      type: object
+      required:
+      - student_id
+      - student_name
+      - overall_score
+      - questions_results
+      title: SubmissionItem
+    SubmissionQuestionResult:
+      properties:
+        question_number:
+          type: integer
+          minimum: 1.0
+          title: Question Number
+        marker_id:
+          type: integer
+          title: Marker Id
+        topic_tag:
+          type: string
+          title: Topic Tag
+        is_correct:
+          type: boolean
+          title: Is Correct
+        points_earned:
+          type: number
+          minimum: 0.0
+          title: Points Earned
+        cells:
+          items:
+            $ref: '#/components/schemas/SubmissionCellResult'
+          type: array
+          title: Cells
+      type: object
+      required:
+      - question_number
+      - marker_id
+      - topic_tag
+      - is_correct
+      - points_earned
+      - cells
+      title: SubmissionQuestionResult
+    TaskBankItem:
+      properties:
+        task_id:
+          type: string
+          title: Task Id
+        prompt_tt:
+          type: string
+          title: Prompt Tt
+        expected_answer:
+          type: string
+          title: Expected Answer
+        cell_count:
+          type: integer
+          maximum: 12.0
+          minimum: 1.0
+          title: Cell Count
+        grade_level:
+          type: integer
+          maximum: 9.0
+          minimum: 5.0
+          title: Grade Level
+        topic_tag:
+          type: string
+          title: Topic Tag
+        topic_name_tt:
+          type: string
+          title: Topic Name Tt
+        task_type:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Task Type
+          default: custom
+        is_public_in_bank:
+          type: boolean
+          title: Is Public In Bank
+          default: false
+      type: object
+      required:
+      - task_id
+      - prompt_tt
+      - expected_answer
+      - cell_count
+      - grade_level
+      - topic_tag
+      - topic_name_tt
+      title: TaskBankItem
+    TeacherPreferences:
+      properties:
+        grading_scale:
+          $ref: '#/components/schemas/GradingScale'
+        confidence_flag_threshold:
+          type: number
+          title: Confidence Flag Threshold
+          default: 0.65
+          examples:
+          - 0.65
+      type: object
+      title: TeacherPreferences
+    TemplateCellDimensions:
+      properties:
+        width:
+          type: number
+          title: Width
+          default: 10.0
+        height:
+          type: number
+          title: Height
+          default: 10.0
+      type: object
+      title: TemplateCellDimensions
+    TemplateGeometry:
+      properties:
+        format:
+          type: string
+          title: Format
+          default: A4
+        corner_aruco_dict:
+          type: string
+          title: Corner Aruco Dict
+          default: DICT_4X4_50
+        corner_aruco_ids:
+          items:
+            type: integer
+          type: array
+          title: Corner Aruco Ids
+          default:
+          - 0
+          - 1
+          - 2
+          - 3
+        cell_dimensions_mm:
+          $ref: '#/components/schemas/TemplateCellDimensions'
+      type: object
+      title: TemplateGeometry
+    TopClassMistake:
+      properties:
+        topic_code:
+          type: string
+          title: Topic Code
+        topic_name_tt:
+          type: string
+          title: Topic Name Tt
+        failure_rate_pct:
+          type: number
+          title: Failure Rate Pct
+        affected_students_count:
+          type: integer
+          title: Affected Students Count
+      type: object
+      required:
+      - topic_code
+      - topic_name_tt
+      - failure_rate_pct
+      - affected_students_count
+      title: TopClassMistake
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+        input:
+          title: Input
+        ctx:
+          type: object
+          title: Context
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError
+    VerifyAnswerRequest:
+      properties:
+        expected_answer:
+          type: string
+          title: Expected Answer
+        student_answer:
+          type: string
+          title: Student Answer
+        cell_count:
+          type: integer
+          maximum: 12.0
+          minimum: 1.0
+          title: Cell Count
+          default: 8
+        topic_tag:
+          type: string
+          title: Topic Tag
+          default: general
+      type: object
+      required:
+      - expected_answer
+      - student_answer
+      title: VerifyAnswerRequest
+    VerifyAnswerResponse:
+      properties:
+        is_correct:
+          type: boolean
+          title: Is Correct
+        points_earned:
+          type: number
+          title: Points Earned
+        written_word:
+          type: string
+          title: Written Word
+        cells:
+          items:
+            $ref: '#/components/schemas/CellStatusItem'
+          type: array
+          title: Cells
+      type: object
+      required:
+      - is_correct
+      - points_earned
+      - written_word
+      - cells
+      title: VerifyAnswerResponse
+    WrongSubmissionItem:
+      properties:
+        student_id:
+          type: string
+          title: Student Id
+        student_name:
+          type: string
+          title: Student Name
+        written_answer:
+          type: string
+          title: Written Answer
+      type: object
+      required:
+      - student_id
+      - student_name
+      - written_answer
+      title: WrongSubmissionItem
+  securitySchemes:
+    TeacherUUID:
+      type: apiKey
+      in: header
+      name: X-Teacher-UUID
+      description: Teacher UUID v4 generated upon first install
+servers:
+- url: /
+  description: Base Server URL
