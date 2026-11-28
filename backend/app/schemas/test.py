@@ -1,4 +1,4 @@
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Literal
 from pydantic import BaseModel, Field
 
 class ConstructorTaskRef(BaseModel):
@@ -7,7 +7,8 @@ class ConstructorTaskRef(BaseModel):
 
 class AssembleTestRequest(BaseModel):
     title: str = Field(..., min_length=3, max_length=256)
-    grade_level: int = Field(default=7, ge=5, le=9)
+    language: Literal["tt", "ru"] = "tt"
+    grade_level: int = Field(default=7, ge=1, le=9)
     generate_variants_count: int = Field(default=1, ge=1, le=4)
     task_items: Optional[List[ConstructorTaskRef]] = None
     shuffle_questions_in_variants: bool = True
@@ -15,6 +16,7 @@ class AssembleTestRequest(BaseModel):
 
 class ReadyTestItem(BaseModel):
     test_id: str
+    language: str = "tt"
     title: str
     grade_level: int
     questions_count: int
@@ -54,5 +56,7 @@ class OfflineBundleVariant(BaseModel):
 class OfflineBundleResponse(BaseModel):
     assignment_id: str
     title: str
+    language: str = "tt"
+    alphabet_mask: str = "tatar_39"
     total_variants: int
     variants: List[OfflineBundleVariant]

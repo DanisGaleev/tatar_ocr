@@ -5,13 +5,14 @@ from pydantic import BaseModel, Field
 from app.generators.phonetics import build_expected_cells
 
 class TaskDraft(BaseModel):
+    language: str = "tt"
     task_type: str
     topic_tag: str
     topic_name_tt: str
     prompt_tt: str
     expected_answer: str
     cell_count: int = Field(..., ge=1, le=12)
-    grade_level: int = Field(default=5, ge=5, le=9)
+    grade_level: int = Field(default=5, ge=1, le=9)
     metadata: Dict[str, Any] = Field(default_factory=dict)
     expected_cells: List[Dict[str, Any]] = Field(default_factory=list)
 
@@ -20,6 +21,16 @@ class TaskDraft(BaseModel):
             self.expected_cells = build_expected_cells(self.expected_answer, self.cell_count)
 
 class BaseTaskGenerator(ABC):
+    @property
+    def language(self) -> str:
+        """Language code ('tt' for Tatar, 'ru' for Russian)."""
+        return "tt"
+
+    @property
+    def category(self) -> str:
+        """Pedagogical category identifier."""
+        return "general"
+
     @property
     @abstractmethod
     def task_type(self) -> str:

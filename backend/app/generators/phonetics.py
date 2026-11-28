@@ -30,6 +30,16 @@ def clean_word(word: str) -> str:
         raise PhoneticsError(f"Word '{word}' contains non-Tatar or invalid characters.")
     return cleaned
 
+
+def clean_word_for_language(word: str, language: str = "tt") -> str:
+    """Validate and trim a word according to the target language ('tt' or 'ru')."""
+    if language == "ru":
+        from app.generators.russian.phonetics import clean_russian_word
+        return clean_russian_word(word)
+    if language == "tt":
+        return clean_word(word)
+    raise PhoneticsError(f"Unsupported language '{language}'.")
+
 def get_last_vowel(word: str) -> str:
     cleaned = clean_word(word).lower()
     for char in reversed(cleaned):

@@ -277,13 +277,14 @@ Batch import students from a pasted plain-text list (from school journal or Exce
 
 #### 3.1 Search Task Bank
 `GET /api/v1/constructor/tasks`
-- **Query Params**: `query`, `topic_tag`, `grade_level` (5–9), `max_cells` (<= 12), `scope` (`all` | `my_tasks`).
+- **Query Params**: `query`, `language` (`tt` | `ru`), `topic_tag`, `grade_level` (1–9: 1–4 for `ru`, 5–9 for `tt`), `max_cells` (<= 12), `scope` (`all` | `my_tasks`).
 
 #### 3.2 Create Custom Single Task
 `POST /api/v1/constructor/tasks`
-- **Request Body**:
+- **Request Body**: `language` (`"tt"` default, or `"ru"`), `prompt_tt` (or `prompt` alias), `expected_answer`, `cell_count`, `grade_level` (1–9), `topic_tag`, `topic_name_tt` (or `topic_name` alias), `is_public_in_bank`.
 ```json
 {
+  "language": "tt",
   "prompt_tt": "Сүзгә күплек сан кушымчасын ялгагыз: дус ->",
   "expected_answer": "ДУСЛАР",
   "cell_count": 6,
@@ -294,13 +295,18 @@ Batch import students from a pasted plain-text list (from school journal or Exce
 }
 ```
 
-#### 3.3 Browse Ready-Made Complete Tests
-`GET /api/v1/constructor/ready-tests`
-- Curated 8-question sheets with pre-configured A4 templates.
+#### 3.3 Generate Tasks Deterministically & Scan Exercise Photo
+- `GET /api/v1/constructor/task-types?language=tt|ru` — lists all 24 Tatar and 14 Russian primary-school generators across 4 categories (`orthography`, `morphology`, `lexicon`, `phonetics`).
+- `POST /api/v1/constructor/generate` — deterministic seed-based batch generation with optional `language` (`tt` | `ru`) and `save_to_bank`.
+- `POST /api/v1/constructor/scan-task?language=tt|ru` & `POST /api/v1/constructor/scan-task-base64` — extracts single-word (`<= 12` chars) textbook tasks via OCR + YandexGPT for either Tatar or Russian.
 
-#### 3.4 Assemble Modular Test
+#### 3.4 Browse Ready-Made Complete Tests
+`GET /api/v1/constructor/ready-tests?language=tt|ru`
+- Curated sheets with pre-configured A4 templates (includes `language` discriminator).
+
+#### 3.5 Assemble Modular Test
 `POST /api/v1/constructor/tests`
-- Composes a new test from selected task IDs with A4 physical limit validation (maximum 8 modular question blocks).
+- Composes a new test from selected task IDs (strictly matching `language`) or auto-generates 8 questions using the language's generators. Offline bundle includes `"language": "tt" | "ru"` and `"alphabet_mask": "tatar_39" | "russian_33"`.
 - **Request Body**:
 ```json
 {
@@ -590,6 +596,14 @@ Returns the authoritative 39-class alphabet array, model version info, SHA-256 h
     "Ч", "Ш", "Щ", "Ъ", "Ы", "Ь", "Э", "Ю", "Я"
   ],
   "sha256": "b55481b407751ece8237c77bbfa6270cc3a271d73d04b3ef58a4c25ee01361d3",
+  "language_alphabets": {
+    "tt": ["А", "Ә", "...", "Я"],
+    "ru": ["А", "Б", "...", "Я"]
+  },
+  "language_masks": {
+    "tt": [0, 1, 2, "..."],
+    "ru": [0, 2, 3, "..."]
+  },
   "preprocessing": {
     "input_resolution": [64, 64],
     "channels": 1,

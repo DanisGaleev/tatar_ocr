@@ -81,6 +81,41 @@ DEFAULT_MODEL_PATH = _MODEL_SPEC["default_onnx"]
 FALLBACK_ONNX_MODEL = Path(_MODEL_SPEC["fallback_onnx"])
 FALLBACK_PTH_MODEL = Path(_MODEL_SPEC["fallback_pth"])
 TATAR_UPPERCASE = tuple(_MODEL_SPEC["alphabet"])
+RUSSIAN_UPPERCASE = tuple(
+    _MODEL_SPEC.get("alphabets", {}).get("ru", "АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ")
+)
+TATAR_SPECIFIC_LETTERS = frozenset(TATAR_UPPERCASE) - frozenset(RUSSIAN_UPPERCASE)
+
+
+def build_alphabet_mask(alphabet, allowed_chars) -> np.ndarray:
+    """Return a boolean mask over `alphabet` where True marks classes in `allowed_chars`."""
+    allowed_set = set(allowed_chars)
+    return np.array([ch in allowed_set for ch in alphabet], dtype=bool)
+
+
+def apply_language_logit_mask(logits: np.ndarray, alphabet, allowed_chars) -> np.ndarray:
+    """
+    Zeroes out probabilities of disallowed classes (e.g., Tatar-only letters in Russian mode)
+    via logit masking before softmax, ensuring masked probabilities sum to 1.0 over allowed classes.
+    """
+    logits_arr = np.asarray(logits, dtype=np.float32)
+    single = logits_arr.ndim == 1
+    if single:
+        logits_arr = logits_arr[np.newaxis, :]
+
+    mask = build_alphabet_mask(alphabet, allowed_chars)
+    num_classes = min(logits_arr.shape[1], len(mask))
+    active_mask = mask[:num_classes]
+    if not np.any(active_mask):
+        raise ValueError("Language mask allows zero classes.")
+
+    masked_logits = logits_arr[:, :num_classes].copy()
+    masked_logits[:, ~active_mask] = -1e9
+    max_l = np.max(masked_logits, axis=1, keepdims=True)
+    exp_l = np.exp(masked_logits - max_l)
+    exp_l[:, ~active_mask] = 0.0
+    probs = exp_l / np.sum(exp_l, axis=1, keepdims=True)
+    return probs[0] if single else probs
 
 CANVAS_W = int(_CANVAS_SPEC["width"])
 CANVAS_H = int(_CANVAS_SPEC["height"])
@@ -126,6 +161,7 @@ class BlankOCRScanner:
         device: str = "cpu",
         spec_path: Optional[str | Path] = None,
         backend: str = "auto",
+        language: str = "tt",
     ):
         self._spec_path = _resolve_spec_path(spec_path)
         self._spec = load_pipeline_spec(self._spec_path)
@@ -133,6 +169,13 @@ class BlankOCRScanner:
         self._aruco_spec = self._spec["aruco"]
         self._cell_spec = self._spec["cell"]
         self.alphabet = tuple(self._model_spec["alphabet"])
+        self.default_language = language
+        self.alphabets = {
+            "tt": self.alphabet,
+            "ru": tuple(self._model_spec.get("alphabets", {}).get("ru", RUSSIAN_UPPERCASE)),
+        }
+        if language not in self.alphabets:
+            raise ValueError(f"Unsupported language '{language}'. Supported: {list(self.alphabets.keys())}")
 
         self.device = device
         self.requested_backend = backend
@@ -199,20 +242,31 @@ class BlankOCRScanner:
     def extract_cells(self, rectified_bgr: np.ndarray) -> tuple[list[dict], list[dict]]:
         return self._native.extract_cells(np.ascontiguousarray(rectified_bgr, dtype=np.uint8))
 
-    def _infer_custom_batch(self, inp_64_list: list[np.ndarray], model) -> np.ndarray:
+    def _resolve_allowed_chars(self, language: Optional[str], char_list=None):
+        if char_list is not None:
+            return tuple(char_list)
+        lang = language or self.default_language
+        if lang not in self.alphabets:
+            raise ValueError(f"Unsupported language '{lang}'. Supported: {list(self.alphabets.keys())}")
+        return self.alphabets[lang]
+
+    def _infer_custom_batch(self, inp_64_list: list[np.ndarray], model, allowed_chars=None) -> np.ndarray:
         tensors = np.stack([((arr.astype(np.float32) / 255.0) - 0.5) / 0.5 for arr in inp_64_list], axis=0)
         inp_4d = tensors[:, np.newaxis, :, :]
         if hasattr(model, "run"):
             input_name = model.get_inputs()[0].name
             logits = model.run(None, {input_name: inp_4d.astype(np.float32)})[0]
-            exp_l = np.exp(logits - np.max(logits, axis=1, keepdims=True))
-            return exp_l / np.sum(exp_l, axis=1, keepdims=True)
+        else:
+            import torch
 
-        import torch
+            with torch.no_grad():
+                logits = model(torch.from_numpy(inp_4d).to(self.device)).cpu().numpy()
 
-        with torch.no_grad():
-            logits = model(torch.from_numpy(inp_4d).to(self.device))
-            return torch.softmax(logits, dim=1).cpu().numpy()
+        if allowed_chars is not None and len(allowed_chars) < len(self.alphabet):
+            return apply_language_logit_mask(logits, self.alphabet, allowed_chars)
+
+        exp_l = np.exp(logits - np.max(logits, axis=1, keepdims=True))
+        return exp_l / np.sum(exp_l, axis=1, keepdims=True)
 
     def _classify_custom_batch(
         self,
@@ -223,28 +277,36 @@ class BlankOCRScanner:
         top_k: int,
         force_predict: bool,
         debug: bool,
+        language: Optional[str] = None,
     ) -> list[dict]:
         """Run C++ CV preprocessing in native core, then score tensors with custom/PyTorch model."""
-        active_chars = char_list if char_list is not None else self.alphabet
+        active_chars = self.alphabet
+        allowed_chars = self._resolve_allowed_chars(language, char_list=char_list)
+        allowed_mask = build_alphabet_mask(active_chars, allowed_chars)
         guard_chars = tuple(self._cell_spec["diacritic_guard_chars"])
-        k = min(max(3, top_k), len(active_chars))
+        k = min(max(3, top_k), int(np.sum(allowed_mask)))
 
         preps = [
             {"is_empty": True, "char": " ", "confidence": 100.0, "top3": [(" ", 100.0)], "top_items": []}
             if crop.size == 0
             else self._native.classify_cell(
-                np.ascontiguousarray(crop, dtype=np.uint8), margin_trim_pct, k, force_predict, True
+                np.ascontiguousarray(crop, dtype=np.uint8), margin_trim_pct, k, force_predict, True, language or self.default_language
             )
             for crop in crops
         ]
         pending = [i for i, r in enumerate(preps) if "inp_64" in r and (not r["is_empty"] or force_predict)]
-        probs_batch = self._infer_custom_batch([preps[i]["inp_64"] for i in pending], model) if pending else []
+        probs_batch = (
+            self._infer_custom_batch([preps[i]["inp_64"] for i in pending], model, allowed_chars=allowed_chars)
+            if pending
+            else []
+        )
 
+        allowed_indices = np.where(allowed_mask)[0]
         for idx, probs in zip(pending, probs_batch):
             p = preps[idx]
-            top_indices = np.argsort(probs)[::-1][:k]
-            top_chars = [active_chars[j] for j in top_indices]
-            top_confs = (probs[top_indices] * 100.0).tolist()
+            sorted_allowed = allowed_indices[np.argsort(probs[allowed_indices])[::-1][:k]]
+            top_chars = [active_chars[j] for j in sorted_allowed]
+            top_confs = (probs[sorted_allowed] * 100.0).tolist()
             top_chars, top_confs = _apply_diacritic_guard(
                 probs, active_chars, top_chars, top_confs,
                 bool(p.get("has_top_diacritic")), bool(p["is_empty"]), guard_chars, k,
@@ -275,20 +337,25 @@ class BlankOCRScanner:
         top_k: int = 3,
         force_predict: bool = False,
         debug: bool = False,
+        language: Optional[str] = None,
     ) -> dict:
+        lang = language or self.default_language
         trim = float(self._cell_spec["default_margin_trim_pct"] if margin_trim_pct is None else margin_trim_pct)
         if self.is_onnx and model is None and char_list is None and str(self.device) == "cpu":
             return self._native.classify_cell(
-                np.ascontiguousarray(cell_bgr, dtype=np.uint8), trim, int(top_k), bool(force_predict), bool(debug)
+                np.ascontiguousarray(cell_bgr, dtype=np.uint8), trim, int(top_k), bool(force_predict), bool(debug), lang
             )
         active_model = model if model is not None else self.model
-        return self._classify_custom_batch([cell_bgr], active_model, char_list, trim, top_k, force_predict, debug)[0]
+        return self._classify_custom_batch(
+            [cell_bgr], active_model, char_list, trim, top_k, force_predict, debug, language=lang
+        )[0]
 
-    def process_blank(self, img_bgr: np.ndarray, annotate: bool = False) -> dict:
+    def process_blank(self, img_bgr: np.ndarray, annotate: bool = False, language: Optional[str] = None) -> dict:
+        lang = language or self.default_language
         if self.is_onnx and str(self.device) == "cpu":
-            result = self._native.process_blank(np.ascontiguousarray(img_bgr, dtype=np.uint8))
+            result = self._native.process_blank(np.ascontiguousarray(img_bgr, dtype=np.uint8), lang)
         else:
-            result = self._process_blank_custom(img_bgr)
+            result = self._process_blank_custom(img_bgr, language=lang)
 
         if annotate:
             from pipeline_debug import annotate_blank_result
@@ -296,7 +363,8 @@ class BlankOCRScanner:
             result["annotated_bgr"] = annotate_blank_result(result["rectified_bgr"], result)
         return result
 
-    def _process_blank_custom(self, img_bgr: np.ndarray) -> dict:
+    def _process_blank_custom(self, img_bgr: np.ndarray, language: Optional[str] = None) -> dict:
+        lang = language or self.default_language
         rectified, _, method = self.rectify_sheet(img_bgr)
         name_cells, question_rows = self.extract_cells(rectified)
         img_h, img_w = rectified.shape[:2]
@@ -313,7 +381,9 @@ class BlankOCRScanner:
             crops.append(rectified[y1:y2, x1:x2])
 
         trim = float(self._cell_spec["default_margin_trim_pct"])
-        preds = self._classify_custom_batch(crops, self.model, self.alphabet, trim, 3, False, False)
+        preds = self._classify_custom_batch(
+            crops, self.model, None, trim, 3, False, False, language=lang
+        )
 
         def _summarize(group_cells: list[dict], group_preds: list[dict]):
             chars, out_cells, letters, conf_sum = [], [], 0, 0.0
@@ -355,8 +425,8 @@ class BlankOCRScanner:
             "annotated_bgr": None,
         }
 
-    def process_image(self, image_path, annotate: bool = False) -> dict:
+    def process_image(self, image_path, annotate: bool = False, language: Optional[str] = None) -> dict:
         img_bgr = cv2.imread(str(image_path))
         if img_bgr is None:
             raise FileNotFoundError(f"Could not load image: {image_path}")
-        return self.process_blank(img_bgr, annotate=annotate)
+        return self.process_blank(img_bgr, annotate=annotate, language=language)

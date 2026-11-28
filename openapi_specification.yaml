@@ -197,11 +197,16 @@ components:
 
     AssignmentMetadataResponse:
       type: object
-      description: Metadata, title, grade level, topic tags, points.
+      description: Metadata, title, language, grade level, topic tags, points.
       properties:
         assignment_id:
           type: string
           example: "TAT-2026-Q1"
+        language:
+          type: string
+          enum: ["tt", "ru"]
+          default: "tt"
+          example: "tt"
         title:
           type: string
           example: "Татар теле. 7 сыйныф. Исем килешләре"
@@ -314,6 +319,16 @@ components:
         title:
           type: string
           example: "Татар теле. 7 сыйныф. Исем килешләре"
+        language:
+          type: string
+          enum: ["tt", "ru"]
+          default: "tt"
+          example: "tt"
+        alphabet_mask:
+          type: string
+          enum: ["tatar_39", "russian_33"]
+          default: "tatar_39"
+          example: "tatar_39"
         total_variants:
           type: integer
           example: 2
@@ -328,6 +343,15 @@ components:
         task_id:
           type: string
           example: "tsk_8201"
+        language:
+          type: string
+          enum: ["tt", "ru"]
+          default: "tt"
+          example: "tt"
+        task_type:
+          type: string
+          default: "custom"
+          example: "plural_affixes"
         prompt_tt:
           type: string
           example: "Сүзгә күплек сан кушымчасын ялгагыз: дус ->"
@@ -339,6 +363,8 @@ components:
           example: 6
         grade_level:
           type: integer
+          minimum: 1
+          maximum: 9
           example: 5
         topic_tag:
           type: string
@@ -353,16 +379,22 @@ components:
     CreateTaskRequest:
       type: object
       required:
-        - prompt_tt
         - expected_answer
         - cell_count
         - grade_level
         - topic_tag
-        - topic_name_tt
       properties:
+        language:
+          type: string
+          enum: ["tt", "ru"]
+          default: "tt"
+          example: "tt"
         prompt_tt:
           type: string
           example: "Сүзгә күплек сан кушымчасын ялгагыз: дус ->"
+        prompt:
+          type: string
+          description: Optional neutral alias for prompt_tt
         expected_answer:
           type: string
           example: "ДУСЛАР"
@@ -371,6 +403,8 @@ components:
           example: 6
         grade_level:
           type: integer
+          minimum: 1
+          maximum: 9
           example: 5
         topic_tag:
           type: string
@@ -378,9 +412,199 @@ components:
         topic_name_tt:
           type: string
           example: "Күплек сан"
+        topic_name:
+          type: string
+          description: Optional neutral alias for topic_name_tt
+        task_type:
+          type: string
+          default: "custom"
+          example: "custom"
         is_public_in_bank:
           type: boolean
           example: false
+
+    GenerateTasksRequest:
+      type: object
+      required:
+        - task_type
+      properties:
+        task_type:
+          type: string
+          example: "ru_orthogram_combinations"
+        language:
+          type: string
+          enum: ["tt", "ru"]
+          nullable: true
+          example: "ru"
+        count:
+          type: integer
+          minimum: 1
+          maximum: 10
+          default: 1
+        seed:
+          type: integer
+          nullable: true
+        grade_level:
+          type: integer
+          minimum: 1
+          maximum: 9
+          nullable: true
+        custom_stems:
+          type: array
+          items:
+            type: string
+          nullable: true
+        case_code:
+          type: string
+          nullable: true
+        save_to_bank:
+          type: boolean
+          default: false
+
+    GenerateTasksResponse:
+      type: object
+      properties:
+        language:
+          type: string
+          enum: ["tt", "ru"]
+        task_type:
+          type: string
+        seed:
+          type: integer
+          nullable: true
+        count:
+          type: integer
+        tasks:
+          type: array
+          items:
+            $ref: '#/components/schemas/TaskBankItem'
+
+    VerifyAnswerRequest:
+      type: object
+      required:
+        - expected_answer
+        - student_answer
+      properties:
+        expected_answer:
+          type: string
+        student_answer:
+          type: string
+        cell_count:
+          type: integer
+          default: 8
+        topic_tag:
+          type: string
+          default: "general"
+        language:
+          type: string
+          enum: ["tt", "ru"]
+          default: "tt"
+
+    VerifyAnswerResponse:
+      type: object
+      properties:
+        is_correct:
+          type: boolean
+        points_earned:
+          type: number
+        written_word:
+          type: string
+        cells:
+          type: array
+          items:
+            type: object
+            properties:
+              cell_index:
+                type: integer
+              expected_char:
+                type: string
+              predicted_char:
+                type: string
+              status:
+                type: string
+
+    ScanTaskRequestBase64:
+      type: object
+      required:
+        - image_base64
+      properties:
+        image_base64:
+          type: string
+        mime_type:
+          type: string
+          default: "image/jpeg"
+        language:
+          type: string
+          enum: ["tt", "ru"]
+          default: "tt"
+        grade_level:
+          type: integer
+          minimum: 1
+          maximum: 9
+          nullable: true
+        save_to_bank:
+          type: boolean
+          default: false
+
+    ScanTaskResponse:
+      type: object
+      properties:
+        is_supported:
+          type: boolean
+        unsupported_reason:
+          type: string
+          nullable: true
+        language:
+          type: string
+          enum: ["tt", "ru"]
+        task_type:
+          type: string
+          nullable: true
+        task:
+          $ref: '#/components/schemas/TaskBankItem'
+        tasks:
+          type: array
+          items:
+            $ref: '#/components/schemas/TaskBankItem'
+        raw_ocr_text:
+          type: string
+        confidence:
+          type: number
+        saved_to_bank:
+          type: boolean
+
+    ModelManifestResponse:
+      type: object
+      properties:
+        model_name:
+          type: string
+          example: "finetuned_uppercase39"
+        model_version:
+          type: string
+          example: "1.0.0"
+        num_classes:
+          type: integer
+          example: 39
+        alphabet_classes:
+          type: array
+          items:
+            type: string
+        language_alphabets:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+        language_masks:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: integer
+        sha256:
+          type: string
+        preprocessing:
+          type: object
 
     ReadyTestItem:
       type: object
@@ -389,6 +613,11 @@ components:
         test_id:
           type: string
           example: "test_curated_01"
+        language:
+          type: string
+          enum: ["tt", "ru"]
+          default: "tt"
+          example: "tt"
         title:
           type: string
           example: "7 сыйныф. Исем килешләре"
@@ -418,13 +647,19 @@ components:
         - title
         - grade_level
         - generate_variants_count
-        - task_items
       properties:
         title:
           type: string
           example: "7 сыйныф. 1 нче чирек контроль эше"
+        language:
+          type: string
+          enum: ["tt", "ru"]
+          default: "tt"
+          example: "tt"
         grade_level:
           type: integer
+          minimum: 1
+          maximum: 9
           example: 7
         generate_variants_count:
           type: integer
@@ -941,6 +1176,32 @@ paths:
               schema:
                 $ref: '#/components/schemas/BulkImportStudentsResponse'
 
+  /api/v1/assignments:
+    get:
+      tags:
+        - Assignment Delivery
+      summary: List Teacher Assignments
+      parameters:
+        - name: class_id
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: language
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: ["tt", "ru"]
+      responses:
+        '200':
+          description: OK
+
   /api/v1/assignments/{assignment_id}:
     get:
       tags:
@@ -1058,6 +1319,22 @@ paths:
               schema:
                 $ref: '#/components/schemas/OfflineBundleResponse'
 
+  /api/v1/constructor/task-types:
+    get:
+      tags:
+        - Assignment Constructor
+      summary: List supported task generator types
+      parameters:
+        - name: language
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: ["tt", "ru"]
+      responses:
+        '200':
+          description: Supported generator types
+
   /api/v1/constructor/tasks:
     get:
       tags:
@@ -1070,6 +1347,15 @@ paths:
           required: false
           schema:
             type: string
+        - name: language
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - tt
+              - ru
+          description: Filter by subject language ('tt' or 'ru')
         - name: topic_tag
           in: query
           required: false
@@ -1080,9 +1366,9 @@ paths:
           required: false
           schema:
             type: integer
-            minimum: 5
+            minimum: 1
             maximum: 9
-          description: 5–9
+          description: 1–9 (1–4 Russian primary, 5–9 Tatar)
         - name: max_cells
           in: query
           required: false
@@ -1131,10 +1417,17 @@ paths:
       tags:
         - Assignment Constructor
       summary: Browse Ready-Made Complete Tests
-      description: Curated 8-question sheets with pre-configured A4 templates.
+      description: Curated sheets with pre-configured A4 templates.
+      parameters:
+        - name: language
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: ["tt", "ru"]
       responses:
         '200':
-          description: Curated 8-question sheets with pre-configured A4 templates.
+          description: Curated sheets with pre-configured A4 templates.
           content:
             application/json:
               schema:
@@ -1142,12 +1435,113 @@ paths:
                 items:
                   $ref: '#/components/schemas/ReadyTestItem'
 
+  /api/v1/constructor/generate:
+    post:
+      tags:
+        - Assignment Constructor
+      summary: Generate tasks deterministically using linguistic generator
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateTasksRequest'
+      responses:
+        '200':
+          description: Generated tasks
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerateTasksResponse'
+
+  /api/v1/constructor/verify-answer:
+    post:
+      tags:
+        - Assignment Constructor
+      summary: Verify student answer against expected answer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyAnswerRequest'
+      responses:
+        '200':
+          description: Verification result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerifyAnswerResponse'
+
+  /api/v1/constructor/scan-task:
+    post:
+      tags:
+        - Assignment Constructor
+      summary: Scan exercise image via OCR and classify/structure via YandexGPT
+      parameters:
+        - name: save_to_bank
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+        - name: language
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: ["tt", "ru"]
+            default: "tt"
+        - name: grade_level
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 9
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Extracted tasks
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScanTaskResponse'
+
+  /api/v1/constructor/scan-task-base64:
+    post:
+      tags:
+        - Assignment Constructor
+      summary: Scan exercise from base64 image via OCR & YandexGPT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScanTaskRequestBase64'
+      responses:
+        '200':
+          description: Extracted tasks
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScanTaskResponse'
+
   /api/v1/constructor/tests:
     post:
       tags:
         - Assignment Constructor
       summary: Assemble Modular Test
-      description: Composes a new test from selected task IDs with A4 physical limit validation (maximum 8 modular question blocks).
+      description: Composes a new test from selected task IDs (matching language) or auto-generates 8 questions with A4 physical limit validation.
       requestBody:
         required: true
         content:
@@ -1156,21 +1550,11 @@ paths:
               $ref: '#/components/schemas/AssembleTestRequest'
       responses:
         '201':
-          description: Test created
+          description: Test created with offline bundle
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  test_id:
-                    type: string
-                    example: "test_8201_assembled"
-                  title:
-                    type: string
-                    example: "7 сыйныф. 1 нче чирек контроль эше"
-                  variants_count:
-                    type: integer
-                    example: 2
+                $ref: '#/components/schemas/OfflineBundleResponse'
 
   /api/v1/constructor/tests/{test_id}/fork:
     post:
@@ -1378,3 +1762,16 @@ paths:
             text/csv:
               schema:
                 type: string
+
+  /api/v1/model/manifest:
+    get:
+      tags:
+        - Model & Manifest
+      summary: Get OCR Model Manifest and Preprocessing Spec
+      responses:
+        '200':
+          description: Model manifest with 39-class Tatar and 33-class Russian alphabet masks
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelManifestResponse'

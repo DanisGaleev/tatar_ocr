@@ -7,6 +7,7 @@ class TaskBankModel(Base):
     __tablename__ = "task_bank"
 
     task_id = Column(String(64), primary_key=True, index=True, default=lambda: f"tsk_{uuid.uuid4().hex[:8]}")
+    language = Column(String(8), nullable=False, default="tt", index=True)
     prompt_tt = Column(String(512), nullable=False)
     expected_answer = Column(String(32), nullable=False)
     cell_count = Column(Integer, nullable=False, default=8)

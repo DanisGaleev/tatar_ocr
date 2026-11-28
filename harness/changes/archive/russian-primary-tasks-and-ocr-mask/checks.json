@@ -1,0 +1,102 @@
+{
+  "change_id": "russian-primary-tasks-and-ocr-mask",
+  "default_policy": "FAIL_UNTIL_EVIDENCE",
+  "checks": [
+    {
+      "id": "AC-1",
+      "description": "14 Russian primary-school generators across 4 categories are deterministic, error-free, <=12 Russian Cyrillic chars, and support create_custom",
+      "status": "PASS",
+      "command": "C:\\Users\\galee\\PycharmProjects\\tatar_ocr\\.venv\\Scripts\\python.exe -m pytest backend\\tests\\test_russian_generators.py -q",
+      "evidence": "All lexicon integrity, phonetics helper (including [й'] iotated regression), 14-generator determinism, custom creation, checker, and Russian PDF tests passed as part of 169 passed in backend/tests",
+      "verified_at": "2026-11-28T17:07:27+03:00"
+    },
+    {
+      "id": "AC-2",
+      "description": "All 4 Russian task addition modes (generate, manual, photo scan, bank/ready tests) work end-to-end and persist with language='ru'",
+      "status": "PASS",
+      "command": "C:\\Users\\galee\\PycharmProjects\\tatar_ocr\\.venv\\Scripts\\python.exe -m pytest backend\\tests\\test_russian_api_and_isolation.py -q",
+      "evidence": "All 4 modes (deterministic generate, manual POST /tasks, multipart/base64 /scan-task, bank/ready-tests/assemble /tests) passed in 169 passed",
+      "verified_at": "2026-11-28T17:07:27+03:00"
+    },
+    {
+      "id": "AC-3",
+      "description": "Parallel Tatar (tt) and Russian (ru) isolation verified with zero cross-contamination and full backward compatibility",
+      "status": "PASS",
+      "command": "C:\\Users\\galee\\PycharmProjects\\tatar_ocr\\.venv\\Scripts\\python.exe -m pytest backend\\tests -q",
+      "evidence": "169 passed, 0 failed across existing Tatar suites and new Russian isolation tests (cross-language generator returns 400, mixed-language test assembly returns 422)",
+      "verified_at": "2026-11-28T17:07:27+03:00"
+    },
+    {
+      "id": "AC-4",
+      "description": "Russian answer checker and Russian A4 PDF blank rendering work cleanly for language='ru'",
+      "status": "PASS",
+      "command": "C:\\Users\\galee\\PycharmProjects\\tatar_ocr\\.venv\\Scripts\\python.exe -m pytest backend\\tests\\test_russian_generators.py backend\\tests\\test_russian_api_and_isolation.py -q",
+      "evidence": "TestRussianCheckerAndPDF and test_mode_4_ready_tasks_and_tests_from_system_plus_pdf_and_manifest passed (Y->У normalization and %PDF output >40KB)",
+      "verified_at": "2026-11-28T17:07:27+03:00"
+    },
+    {
+      "id": "AC-5",
+      "description": "OCR Russian 33-letter mask in pipeline_spec.json, C++20 native core, blank_pipeline.py, and /model/manifest excludes Tatar-only letters when language='ru'",
+      "status": "PASS",
+      "command": "C:\\Users\\galee\\PycharmProjects\\tatar_ocr\\.venv\\Scripts\\python.exe -m pytest backend\\tests\\test_ocr_russian_mask.py -v",
+      "evidence": "4 passed: spec alignment, logit mask renormalization, live NativeBlankScanner classify_cell & process_image on blank_01.jpg with 0 Tatar-only letters emitted",
+      "verified_at": "2026-11-28T17:07:27+03:00"
+    },
+    {
+      "id": "AC-6",
+      "description": "C++20 native core compiles with both TATAR_OCR_BUILD_PYTHON=ON and TATAR_OCR_BUILD_PYTHON=OFF",
+      "status": "PASS",
+      "command": "cmake --build native\\build --config Release && cmake -S native -B native\\build_nopy -DTATAR_OCR_BUILD_PYTHON=OFF ... && cmake --build native\\build_nopy --config Release",
+      "evidence": "Both configurations built cleanly with exit code 0 after final header update (tatar_ocr_core.lib + tatar_ocr_native.cp312-win_amd64.pyd)",
+      "verified_at": "2026-11-28T17:07:24+03:00"
+    },
+    {
+      "id": "AC-7",
+      "description": "Full backend pytest suite passes after final edit and OCR Tatar regression benchmark (if available) shows zero regression",
+      "status": "PASS",
+      "command": "C:\\Users\\galee\\PycharmProjects\\tatar_ocr\\.venv\\Scripts\\python.exe v3\\evaluate_blanks.py --model models\\tatar_ocr_v4_handwritten39_int8.onnx",
+      "evidence": "169 passed in backend/tests; benchmark: Acc_char=96.88% (435/449), R_Tatar=97.33% (73/75), FEM=78.95% (45/57) in 8.12s",
+      "verified_at": "2026-11-28T17:07:27+03:00"
+    },
+    {
+      "id": "GATE-BACKEND",
+      "description": "Backend pytest suite passes after final edit",
+      "status": "PASS",
+      "command": "C:\\Users\\galee\\PycharmProjects\\tatar_ocr\\.venv\\Scripts\\python.exe -m pytest backend\\tests -q",
+      "evidence": "169 passed, 5 warnings in 16.16s",
+      "verified_at": "2026-11-28T17:07:27+03:00"
+    },
+    {
+      "id": "GATE-NATIVE-PY",
+      "description": "Native C++20 pybind11 module builds cleanly",
+      "status": "PASS",
+      "command": "cmake --build native\\build --config Release",
+      "evidence": "tatar_ocr_native.cp312-win_amd64.pyd built cleanly (exit code 0)",
+      "verified_at": "2026-11-28T17:07:24+03:00"
+    },
+    {
+      "id": "GATE-NATIVE-ANDROID",
+      "description": "Native C++20 core builds cleanly with TATAR_OCR_BUILD_PYTHON=OFF",
+      "status": "PASS",
+      "command": "cmake --build native\\build_nopy --config Release",
+      "evidence": "tatar_ocr_core.lib built cleanly without Python/pybind11 (exit code 0)",
+      "verified_at": "2026-11-28T17:07:24+03:00"
+    },
+    {
+      "id": "GATE-OCR-MASK",
+      "description": "OCR Russian mask unit and integration tests pass",
+      "status": "PASS",
+      "command": "C:\\Users\\galee\\PycharmProjects\\tatar_ocr\\.venv\\Scripts\\python.exe -m pytest backend\\tests\\test_ocr_russian_mask.py -v",
+      "evidence": "4 passed in backend/tests suite",
+      "verified_at": "2026-11-28T17:07:27+03:00"
+    },
+    {
+      "id": "GATE-SPECS",
+      "description": "Living specs (OpenAPI, api_specification, PIPELINE, pipeline_spec, STATUS) synced with spec.md deltas",
+      "status": "PASS",
+      "command": "yaml.safe_load('openapi_specification.yaml') + updated pipeline_spec.json, api_specification.md, docs/PIPELINE.md, docs/STATUS.md",
+      "evidence": "All Spec Deltas from spec.md synced and OpenAPI YAML validated",
+      "verified_at": "2026-11-28T17:07:27+03:00"
+    }
+  ]
+}

@@ -17,6 +17,7 @@ namespace tatar_ocr {
 namespace {
 
 constexpr const char* kDefaultAlphabet = "АӘБВГДЕЁЖҖЗИЙКЛМНҢОӨПРСТУҮФХҺЦЧШЩЪЫЬЭЮЯ";
+constexpr const char* kDefaultRussianAlphabet = "АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ";
 
 int py_round(double x) {
     double r = std::round(x);
@@ -604,15 +605,24 @@ PreparedCell prepare_cell(const cv::Mat& cell_bgr, double margin_trim_pct, bool 
 }
 
 CellResult build_prediction(const std::vector<float>& probs, bool has_top_diacritic, bool is_empty_cell, int top_k,
-                            const PipelineSpec& s) {
+                            const PipelineSpec& s, const std::vector<uint8_t>& allowed_mask = {}) {
     CellResult res;
     res.is_empty = is_empty_cell;
     int num_classes = static_cast<int>(std::min(probs.size(), s.alphabet.size()));
     if (num_classes <= 0) return res;
 
-    int k = std::min(std::max(3, top_k), num_classes);
-    std::vector<int> order(static_cast<size_t>(num_classes));
-    std::iota(order.begin(), order.end(), 0);
+    auto is_allowed = [&](int idx) -> bool {
+        return allowed_mask.empty() || (idx >= 0 && idx < static_cast<int>(allowed_mask.size()) && allowed_mask[idx] != 0);
+    };
+
+    std::vector<int> order;
+    order.reserve(static_cast<size_t>(num_classes));
+    for (int i = 0; i < num_classes; ++i) {
+        if (is_allowed(i)) order.push_back(i);
+    }
+    if (order.empty()) return res;
+
+    int k = std::min(std::max(3, top_k), static_cast<int>(order.size()));
     std::partial_sort(order.begin(), order.begin() + k, order.end(),
                       [&](int a, int b) { return probs[a] > probs[b]; });
 
@@ -646,8 +656,8 @@ CellResult build_prediction(const std::vector<float>& probs, bool has_top_diacri
         } else {
             auto ait = std::find(s.alphabet.begin(), s.alphabet.end(), target_alt);
             if (ait != s.alphabet.end()) {
-                size_t cidx = static_cast<size_t>(std::distance(s.alphabet.begin(), ait));
-                if (cidx < probs.size()) {
+                int cidx = static_cast<int>(std::distance(s.alphabet.begin(), ait));
+                if (cidx < static_cast<int>(probs.size()) && is_allowed(cidx)) {
                     top_chars.insert(top_chars.begin(), target_alt);
                     top_confs.insert(top_confs.begin(), static_cast<double>(probs[cidx]) * 100.0);
                     top_chars.resize(static_cast<size_t>(k));
@@ -690,6 +700,8 @@ void read_size(const nlohmann::json& j, const char* key, cv::Size& dst) {
 PipelineSpec PipelineSpec::load(const std::string& spec_path) {
     PipelineSpec s;
     s.alphabet = split_utf8(kDefaultAlphabet);
+    s.alphabets["tt"] = s.alphabet;
+    s.alphabets["ru"] = split_utf8(kDefaultRussianAlphabet);
     if (spec_path.empty()) return s;
 
     std::ifstream ifs(to_fs_path(spec_path));
@@ -702,6 +714,16 @@ PipelineSpec PipelineSpec::load(const std::string& spec_path) {
             s.alphabet = split_utf8(a.get<std::string>());
         } else if (a.is_array()) {
             s.alphabet = a.get<std::vector<std::string>>();
+        }
+        s.alphabets["tt"] = s.alphabet;
+    }
+    if (root.contains("model") && root["model"].contains("alphabets") && root["model"]["alphabets"].is_object()) {
+        for (const auto& [lang_key, val] : root["model"]["alphabets"].items()) {
+            if (val.is_string()) {
+                s.alphabets[lang_key] = split_utf8(val.get<std::string>());
+            } else if (val.is_array()) {
+                s.alphabets[lang_key] = val.get<std::vector<std::string>>();
+            }
         }
     }
 
@@ -1170,7 +1192,32 @@ std::pair<std::vector<CellBox>, std::vector<QuestionRow>> NativeBlankScanner::ex
     return {name_cells, question_rows};
 }
 
-std::vector<std::vector<float>> NativeBlankScanner::run_batch(const std::vector<float>& batch_data, int batch_size) {
+std::vector<std::string> NativeBlankScanner::alphabet_for_language(const std::string& language) const {
+    if (language.empty() || language == "tt") return spec_.alphabet;
+    auto it = spec_.alphabets.find(language);
+    if (it == spec_.alphabets.end()) {
+        throw std::invalid_argument("Unsupported OCR language: " + language);
+    }
+    return it->second;
+}
+
+std::vector<uint8_t> NativeBlankScanner::build_language_mask(const std::string& language) const {
+    if (language.empty() || language == "tt") {
+        return std::vector<uint8_t>(spec_.alphabet.size(), 1);
+    }
+    auto target = alphabet_for_language(language);
+    std::vector<uint8_t> mask(spec_.alphabet.size(), 0);
+    for (size_t i = 0; i < spec_.alphabet.size(); ++i) {
+        if (std::find(target.begin(), target.end(), spec_.alphabet[i]) != target.end()) {
+            mask[i] = 1;
+        }
+    }
+    return mask;
+}
+
+std::vector<std::vector<float>> NativeBlankScanner::run_batch(const std::vector<float>& batch_data,
+                                                              int batch_size,
+                                                              const std::vector<uint8_t>& allowed_mask) {
     if (batch_size <= 0) return {};
     int sz = spec_.canonical_canvas_size;
     std::array<int64_t, 4> shape = {batch_size, 1, sz, sz};
@@ -1185,26 +1232,47 @@ std::vector<std::vector<float>> NativeBlankScanner::run_batch(const std::vector<
     int num_classes = (out_shape.size() >= 2) ? static_cast<int>(out_shape[1]) : static_cast<int>(spec_.alphabet.size());
     const float* logits = outputs[0].GetTensorData<float>();
 
+    auto is_allowed = [&](int c) -> bool {
+        return allowed_mask.empty() || (c >= 0 && c < static_cast<int>(allowed_mask.size()) && allowed_mask[c] != 0);
+    };
+
     std::vector<std::vector<float>> probs(static_cast<size_t>(batch_size),
-                                          std::vector<float>(static_cast<size_t>(num_classes)));
+                                          std::vector<float>(static_cast<size_t>(num_classes), 0.0f));
     for (int i = 0; i < batch_size; ++i) {
         const float* row = logits + i * num_classes;
-        float max_l = *std::max_element(row, row + num_classes);
+        float max_l = -1e30f;
+        bool has_allowed = false;
+        for (int c = 0; c < num_classes; ++c) {
+            if (!is_allowed(c)) continue;
+            if (!has_allowed || row[c] > max_l) {
+                max_l = row[c];
+                has_allowed = true;
+            }
+        }
+        if (!has_allowed) continue;
+
         double sum = 0.0;
         for (int c = 0; c < num_classes; ++c) {
+            if (!is_allowed(c)) {
+                probs[i][c] = 0.0f;
+                continue;
+            }
             float e = std::exp(row[c] - max_l);
             probs[i][c] = e;
             sum += e;
         }
-        float inv = static_cast<float>(1.0 / sum);
-        for (int c = 0; c < num_classes; ++c) probs[i][c] *= inv;
+        float inv = (sum > 0.0) ? static_cast<float>(1.0 / sum) : 0.0f;
+        for (int c = 0; c < num_classes; ++c) {
+            if (is_allowed(c)) probs[i][c] *= inv;
+        }
     }
     return probs;
 }
 
 CellResult NativeBlankScanner::classify_cell(const cv::Mat& cell_bgr, double margin_trim_pct, int top_k,
-                                             bool force_predict, bool debug) {
+                                             bool force_predict, bool debug, const std::string& language) {
     if (margin_trim_pct < 0.0) margin_trim_pct = spec_.default_margin_trim_pct;
+    auto allowed_mask = build_language_mask(language);
     PreparedCell prep = prepare_cell(cell_bgr, margin_trim_pct, force_predict, debug, spec_);
     if (!prep.has_tensor) {
         CellResult empty;
@@ -1217,8 +1285,8 @@ CellResult NativeBlankScanner::classify_cell(const cv::Mat& cell_bgr, double mar
         return empty;
     }
 
-    auto probs = run_batch(prep.tensor, 1);
-    CellResult res = build_prediction(probs[0], prep.has_top_diacritic, prep.is_empty, top_k, spec_);
+    auto probs = run_batch(prep.tensor, 1, allowed_mask);
+    CellResult res = build_prediction(probs[0], prep.has_top_diacritic, prep.is_empty, top_k, spec_, allowed_mask);
     if (debug) {
         res.has_debug = true;
         res.has_top_diacritic = prep.has_top_diacritic;
@@ -1231,7 +1299,8 @@ CellResult NativeBlankScanner::classify_cell(const cv::Mat& cell_bgr, double mar
     return res;
 }
 
-BlankResult NativeBlankScanner::process_blank(const cv::Mat& img_bgr) {
+BlankResult NativeBlankScanner::process_blank(const cv::Mat& img_bgr, const std::string& language) {
+    auto allowed_mask = build_language_mask(language);
     auto [rectified, ok, method] = rectify_sheet(img_bgr);
     (void)ok;
     auto [name_cells, question_rows] = extract_cells(rectified);
@@ -1265,7 +1334,7 @@ BlankResult NativeBlankScanner::process_blank(const cv::Mat& img_bgr) {
     for (const auto& q : question_rows) enqueue_cells(q.cells);
 
     int n_batch = static_cast<int>(batch_buf.size() / cell_planes);
-    auto all_probs = run_batch(batch_buf, n_batch);
+    auto all_probs = run_batch(batch_buf, n_batch, allowed_mask);
 
     size_t cursor = 0;
     auto collect_group = [&](const std::vector<CellBox>& cells) {
@@ -1281,7 +1350,7 @@ BlankResult NativeBlankScanner::process_blank(const cv::Mat& img_bgr) {
             ++cursor;
 
             CellResult cr;
-            if (bi >= 0) cr = build_prediction(all_probs[bi], p.has_top_diacritic, p.is_empty, 3, spec_);
+            if (bi >= 0) cr = build_prediction(all_probs[bi], p.has_top_diacritic, p.is_empty, 3, spec_, allowed_mask);
             if (cr.top3.empty()) cr.top3 = {{" ", 100.0}};
 
             out_cells.push_back({cell.cell_idx, cr.ch, cr.confidence, cr.is_empty, std::move(cr.top3), cell.bbox});
