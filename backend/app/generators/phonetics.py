@@ -1,7 +1,18 @@
+import json
 import re
+import unicodedata
+from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 
-FRONT_VOWELS = set("әөүеиэӘӨҮЕИЭ")
+_SPEC_PATH = Path(__file__).resolve().parents[3] / "pipeline_spec.json"
+try:
+    with open(_SPEC_PATH, "r", encoding="utf-8") as _spec_file:
+        OCR_ALPHABET_STR: str = json.load(_spec_file)["model"]["alphabet"]
+except Exception:
+    OCR_ALPHABET_STR = "АӘБВГДЕЁЖҖЗИЙКЛМНҢОӨПРСТУҮФХҺЦЧШЩЪЫЬЭЮЯ"
+OCR_ALPHABET = frozenset(OCR_ALPHABET_STR)
+
+FRONT_VOWELS = set("әөүеиэёӘӨҮЕИЭЁ")
 BACK_VOWELS = set("аоуыАОУЫ")
 ALL_VOWELS = FRONT_VOWELS | BACK_VOWELS | set("яюЯЮ")
 
@@ -9,6 +20,16 @@ VOICELESS_CONSONANTS = set("пктсфхчщшцПКТСФХЧЩШЦ")
 NASAL_CONSONANTS = set("мнңМНҢ")
 
 TATAR_CYRILLIC_PATTERN = re.compile(r"^[А-Яа-яЁёӘәӨөҮүҖҗҢңҺһ\- ]+$")
+
+_POSSESSIVE_ELISION_STEMS = {
+    "борын": "борн",
+    "сеңел": "сеңл",
+    "авыз": "авз",
+    "ирен": "ирн",
+    "урын": "урн",
+    "күңел": "күңл",
+    "халык": "халк",
+}
 
 CASE_NAMES = {
     "case_genitive": "Иялек",
@@ -23,11 +44,27 @@ class PhoneticsError(ValueError):
     pass
 
 def clean_word(word: str) -> str:
-    cleaned = word.strip()
+    cleaned = unicodedata.normalize("NFC", word).strip()
     if not cleaned:
         raise PhoneticsError("Word cannot be empty or whitespace only.")
     if not TATAR_CYRILLIC_PATTERN.match(cleaned):
         raise PhoneticsError(f"Word '{word}' contains non-Tatar or invalid characters.")
+    return cleaned
+
+
+RUSSIAN_OCR_ALPHABET = frozenset("АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ")
+
+
+def validate_ocr_answer(answer: str, language: str = "tt") -> str:
+    cleaned = unicodedata.normalize("NFC", answer or "").strip().upper()
+    if not cleaned:
+        raise PhoneticsError("Answer cannot be empty or whitespace only.")
+    alphabet = RUSSIAN_OCR_ALPHABET if language == "ru" else OCR_ALPHABET
+    invalid = [ch for ch in cleaned if ch not in alphabet]
+    if invalid:
+        uniq = "".join(dict.fromkeys(invalid))
+        label = "33-letter Russian OCR alphabet" if language == "ru" else "39-letter Tatar OCR alphabet"
+        raise PhoneticsError(f"Answer '{answer}' contains characters outside the {label}: {uniq}")
     return cleaned
 
 
@@ -50,50 +87,45 @@ def get_last_vowel(word: str) -> str:
 def is_front_vowel(word: str) -> bool:
     """
     Returns True if the word harmony is front (нечкә), False if back (калын).
-    Adheres strictly to Tatar phonological rules:
-      - Words with unambiguous Tatar vowels (ә, ө, ү vs о, у, ы)
-      - Handles loanwords and diphthongs where 'е' or 'и' follow back vowels (e.g. каен -> калын, тарих -> калын).
+    Evaluates the final syllable/vowel while preserving Tatar loanword & diphthong rules.
     """
     cleaned = clean_word(word).lower()
-    
+
     # Handle Arabic loanwords where 'гый' precedes front vowels (e.g. гыйлем -> front)
     if cleaned.startswith("гый") and any(c in FRONT_VOWELS for c in cleaned):
         return True
 
-    # Check for unambiguous Tatar-specific front/back vowels
-    has_specific_front = any(c in "әөү" for c in cleaned)
-    has_specific_back = any(c in "оуы" for c in cleaned)
-    
-    if has_specific_front and not has_specific_back:
-        return True
-    if has_specific_back and not has_specific_front:
-        return False
-
-    vowels = [c for c in cleaned if c in ALL_VOWELS]
-    if not vowels:
+    vowel_positions = [(i, c) for i, c in enumerate(cleaned) if c in ALL_VOWELS]
+    if not vowel_positions:
         raise PhoneticsError(f"Word '{word}' contains no detectable vowels.")
-
-    last_v = vowels[-1]
-
-    # In Tatar orthography, 'е' preceded by back vowels represents [йы] / [йɤ] (e.g. каен -> калын)
-    if last_v in "е":
-        if any(c in BACK_VOWELS for c in vowels[:-1]):
-            return False
-        return True
-
-    # Similarly, 'и' preceded by back vowels (e.g. тарих, шагыйрь) follows back harmony
-    if last_v in "и":
-        if any(c in BACK_VOWELS for c in vowels[:-1]):
-            return False
-        return True
 
     if cleaned.endswith("ь"):
         return True
 
-    if last_v in FRONT_VOWELS:
+    last_idx, last_v = vowel_positions[-1]
+    earlier_vowels = [c for _, c in vowel_positions[:-1]]
+
+    if last_v in "әөүэё":
         return True
-    if last_v in BACK_VOWELS:
+    if last_v in "аоуыя":
         return False
+
+    if last_v == "ю":
+        if any(c in FRONT_VOWELS for c in earlier_vowels) and not any(c in BACK_VOWELS for c in earlier_vowels):
+            return True
+        return False
+
+    # In Tatar orthography, 'е' immediately after a back vowel (e.g. каен) represents [йы]/[йɤ]
+    if last_v == "е":
+        if last_idx > 0 and cleaned[last_idx - 1] in BACK_VOWELS:
+            return False
+        return True
+
+    # Similarly, 'и' preceded by back vowels (e.g. тарих) follows back harmony
+    if last_v == "и":
+        if any(c in BACK_VOWELS for c in earlier_vowels):
+            return False
+        return True
 
     return False
 
@@ -228,6 +260,8 @@ def get_possessive_suffix(stem: str, person: int = 1, number: str = "sg") -> Tup
     person: 1 (I зат: минем), 2 (II зат: синең), 3 (III зат: аның)
     number: "sg" (берлек)
     """
+    if number != "sg":
+        raise PhoneticsError(f"Unsupported number '{number}'; only 'sg' is supported.")
     cleaned = clean_word(stem).lower()
     is_front = is_front_vowel(cleaned)
     last_char = cleaned[-1]
@@ -270,13 +304,15 @@ def get_possessive_suffix(stem: str, person: int = 1, number: str = "sg") -> Tup
         elif person == 3:
             return stem_no_soft, "е" if is_front else "ы"
 
-    # Special handling for words ending in 'и' (e.g. әни, көри)
+    # Special handling for words ending in 'и' (e.g. әни -> әнисе, ипи -> ипие)
     if last_char == "и":
         if person == 1:
             return cleaned, "ем"
         elif person == 2:
             return cleaned, "ең"
         elif person == 3:
+            if cleaned == "ипи":
+                return cleaned, "е"
             return cleaned, "се"
 
     # Special handling for words ending in 'й' (e.g. өй, ай, чәй)
@@ -298,7 +334,7 @@ def get_possessive_suffix(stem: str, person: int = 1, number: str = "sg") -> Tup
         elif person == 3:
             return cleaned, "се" if is_front else "сы"
     else:
-        voiced = voice_stem_final_consonant(cleaned)
+        voiced = _POSSESSIVE_ELISION_STEMS.get(cleaned) or voice_stem_final_consonant(cleaned)
         if person == 1:
             return voiced, "ем" if is_front else "ым"
         elif person == 2:
@@ -397,11 +433,24 @@ def inflect_verb_imperative(stem: str) -> str:
 
 def inflect_comparative(stem: str) -> str:
     """
-    Comparative degree of adjective: stem + -рак / -рәк
-    зур -> ЗУРРАК, тиз -> ТИЗРӘК, салкын -> САЛКЫНРАК, яшел -> ЯШЕЛРӘК
+    Comparative degree of adjective:
+      - after voicable п/к or consonant cluster: voiced stem + -ырак / -ерәк (ак -> АГЫРАК, карт -> КАРТЫРАК)
+      - otherwise: stem + -рак / -рәк (зур -> ЗУРРАК, тиз -> ТИЗРӘК)
     """
     cleaned = clean_word(stem).lower()
     is_front = is_front_vowel(cleaned)
+    if cleaned.endswith(("п", "к")):
+        voiced = voice_stem_final_consonant(cleaned)
+        suffix = "ерәк" if is_front else "ырак"
+        return (voiced + suffix).upper()
+    if (
+        len(cleaned) >= 2
+        and cleaned[-1] not in ALL_VOWELS
+        and cleaned[-2] not in ALL_VOWELS
+        and cleaned[-1] not in ("ь", "ъ")
+    ):
+        suffix = "ерәк" if is_front else "ырак"
+        return (cleaned + suffix).upper()
     suffix = "рәк" if is_front else "рак"
     return (cleaned + suffix).upper()
 

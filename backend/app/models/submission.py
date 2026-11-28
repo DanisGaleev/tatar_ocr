@@ -1,16 +1,19 @@
 from datetime import datetime, timezone
 import uuid
-from sqlalchemy import Column, String, Integer, Float, DateTime, Text
+from sqlalchemy import Column, String, Integer, Float, DateTime, Text, ForeignKey, UniqueConstraint
 from app.core.database import Base
 
 class SubmissionModel(Base):
     __tablename__ = "submissions"
+    __table_args__ = (
+        UniqueConstraint("assignment_id", "class_id", "student_id", name="uq_submission_assignment_class_student"),
+    )
 
     submission_id = Column(String(64), primary_key=True, index=True, default=lambda: f"sub_{uuid.uuid4().hex[:8]}")
     client_submission_uuid = Column(String(64), unique=True, index=True, nullable=True)
-    assignment_id = Column(String(64), index=True, nullable=False)
-    class_id = Column(String(64), index=True, nullable=False)
-    student_id = Column(String(64), index=True, nullable=False)
+    assignment_id = Column(String(64), ForeignKey("assembled_tests.test_id", ondelete="CASCADE"), index=True, nullable=False)
+    class_id = Column(String(64), ForeignKey("classes.class_id", ondelete="CASCADE"), index=True, nullable=False)
+    student_id = Column(String(64), ForeignKey("students.student_id", ondelete="CASCADE"), index=True, nullable=False)
     student_name = Column(String(192), nullable=False)
     variant = Column(Integer, default=1)
     checked_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))

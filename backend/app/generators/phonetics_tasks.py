@@ -84,8 +84,8 @@ class TatarLettersGapGenerator(BaseTaskGenerator):
 
         return TaskDraft(
             task_type=self.task_type,
-            topic_tag="tatar_letters",
-            topic_name_tt="Татар хәрефләре",
+            topic_tag=self.default_topic_tag,
+            topic_name_tt=self.topic_name_tt,
             prompt_tt=prompt,
             expected_answer=missing_char.upper(),
             cell_count=1,
@@ -97,8 +97,8 @@ class TatarLettersGapGenerator(BaseTaskGenerator):
         clean_ch = missing_char.strip().upper()
         return TaskDraft(
             task_type=self.task_type,
-            topic_tag="tatar_letters",
-            topic_name_tt="Татар хәрефләре",
+            topic_tag=self.default_topic_tag,
+            topic_name_tt=self.topic_name_tt,
             prompt_tt=f"Татар хәрефен куегыз (Ә, Ө, Ү, Җ, Ң, Һ): {word_gap.strip()} ->",
             expected_answer=clean_ch,
             cell_count=1,

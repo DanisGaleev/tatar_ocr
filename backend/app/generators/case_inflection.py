@@ -35,7 +35,12 @@ class CaseInflectionGenerator(BaseTaskGenerator):
         stem_pool = stems or DEFAULT_NOUN_STEMS
         
         available_cases = list(CASE_NAMES.keys())
-        chosen_case = case_code if case_code and case_code in CASE_NAMES else rng.choice(available_cases)
+        if case_code is not None:
+            if case_code not in CASE_NAMES:
+                raise ValueError(f"Unknown case_code '{case_code}'. Must be one of: {available_cases}")
+            chosen_case = case_code
+        else:
+            chosen_case = rng.choice(available_cases)
         chosen_stem = rng.choice(stem_pool)
         
         expected_answer = inflect_case(chosen_stem, chosen_case)
@@ -73,8 +78,13 @@ class CaseInflectionGenerator(BaseTaskGenerator):
         rng = random.Random(seed) if seed is not None else random.Random()
         stem_pool = list(stems or DEFAULT_NOUN_STEMS)
         rng.shuffle(stem_pool)
-        
-        available_cases = [case_code] if (case_code and case_code in CASE_NAMES) else list(CASE_NAMES.keys())
+
+        if case_code is not None:
+            if case_code not in CASE_NAMES:
+                raise ValueError(f"Unknown case_code '{case_code}'. Must be one of: {list(CASE_NAMES.keys())}")
+            available_cases = [case_code]
+        else:
+            available_cases = list(CASE_NAMES.keys())
         
         drafts: List[TaskDraft] = []
         for i in range(count):

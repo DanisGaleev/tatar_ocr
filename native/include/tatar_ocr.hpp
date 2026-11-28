@@ -64,6 +64,7 @@ struct PipelineSpec {
     cv::Size bridge_h = {9, 1};
     cv::Size bridge_v = {1, 9};
     cv::Size long_h = {180, 1};
+    cv::Size short_h = {75, 1};
     cv::Size long_v = {1, 50};
     int peak_radius = 2;
     int cluster_max_gap = 10;
@@ -97,7 +98,7 @@ struct PipelineSpec {
     int q_v_inset_y = 10;
     std::array<int, 2> q_pitch_range = {85, 115};
     int q_chain_tol = 15;
-    std::array<int, 2> q_cell_count_range = {8, 12};
+    std::array<int, 2> q_cell_count_range = {1, 12};
     int q_default_start_x = 224;
     double q_default_pitch = 100.0;
     int q_default_cell_count = 8;

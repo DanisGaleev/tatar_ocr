@@ -275,10 +275,23 @@ class YandexGPTClient(BaseLLMTaskClassifier):
 
         parsed = self._extract_json_from_text(raw_llm_text)
 
-        is_supported = bool(parsed.get("is_supported", False))
+        def _safe_int(val: Any) -> Optional[int]:
+            if val is None or isinstance(val, bool):
+                return None
+            try:
+                return int(val)
+            except (TypeError, ValueError):
+                return None
+
+        explicit_supported = parsed.get("is_supported")
+        is_supported = bool(explicit_supported) if explicit_supported is not None else False
         unsupported_reason = parsed.get("unsupported_reason")
         task_type = parsed.get("task_type")
-        confidence = float(parsed.get("confidence", 0.9))
+        raw_conf = parsed.get("confidence")
+        try:
+            confidence = 0.9 if raw_conf is None else float(raw_conf)
+        except (TypeError, ValueError):
+            confidence = 0.9
 
         raw_items = parsed.get("items", [])
         sub_items: List[ExtractedTaskSubItem] = []
@@ -289,10 +302,10 @@ class YandexGPTClient(BaseLLMTaskClassifier):
                     sub_items.append(
                         ExtractedTaskSubItem(
                             task_type=it.get("task_type") or task_type or "custom",
-                            prompt_tt=it.get("prompt_tt"),
-                            expected_answer=it.get("expected_answer"),
-                            cell_count=it.get("cell_count"),
-                            grade_level=it.get("grade_level", grade_hint or default_grade),
+                            prompt_tt=str(it.get("prompt_tt")),
+                            expected_answer=str(it.get("expected_answer")),
+                            cell_count=_safe_int(it.get("cell_count")),
+                            grade_level=_safe_int(it["grade_level"]) if "grade_level" in it else (grade_hint or default_grade),
                             topic_tag=it.get("topic_tag") or parsed.get("topic_tag"),
                             topic_name_tt=it.get("topic_name_tt") or parsed.get("topic_name_tt"),
                         )
@@ -301,8 +314,8 @@ class YandexGPTClient(BaseLLMTaskClassifier):
         # Fallback to single top-level task if items list was empty
         prompt_tt = parsed.get("prompt_tt")
         expected_answer = parsed.get("expected_answer")
-        cell_count = parsed.get("cell_count")
-        grade_level = parsed.get("grade_level", grade_hint or default_grade)
+        cell_count = _safe_int(parsed.get("cell_count"))
+        grade_level = _safe_int(parsed["grade_level"]) if "grade_level" in parsed else (grade_hint or default_grade)
         topic_tag = parsed.get("topic_tag")
         topic_name_tt = parsed.get("topic_name_tt")
 
@@ -310,8 +323,8 @@ class YandexGPTClient(BaseLLMTaskClassifier):
             sub_items.append(
                 ExtractedTaskSubItem(
                     task_type=task_type or "custom",
-                    prompt_tt=prompt_tt,
-                    expected_answer=expected_answer,
+                    prompt_tt=str(prompt_tt),
+                    expected_answer=str(expected_answer),
                     cell_count=cell_count,
                     grade_level=grade_level,
                     topic_tag=topic_tag,
@@ -319,7 +332,7 @@ class YandexGPTClient(BaseLLMTaskClassifier):
                 )
             )
 
-        if sub_items:
+        if sub_items and explicit_supported is not False:
             is_supported = True
             if not prompt_tt:
                 prompt_tt = sub_items[0].prompt_tt

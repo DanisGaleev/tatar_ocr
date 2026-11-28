@@ -1,3 +1,4 @@
+import unicodedata
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field
 
@@ -6,8 +7,6 @@ HOMOGLYPH_MAP = {
     'A': 'А', 'B': 'В', 'C': 'С', 'E': 'Е', 'H': 'Н',
     'K': 'К', 'M': 'М', 'O': 'О', 'P': 'Р', 'T': 'Т',
     'X': 'Х', 'Y': 'Ү',
-    'a': 'а', 'c': 'с', 'e': 'е', 'o': 'о', 'p': 'р',
-    'x': 'х', 'y': 'ү'
 }
 
 RUSSIAN_HOMOGLYPH_MAP = {
@@ -30,12 +29,16 @@ COMMON_TATAR_CONFUSIONS = {
 def normalize_char(char: Optional[str], language: str = "tt") -> str:
     if not char:
         return " "
-    c = char.strip()
+    c = unicodedata.normalize("NFC", char).strip()
     if not c:
         return " "
     upper_c = c.upper()
     mapping = RUSSIAN_HOMOGLYPH_MAP if language == "ru" else HOMOGLYPH_MAP
     return mapping.get(upper_c, upper_c)
+
+def normalize_answer(text: str, language: str = "tt") -> str:
+    clean = unicodedata.normalize("NFC", text or "").strip()
+    return "".join(normalize_char(ch, language=language) for ch in clean)
 
 class CellVerificationResult(BaseModel):
     cell_index: int
@@ -80,28 +83,49 @@ def verify_question_cells(
     Evaluates student handwritten character recognitions against the expected answer.
     Handles trailing empty cells, homoglyphs, and teacher overrides.
     """
-    clean_expected = expected_answer.strip().upper()
+    if cell_count < 1:
+        raise ValueError("cell_count must be >= 1")
+
+    clean_expected = normalize_answer(expected_answer, language=language)
+    if not clean_expected:
+        raise ValueError("expected_answer cannot be empty")
+    if len(clean_expected) > cell_count:
+        raise ValueError(
+            f"expected_answer length ({len(clean_expected)}) exceeds cell_count ({cell_count})"
+        )
+
     cell_results: List[CellVerificationResult] = []
-    
-    student_map: Dict[int, Dict[str, Any]] = {
-        c.get("cell_index", idx): c for idx, c in enumerate(student_cells)
-    }
-    
+    has_extra_student_chars = False
+    student_map: Dict[int, Dict[str, Any]] = {}
+    for idx, c in enumerate(student_cells):
+        c_idx = c.get("cell_index", idx)
+        if c_idx < 0 or c_idx >= cell_count:
+            if normalize_char(c.get("predicted_char", " "), language=language) != " ":
+                has_extra_student_chars = True
+        else:
+            student_map[c_idx] = c
+
     all_matched = True
     written_chars: List[str] = []
-    
+
     for idx in range(cell_count):
         exp_char = clean_expected[idx] if idx < len(clean_expected) else " "
         is_empty_allowed = (idx >= len(clean_expected))
-        
+
         st_data = student_map.get(idx, {})
         pred_raw = st_data.get("predicted_char", " ")
         pred_norm = normalize_char(pred_raw, language=language)
-        confidence = float(st_data.get("confidence", 1.0))
-        override = st_data.get("teacher_override")
-        
+        raw_conf = st_data.get("confidence")
+        confidence = 1.0 if raw_conf is None else float(raw_conf)
+        raw_override = st_data.get("teacher_override")
+        norm_override = (
+            raw_override.strip().upper()
+            if isinstance(raw_override, str) and raw_override.strip()
+            else None
+        )
+        override = norm_override if norm_override in ("CORRECT", "WRONG") else None
         written_chars.append(pred_norm)
-        
+
         if override == "CORRECT":
             status = "FLAG_OVERRIDDEN_BY_TEACHER"
             matched = True
@@ -126,10 +150,10 @@ def verify_question_cells(
                 else:
                     status = "MISMATCH"
                     matched = False
-                    
+
         if not matched:
             all_matched = False
-            
+
         cell_results.append(CellVerificationResult(
             cell_index=idx,
             expected_char=exp_char,
@@ -138,6 +162,9 @@ def verify_question_cells(
             status=status,
             teacher_override=override,
         ))
+
+    if has_extra_student_chars:
+        all_matched = False
 
     points = 1.0 if all_matched else 0.0
     return QuestionVerificationResult(
@@ -170,24 +197,27 @@ def verify_test_submission(
     """
     Verifies an entire test sheet submission and computes total score and school grade (2-5).
     """
+    if not questions:
+        raise ValueError("questions cannot be empty")
+
     scale = grading_scale or GradingScale()
     q_results: List[QuestionVerificationResult] = []
-    
+
     sub_map = {s.get("question_number"): s for s in submissions}
-    
+
     total_score = 0.0
     max_score = float(len(questions))
-    
+
     for q in questions:
         q_num = q["question_number"]
         marker_id = q.get("marker_id", 10 + q_num)
         topic_tag = q.get("topic_tag", "general")
         expected_answer = q["expected_answer"]
-        cell_count = q.get("cell_count", max(8, len(expected_answer)))
-        
+        cell_count = q.get("cell_count") or max(1, len(normalize_answer(expected_answer, language=language)))
+
         st_sub = sub_map.get(q_num, {})
         student_cells = st_sub.get("cells", [])
-        
+
         res = verify_question_cells(
             question_number=q_num,
             marker_id=marker_id,
@@ -199,14 +229,14 @@ def verify_test_submission(
         )
         total_score += res.points_earned
         q_results.append(res)
-        
-    pct = (total_score / max_score * 100.0) if max_score > 0 else 0.0
+
+    pct = round((total_score / max_score * 100.0), 1) if max_score > 0 else 0.0
     grade = calculate_final_grade(pct, scale)
-    
+
     return TestVerificationResult(
         overall_score=total_score,
         max_score=max_score,
-        score_percentage=round(pct, 1),
+        score_percentage=pct,
         final_grade=grade,
         questions_results=q_results,
     )

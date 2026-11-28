@@ -8,7 +8,7 @@ class TaskBankItem(BaseModel):
 
     task_id: str
     language: str = "tt"
-    task_type: str = "custom"
+    task_type: Optional[str] = "custom"
     prompt_tt: str
     expected_answer: str
     cell_count: int = Field(..., ge=1, le=12)
@@ -42,7 +42,7 @@ class CreateTaskRequest(BaseModel):
         return data
 
 class GenerateTasksRequest(BaseModel):
-    task_type: str = Field(..., description="Task generator type (Tatar or Russian)")
+    task_type: str = Field(..., description="Supported generator task type (Tatar or Russian; see GET /api/v1/constructor/task-types)")
     language: Optional[LanguageCode] = Field(default=None, description="Target language ('tt' or 'ru')")
     count: int = Field(default=1, ge=1, le=10)
     seed: Optional[int] = Field(default=None, description="Optional seed for deterministic reproducibility")
@@ -61,7 +61,7 @@ class GenerateTasksResponse(BaseModel):
 class VerifyAnswerRequest(BaseModel):
     expected_answer: str
     student_answer: str
-    cell_count: int = 8
+    cell_count: int = Field(default=8, ge=1, le=12)
     topic_tag: str = "general"
     language: LanguageCode = "tt"
 

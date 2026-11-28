@@ -184,18 +184,37 @@ class GeneratorRegistry:
         for v_idx in range(1, variants_count + 1):
             var_seed = base_seed + (v_idx * 1337)
             rng = random.Random(var_seed)
-            
-            # Select question types cyclically or randomly
-            chosen_types = [types_to_use[i % len(types_to_use)] for i in range(questions_per_variant)]
-            if shuffle:
-                rng.shuffle(chosen_types)
-                
+
+            if len(types_to_use) >= questions_per_variant:
+                if shuffle:
+                    chosen_types = rng.sample(types_to_use, questions_per_variant)
+                else:
+                    offset = ((v_idx - 1) * questions_per_variant) % len(types_to_use)
+                    chosen_types = [
+                        types_to_use[(offset + i) % len(types_to_use)]
+                        for i in range(questions_per_variant)
+                    ]
+            else:
+                chosen_types = [types_to_use[i % len(types_to_use)] for i in range(questions_per_variant)]
+                if shuffle:
+                    rng.shuffle(chosen_types)
+
             questions: List[Dict[str, Any]] = []
+            seen_keys = set()
             for q_idx, q_type in enumerate(chosen_types, start=1):
                 marker_id = 10 + q_idx
-                q_seed = rng.randint(1, 10_000_000)
                 gen = self.get_generator(q_type, language=language)
-                draft = gen.generate(seed=q_seed, grade_level=grade_level)
+                draft = None
+                for _ in range(12):
+                    q_seed = rng.randint(1, 10_000_000)
+                    cand = gen.generate(seed=q_seed, grade_level=grade_level)
+                    key = (cand.prompt_tt, cand.expected_answer)
+                    if key not in seen_keys:
+                        seen_keys.add(key)
+                        draft = cand
+                        break
+                    draft = cand
+                assert draft is not None
                 
                 questions.append({
                     "question_number": q_idx,

@@ -14,10 +14,9 @@ from app.models.test import AssembledTestModel
 from app.models.teacher import TeacherModel
 from app.models.school import ClassModel, StudentModel, ClassAssignmentModel
 from app.routers import constructor, assignments, auth, classes, submissions, analytics, reports, model
-from app.generators.registry import registry
 from app.generators.phonetics import build_expected_cells
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("tatar_ocr.api")
 
 INITIAL_BANK_TASKS = [
     {
@@ -211,7 +210,9 @@ async def seed_initial_data():
             await session.commit()
 
         # Seed initial teacher
-        t_res = await session.execute(select(TeacherModel).limit(1))
+        t_res = await session.execute(
+            select(TeacherModel).where(TeacherModel.teacher_uuid == "c56a4180-65aa-42ec-a945-5fd21dec0538")
+        )
         if not t_res.scalar_one_or_none():
             sample_teacher = TeacherModel(
                 teacher_uuid="c56a4180-65aa-42ec-a945-5fd21dec0538",
@@ -310,10 +311,7 @@ async def seed_initial_data():
                 bundle_json=json.dumps(bundle_data, ensure_ascii=False),
             )
             session.add(sample_asm)
-        else:
-            existing_asm.bundle_json = json.dumps(bundle_data, ensure_ascii=False)
-            session.add(existing_asm)
-        await session.commit()
+            await session.commit()
 
         # Seed initial assignment to class 7-A
         ca_res = await session.execute(
@@ -406,10 +404,11 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+allow_credentials = "*" not in settings.CORS_ORIGINS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=settings.CORS_ORIGINS,
+    allow_credentials=allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )

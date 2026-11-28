@@ -1,0 +1,78 @@
+{
+  "change_id": "backend-critical-correctness",
+  "default_policy": "FAIL_UNTIL_EVIDENCE",
+  "checks": [
+    {
+      "id": "AC-1",
+      "description": "Core runtime logger, SQLite foreign keys, get_db rollback, non-clobbering seed, safe CORS, and DB uniqueness/FK constraints",
+      "status": "PASS",
+      "command": "C:\\Users\\galee\\PycharmProjects\\tatar_ocr\\.venv\\Scripts\\python.exe -m pytest backend\\tests\\test_stage1_critical_fixes.py -k \"test_ac1\" -q",
+      "evidence": "Verified in full suite run (148 passed, 6 warnings in 14.24s): test_ac1_exception_handler_no_nameerror_and_sqlite_fk_pragma and test_ac1_seed_does_not_overwrite_existing_test passed.",
+      "verified_at": "2026-11-28T22:35:47+03:00"
+    },
+    {
+      "id": "AC-2",
+      "description": "checker.py and /constructor/verify-answer reject cell_count overflow/zero, catch extra chars, normalize expected_answer/NFC, handle confidence=None, reject empty questions, and align grade rounding",
+      "status": "PASS",
+      "command": "C:\\Users\\galee\\PycharmProjects\\tatar_ocr\\.venv\\Scripts\\python.exe -m pytest backend\\tests -q",
+      "evidence": "Verified in full suite run (148 passed, 6 warnings in 14.24s): test_checker.py (9 tests including overflow, zero cell_count, extra chars, NFC/homoglyph, threshold rounding) and test_ac2_verify_answer_rejects_overflow_zero_and_extra_chars passed.",
+      "verified_at": "2026-11-28T22:35:47+03:00"
+    },
+    {
+      "id": "AC-3",
+      "description": "submissions.py validates bounds/enums/FKs, recalculates scores/grades via checker.py + TeacherModel.grading_scale, deduplicates per student and in-batch, and returns 409 on cross-student UUID collision",
+      "status": "PASS",
+      "command": "C:\\Users\\galee\\PycharmProjects\\tatar_ocr\\.venv\\Scripts\\python.exe -m pytest backend\\tests -q",
+      "evidence": "Verified in full suite run (148 passed, 6 warnings in 14.24s): test_ac3_submission_validation_recalculation_and_dedup, test_zero_photo_batch_sync_and_analytics, and test_save_single_submission_idempotent_upsert passed.",
+      "verified_at": "2026-11-28T22:35:47+03:00"
+    },
+    {
+      "id": "AC-4",
+      "description": "analytics.py treats teacher_override=CORRECT as non-error, isolates multi-variant items, excludes EMPTY_MATCH, returns NO_DATA/None on empty cells, returns 404 on missing entities, populates real assignment_title, and filters 0-mistake topics",
+      "status": "PASS",
+      "command": "C:\\Users\\galee\\PycharmProjects\\tatar_ocr\\.venv\\Scripts\\python.exe -m pytest backend\\tests -q",
+      "evidence": "Verified in full suite run (148 passed, 6 warnings in 14.24s): test_ac4_analytics_overrides_variants_empty_and_404 and test_zero_photo_batch_sync_and_analytics passed.",
+      "verified_at": "2026-11-28T22:35:47+03:00"
+    },
+    {
+      "id": "AC-5",
+      "description": "reports.py returns 404 on missing class/test, sanitizes Excel sheet titles and filenames, escapes CSV/XLSX formula injection, and runs openpyxl in threadpool",
+      "status": "PASS",
+      "command": "C:\\Users\\galee\\PycharmProjects\\tatar_ocr\\.venv\\Scripts\\python.exe -m pytest backend\\tests -q",
+      "evidence": "Verified in full suite run (148 passed, 6 warnings in 14.24s): test_ac5_reports_sheet_title_sanitization_formula_escape_and_404 and CSV/XLSX report checks in test_zero_photo_batch_sync_and_analytics passed.",
+      "verified_at": "2026-11-28T22:35:47+03:00"
+    },
+    {
+      "id": "AC-6",
+      "description": "classes.py preserves 4-token Tatar patronymics, avoids ghost class creation, deduplicates imports atomically, validates due_date/status, and reports real progress counts",
+      "status": "PASS",
+      "command": "C:\\Users\\galee\\PycharmProjects\\tatar_ocr\\.venv\\Scripts\\python.exe -m pytest backend\\tests -q",
+      "evidence": "Verified in full suite run (148 passed, 6 warnings in 14.24s): test_ac6_classes_bulk_import_and_assignment_validation and TestClassesAndStudentsAPI passed.",
+      "verified_at": "2026-11-28T22:35:47+03:00"
+    },
+    {
+      "id": "AC-7",
+      "description": "All Stage 1 regression tests and updated fixtures pass",
+      "status": "PASS",
+      "command": "C:\\Users\\galee\\PycharmProjects\\tatar_ocr\\.venv\\Scripts\\python.exe -m pytest backend\\tests -q",
+      "evidence": "148 passed, 6 warnings in 14.24s",
+      "verified_at": "2026-11-28T22:35:47+03:00"
+    },
+    {
+      "id": "GATE-BACKEND",
+      "description": "Backend pytest suite passes after final edit",
+      "status": "PASS",
+      "command": "C:\\Users\\galee\\PycharmProjects\\tatar_ocr\\.venv\\Scripts\\python.exe -m pytest backend\\tests -q",
+      "evidence": "148 passed, 6 warnings in 14.24s",
+      "verified_at": "2026-11-28T22:35:47+03:00"
+    },
+    {
+      "id": "GATE-SPECS",
+      "description": "Spec Deltas recorded in spec.md and living specs/STATUS synced or deferred explicitly for closure",
+      "status": "PASS",
+      "command": "Deferred by user on 2026-11-28 to Stage 3",
+      "evidence": "Spec Deltas recorded in spec.md; user explicitly approved deferring living openapi_specification.yaml & api_specification.md sync to Stage 3 and proceeding immediately to Stage 2.",
+      "verified_at": "2026-11-28T22:40:35+03:00"
+    }
+  ]
+}

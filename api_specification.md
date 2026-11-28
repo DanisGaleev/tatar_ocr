@@ -1,7 +1,7 @@
 # «Кара куян» (Tatar OCR) — API Contract Specification
 
 This document provides the definitive API contracts and architectural design for **«Кара куян»**, built around two foundational principles:
-1. **Zero-Photo Transmission**: Camera images never leave the teacher's phone. All ArUco perspective rectifications, cell cropping, and TFLite neural network character recognitions happen 100% locally on the device in memory.
+1. **Zero-Photo Transmission**: Student worksheet camera images never leave the teacher's phone. All ArUco perspective rectifications, cell cropping, and ONNX Runtime (`tatar_ocr_core` C++20 + INT8 ONNX) character recognitions happen 100% locally on the device in memory. (Textbook exercise extraction via `/api/v1/constructor/scan-task*` is an explicit isolated exception per `ADR-0004` and does not persist raw images.)
 2. **Backend Analytical Processing**: The phone uploads only lightweight structured verification results (1–2 KB JSON per sheet). The backend performs all heavy historical data aggregation, student learning curve analysis, class heatmaps, error categorizations, and gradebook exports.
 
 ---
@@ -25,8 +25,8 @@ This document provides the definitive API contracts and architectural design for
 │    1. Camera frame captured in RAM                                          │
 │    2. Local OpenCV rectifies ArUco corners                                  │
 │    3. Local QR scanner decodes {"tid":"TAT-Q1", "var":1, "stu_id":"stu_01"} │
-│    4. Compares 10x10 mm letter crops against cached Offline Bundle          │
-│    5. Local TFLite runs inference -> Displays Green / Red / Flag on screen   │
+│    4. Compares 10x10 mm letter crops (1–12 cells) against Offline Bundle   │
+│    5. Local ONNX Runtime runs inference -> Green / Red / Flag on screen     │
 │    6. Teacher taps questionable cells to confirm / override (HITL)          │
 │    7. Calculates score & grade; Photo is discarded from RAM                 │
 │    8. Graded structured JSON stored in phone's local SQLite                 │
@@ -62,6 +62,9 @@ This document provides the definitive API contracts and architectural design for
 | `/api/v1/analytics` | **Backend Analytics Engine**| Student curves, class topic heatmaps, difficult Tatar letters |
 | `/api/v1/reports` | **Gradebook Exports** | Export class performance sheets for electronic school journals (Excel) |
 | `/api/v1/model` | **Model & Manifest** | Model weights manifest, preprocessing specs, and 39-class alphabet array |
+| `/health` | **System** | Service liveness health check |
+
+> **Multi-Teacher Isolation (`X-Teacher-UUID`)**: Protected endpoints across `/classes`, `/assignments`, `/submissions`, `/analytics`, and `/reports` enforce `X-Teacher-UUID` ownership isolation when the header is provided (`403 Forbidden` across different teachers' classes/students/reports; `422 Unprocessable Content` on blank headers > 64 chars). Omitting the header remains backward-compatible for legacy single-device/admin calls.
 
 ---
 
@@ -75,7 +78,8 @@ This document provides the definitive API contracts and architectural design for
 Registers or verifies the teacher device UUID generated upon first install.
 
 - **Headers**:
-  - `X-Teacher-UUID: <uuid-v4>` (Required)
+  - `X-Teacher-UUID: <uuid-v4>` (Required, non-empty <= 64 chars; `422` if blank)
+- **Validation**: `0 <= grade_3_min_pct < grade_4_min_pct < grade_5_min_pct <= 100`; non-empty `teacher_name` / `school_name`; optional `confidence_flag_threshold` (`0.0..1.0`, preserved when omitted on subsequent calls).
 - **Request Body**:
 ```json
 {
@@ -87,7 +91,8 @@ Registers or verifies the teacher device UUID generated upon first install.
     "grade_5_min_pct": 85,
     "grade_4_min_pct": 70,
     "grade_3_min_pct": 50
-  }
+  },
+  "confidence_flag_threshold": 0.65
 }
 ```
 - **Response `200 OK`**:
@@ -163,7 +168,7 @@ Returns the student roster for caching on the mobile device.
 #### 1.3 `POST /api/v1/classes/{class_id}/students/bulk-import`
 Batch import students from a pasted plain-text list (from school journal or Excel).
 
-- **Headers**: `X-Teacher-UUID: <uuid-v4>`
+- **Headers**: `X-Teacher-UUID: <uuid-v4>` (optional; returns `403` if class belongs to another teacher, associates created class with header if absent)
 - **Request Body**:
 ```json
 {
@@ -182,34 +187,47 @@ Batch import students from a pasted plain-text list (from school journal or Exce
 }
 ```
 
+#### 1.4 `POST /api/v1/classes/{class_id}/assignments`
+Assigns an assembled test to a class (`X-Teacher-UUID` checked; returns `404` on unknown class/test, `403` cross-teacher).
+
+#### 1.5 `GET /api/v1/classes/{class_id}/assignments`
+Lists tests assigned to a class with submission progress (`X-Teacher-UUID` checked).
+
+#### 1.6 `GET /api/v1/classes/{class_id}/assignments/{assignment_id}/batch-blanks.pdf`
+Generates a multi-page personalized PDF containing blanks for all students in `class_id` (`X-Teacher-UUID` checked).
+
 ---
 
 ### Router 2: Assignment Delivery & Offline Bundles (`/api/v1/assignments`)
 
+#### 2.0 `GET /api/v1/assignments`
+Lists teacher assignments (scoped to `X-Teacher-UUID` classes when header is present; optional `class_id` and `status` filters).
+
 #### 2.1 Get Assignment Metadata
 `GET /api/v1/assignments/{assignment_id}`
-- **Response `200 OK`**: Metadata, title, grade level, topic tags, points.
+- **Response `200 OK`**: Metadata (`assignment_id`, `title`, `grade_level`, `total_variants`, `created_at`).
 
 #### 2.2 Download Printable Blank PDF (Generic or Single Student)
 `GET /api/v1/assignments/{assignment_id}/blank.pdf`
+- **Headers**: `X-Teacher-UUID` (optional; returns `403` when `student_id` belongs to another teacher's class)
 - **Query Parameters**:
-  - `variant` (integer, default: 1)
-  - `student_id` (string, optional): Pre-prints student name in header boxes.
-- **Response**: `application/pdf` binary stream.
+  - `variant` (integer, `>= 1`, default: `1`; returns `422` if `< 1`, `404` if not found)
+  - `student_id` (string, optional; returns `404` if not found; pre-prints student name & encodes `stu_id` in QR)
+- **Response**: `application/pdf` binary stream aligned with `pipeline_spec.json` (`1–12` answer cells, 15 name cells).
 
 #### 2.3 Download Batch Blank PDFs for Class
 `GET /api/v1/assignments/{assignment_id}/batch-blanks.pdf`
+- **Headers**: `X-Teacher-UUID` (optional; `403` cross-teacher)
 - **Query Parameters**:
   - `class_id` (string, required): e.g., `cls_7a_2026`
-  - `alternate_variants` (boolean, default: true)
-- **Response**: `application/pdf` where each sheet is pre-printed with the student's name and personalized QR code.
+- **Response**: `application/pdf` alias forwarding to `/classes/{class_id}/assignments/{assignment_id}/batch-blanks.pdf`.
 
 #### 2.4 Download Offline Verification Bundle (Ground-Truth Answer Key)
 `GET /api/v1/assignments/{assignment_id}/offline-bundle`
 - Downloads everything the mobile app needs to perform **100% offline grading and answer validation on the phone**.
 - **Headers**: `X-Teacher-UUID: <uuid-v4>`
 - **Query Parameters**:
-  - `variant` (integer, optional)
+  - `variant` (integer, optional, `>= 1`; returns `422` if `< 1`, `404` if variant missing)
 - **Response `200 OK`**:
 ```json
 {
@@ -275,13 +293,17 @@ Batch import students from a pasted plain-text list (from school journal or Exce
 
 ### Router 3: Assignment Constructor & Bank (`/api/v1/constructor`)
 
+#### 3.0 `GET /api/v1/constructor/task-types`
+Lists all 24 supported linguistic task generator types (`task_type`, `topic_tag`, `topic_name_tt`).
+
 #### 3.1 Search Task Bank
 `GET /api/v1/constructor/tasks`
-- **Query Params**: `query`, `language` (`tt` | `ru`), `topic_tag`, `grade_level` (1–9: 1–4 for `ru`, 5–9 for `tt`), `max_cells` (<= 12), `scope` (`all` | `my_tasks`).
+- **Query Params**: `query`, `language` (`tt` | `ru`), `topic_tag`, `grade_level` (1–9: 1–4 for `ru`, 5–9 for `tt`), `max_cells` (`1–12`), `scope` (`all` | `my_tasks`).
 
 #### 3.2 Create Custom Single Task
 `POST /api/v1/constructor/tasks`
-- **Request Body**: `language` (`"tt"` default, or `"ru"`), `prompt_tt` (or `prompt` alias), `expected_answer`, `cell_count`, `grade_level` (1–9), `topic_tag`, `topic_name_tt` (or `topic_name` alias), `is_public_in_bank`.
+- Enforces the language-specific Cyrillic OCR alphabet (`39` letters for `tt`, `33` letters for `ru`; rejects digits/Latin with `422`) and `len(expected_answer) <= cell_count <= 12`.
+- **Request Body**: `language` (`"tt"` default, or `"ru"`), `prompt_tt` (or `prompt` alias), `expected_answer`, `cell_count`, `grade_level` (1–9), `topic_tag`, `topic_name_tt` (or `topic_name` alias), `task_type`, `is_public_in_bank`.
 ```json
 {
   "language": "tt",
@@ -291,22 +313,22 @@ Batch import students from a pasted plain-text list (from school journal or Exce
   "grade_level": 5,
   "topic_tag": "plural_affixes",
   "topic_name_tt": "Күплек сан",
+  "task_type": "plural_affixes",
   "is_public_in_bank": false
 }
 ```
 
-#### 3.3 Generate Tasks Deterministically & Scan Exercise Photo
-- `GET /api/v1/constructor/task-types?language=tt|ru` — lists all 24 Tatar and 14 Russian primary-school generators across 4 categories (`orthography`, `morphology`, `lexicon`, `phonetics`).
-- `POST /api/v1/constructor/generate` — deterministic seed-based batch generation with optional `language` (`tt` | `ru`) and `save_to_bank`.
-- `POST /api/v1/constructor/scan-task?language=tt|ru` & `POST /api/v1/constructor/scan-task-base64` — extracts single-word (`<= 12` chars) textbook tasks via OCR + YandexGPT for either Tatar or Russian.
+#### 3.3 Generate Deterministic Tasks
+`POST /api/v1/constructor/generate`
+- Deterministically generates tasks using one of the 24 Tatar or 14 Russian primary-school generators (`task-types?language=tt|ru`; `case_code` / `custom_stems` checked against generator signature, returning `422` when unsupported). Note: `find_error_sentence` and MC tasks use Cyrillic `А`–`Г`.
 
 #### 3.4 Browse Ready-Made Complete Tests
 `GET /api/v1/constructor/ready-tests?language=tt|ru`
-- Curated sheets with pre-configured A4 templates (includes `language` discriminator).
+- Curated up-to-8-question sheets with dynamic `questions_count` and `language` discriminator.
 
 #### 3.5 Assemble Modular Test
 `POST /api/v1/constructor/tests`
-- Composes a new test from selected task IDs (strictly matching `language`) or auto-generates 8 questions using the language's generators. Offline bundle includes `"language": "tt" | "ru"` and `"alphabet_mask": "tatar_39" | "russian_33"`.
+- Composes a new test from selected task IDs (strictly matching `language`, sorted by `order`, with distinct seeded variants 2–4 when `shuffle_questions_in_variants=true`) or auto-generated questions using the requested language's generators, enforcing A4 physical limit (`<= 8` questions). Offline bundle includes `"language": "tt" | "ru"` and `"alphabet_mask": "tatar_39" | "russian_33"`.
 - **Request Body**:
 ```json
 {
@@ -317,22 +339,29 @@ Batch import students from a pasted plain-text list (from school journal or Exce
     { "task_id": "tsk_8201", "order": 1 },
     { "task_id": "tsk_8202", "order": 2 }
   ],
-  "shuffle_questions_in_variants": true
+  "shuffle_questions_in_variants": true,
+  "seed": 42
 }
 ```
 
-#### 3.5 Fork / Clone Test
-`POST /api/v1/constructor/tests/{test_id}/fork`
+#### 3.6 Verify Student Answer Cells
+`POST /api/v1/constructor/verify-answer`
+- Evaluates cell-by-cell student answers against `expected_answer` with exact normalization rules (`1–12` cells; returns `422` on overflow or empty bounds).
+
+#### 3.7 Extract Exercise from Textbook Image (Isolated Zero-Photo Exception)
+- `POST /api/v1/constructor/scan-task` (`multipart/form-data` image upload <= 10 MB)
+- `POST /api/v1/constructor/scan-task-base64` (`ScanTaskRequestBase64` JSON payload <= 10 MB)
+- Uses Yandex Vision OCR + YandexGPT (or configured mock mode); raw textbook images are processed strictly in memory and never stored; returns `503` if live mode is active without `YANDEX_API_KEY`.
 
 ---
 
 ### Router 4: Submissions Ingestion & Batch Sync (`/api/v1/submissions`)
 
-**Zero-Photo Policy**: Photos remain on the phone. Only structured results (characters, booleans, scores, overrides) are ingested here.
+**Zero-Photo Policy**: Student worksheet photos remain on the phone. Only structured results (characters, booleans, scores, overrides) are ingested here, and the server authoritatively recalculates `overall_score`, `max_score`, and `final_grade` from the stored bundle and teacher's `GradingScale`.
 
 #### 4.1 Batch Sync Graded Submissions (Class Upload)
 `POST /api/v1/submissions/batch-sync`
-Transmits the entire set of graded papers once the teacher is back online. Average payload for a class of 25 students is **only ~35 KB**.
+Transmits the entire set of graded papers once the teacher is back online. Average payload for a class of 25 students is **only ~35 KB**. Idempotently upserts by `client_submission_uuid` or `(assignment_id, class_id, student_id)`. Returns `403` on cross-teacher access and `422` on unknown student/variant/invalid cells.
 
 - **Headers**: `X-Teacher-UUID: <uuid-v4>`
 - **Request Body**:
@@ -415,6 +444,7 @@ Used for live upload when checking while online.
 
 #### 4.3 Query Submissions
 `GET /api/v1/submissions`
+- **Headers**: `X-Teacher-UUID` (optional; scopes rows to teacher's classes, `403` when filtering for another teacher's `class_id`)
 - **Query Params**: `class_id`, `assignment_id`, `student_id`.
 
 #### 4.4 Server-Side Blank Photo Recognition & Verification (Transient In-RAM Fallback)
@@ -553,7 +583,7 @@ Class heatmap: identifies which grammar rules the teacher must re-explain on the
 
 #### 5.3 Assignment Analytics
 `GET /api/v1/analytics/assignments/{assignment_id}`
-Item analysis per question across all completed sheets.
+Item analysis per `(variant_id, question_number)` across completed sheets (scoped to `X-Teacher-UUID` classes when header is present).
 
 - **Headers**: `X-Teacher-UUID: <uuid-v4>`
 - **Response `200 OK`**:
@@ -565,6 +595,7 @@ Item analysis per question across all completed sheets.
   "average_score_pct": 83.2,
   "questions_analytics": [
     {
+      "variant_id": 1,
       "question_number": 1,
       "marker_id": 11,
       "prompt": "Куегыз сүзне юнәлеш килешендә: китап ->",
@@ -598,13 +629,13 @@ Downloads an Excel spreadsheet ready for direct upload into school electronic gr
 ### Router 7: Model Manifest & Preprocessing Spec (`/api/v1/model`)
 
 #### 7.1 `GET /api/v1/model/manifest`
-Returns the authoritative 39-class alphabet array, model version info, SHA-256 hash, and exact image preprocessing parameters to ensure 100% parity between server training and mobile on-device TFLite/ONNX inference.
+Returns the authoritative 39-class alphabet array, model version info, live SHA-256 hash, and image preprocessing parameters derived dynamically from `pipeline_spec.json` (SSOT) to ensure parity between C++20 `tatar_ocr_core` ONNX inference and mobile edge execution.
 
 - **Response `200 OK`**:
 ```json
 {
-  "model_name": "finetuned_uppercase39",
-  "model_version": "1.0.0",
+  "model_name": "tatar_ocr_v4_handwritten39_int8",
+  "model_version": "1.0",
   "num_classes": 39,
   "alphabet_classes": [
     "А", "Ә", "Б", "В", "Г", "Д", "Е", "Ё", "Ж", "Җ",
@@ -612,7 +643,7 @@ Returns the authoritative 39-class alphabet array, model version info, SHA-256 h
     "П", "Р", "С", "Т", "У", "Ү", "Ф", "Х", "Һ", "Ц",
     "Ч", "Ш", "Щ", "Ъ", "Ы", "Ь", "Э", "Ю", "Я"
   ],
-  "sha256": "b55481b407751ece8237c77bbfa6270cc3a271d73d04b3ef58a4c25ee01361d3",
+  "sha256": "656096ed97d25cfdd07390f292a7b9a9f838481adf126587e40dccae25c9f191",
   "language_alphabets": {
     "tt": ["А", "Ә", "...", "Я"],
     "ru": ["А", "Б", "...", "Я"]
@@ -625,17 +656,22 @@ Returns the authoritative 39-class alphabet array, model version info, SHA-256 h
     "input_resolution": [64, 64],
     "channels": 1,
     "color_mode": "grayscale",
-    "margin_trim_pct": 11.0,
+    "margin_trim_pct": 4.0,
     "connected_component_segmentation": true,
     "ink_threshold_offset": 22.0,
     "ink_min_area_pixels": 35,
     "bounding_box_padding_px": 2,
-    "target_occupancy_px": 46.0,
+    "target_occupancy_px": 48.0,
     "canvas_background_val": 250,
     "normalization_formula": "((pixel / 255.0) - 0.5) / 0.5"
   }
 }
 ```
+
+### System Health (`/health`)
+
+#### `GET /health`
+Returns `{"status": "ok", "service": "Кара куян (Tatar OCR) Task Generator"}`.
 
 > **Authoritative Class Indexing Note**:
 > In standard Tatar Cyrillic orthography, the 6 special Tatar letters (**Ә, Җ, Ң, Ө, Ү, Һ**) appear immediately after their base Cyrillic counterparts:

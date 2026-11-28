@@ -1,13 +1,18 @@
 import json
 from collections import defaultdict
-from typing import Optional, Dict, Any, List
+from datetime import datetime, timezone
+from typing import Optional, Dict, Any, List, Tuple
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.core.database import get_db
+from app.core.teacher_scope import assert_class_access, normalize_teacher_uuid
+from app.generators.checker import normalize_char
+from app.generators.registry import registry
 from app.models.school import ClassModel, StudentModel
 from app.models.submission import SubmissionModel
+from app.models.teacher import TeacherModel
 from app.models.test import AssembledTestModel
 from app.schemas.analytics import (
     StudentAnalyticsResponse,
@@ -24,35 +29,71 @@ from app.schemas.analytics import (
     HandwritingMetrics,
 )
 
-from app.generators.registry import registry
-
 router = APIRouter(prefix="/analytics", tags=["Backend Analytics Engine"])
 
-def compute_handwriting_metrics(cells_data: List[Dict[str, Any]]) -> Dict[str, Any]:
+
+def is_cell_error(cell: Dict[str, Any]) -> bool:
+    override = (cell.get("teacher_override") or "").strip().upper()
+    if override == "CORRECT":
+        return False
+    if override == "WRONG":
+        return True
+    cell_status = cell.get("status", "MATCH")
+    if cell_status == "EMPTY_MATCH":
+        return False
+    exp = normalize_char(cell.get("expected_char", ""))
+    pred = normalize_char(cell.get("predicted_char", ""))
+    return (cell_status != "MATCH") or (pred != exp)
+
+
+def _format_utc_z(dt: Optional[datetime]) -> Optional[str]:
+    if dt is None:
+        return None
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(timezone.utc)
+    return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+async def _get_teacher_flag_threshold(db: AsyncSession, teacher_uuid: Optional[str]) -> float:
+    if not teacher_uuid:
+        return 0.65
+    t_obj = (
+        await db.execute(select(TeacherModel).where(TeacherModel.teacher_uuid == teacher_uuid))
+    ).scalar_one_or_none()
+    if t_obj and t_obj.confidence_flag_threshold is not None:
+        return float(t_obj.confidence_flag_threshold)
+    return 0.65
+
+
+def compute_handwriting_metrics(
+    cells_data: List[Dict[str, Any]],
+    low_conf_threshold: float = 0.65,
+) -> Dict[str, Any]:
     """
     Computes student handwriting quality percentage and legibility metrics:
     - Base confidence score (60% weight)
     - Teacher non-intervention/correction rate (25% weight)
     - Consistent confidence / lack of low-confidence outliers (15% weight)
     """
-    if not cells_data:
+    active_cells = [c for c in cells_data if c.get("status") != "EMPTY_MATCH"]
+    if not active_cells:
         return {
-            "quality_pct": 100.0,
-            "status": "EXCELLENT",
-            "average_confidence": 1.0,
+            "quality_pct": None,
+            "status": "NO_DATA",
+            "average_confidence": 0.0,
             "teacher_correction_rate_pct": 0.0,
             "low_confidence_rate_pct": 0.0,
             "total_characters_analyzed": 0,
             "unclear_characters": [],
         }
 
-    total = len(cells_data)
+    total = len(active_cells)
     conf_sum = 0.0
     low_conf_count = 0
     teacher_corrected_count = 0
     unclear_chars_count = defaultdict(int)
 
-    for c in cells_data:
+    for c in active_cells:
         raw_conf = c.get("confidence")
         if raw_conf is None:
             raw_conf = 0.95 if c.get("status") == "MATCH" else 0.50
@@ -61,13 +102,13 @@ def compute_handwriting_metrics(cells_data: List[Dict[str, Any]]) -> Dict[str, A
         conf = max(0.0, min(1.0, float(raw_conf)))
         conf_sum += conf
 
-        is_low_conf = conf < 0.70
+        is_low_conf = conf < low_conf_threshold
         if is_low_conf:
             low_conf_count += 1
 
-        override = c.get("teacher_override")
-        status = c.get("status", "MATCH")
-        is_corrected = bool(override) or status in ("FLAG_OVERRIDDEN_BY_TEACHER", "FLAGGED")
+        override = (c.get("teacher_override") or "").strip().upper()
+        cell_status = c.get("status", "MATCH")
+        is_corrected = (override in ("CORRECT", "WRONG")) or (cell_status == "FLAG_OVERRIDDEN_BY_TEACHER")
         if is_corrected:
             teacher_corrected_count += 1
 
@@ -137,15 +178,25 @@ async def get_student_analytics(
     stmt_stu = select(StudentModel).where(StudentModel.student_id == student_id)
     res_stu = await db.execute(stmt_stu)
     student = res_stu.scalar_one_or_none()
+    if not student:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Student '{student_id}' not found.",
+        )
 
-    student_name = student.full_name if student else f"Укучы {student_id}"
+    teacher_uuid = normalize_teacher_uuid(x_teacher_uuid)
+    student_name = student.full_name
     class_name = "Билгесез"
-    if student:
-        stmt_cls = select(ClassModel).where(ClassModel.class_id == student.class_id)
-        res_cls = await db.execute(stmt_cls)
-        cls_obj = res_cls.scalar_one_or_none()
-        if cls_obj:
-            class_name = cls_obj.name
+    stmt_cls = select(ClassModel).where(ClassModel.class_id == student.class_id)
+    res_cls = await db.execute(stmt_cls)
+    cls_obj = res_cls.scalar_one_or_none()
+    if cls_obj:
+        assert_class_access(cls_obj, teacher_uuid)
+        class_name = cls_obj.name
+
+    low_conf_threshold = await _get_teacher_flag_threshold(
+        db, teacher_uuid or (cls_obj.teacher_uuid if cls_obj else None)
+    )
 
     stmt_sub = select(SubmissionModel).where(SubmissionModel.student_id == student_id).order_by(SubmissionModel.checked_at.desc())
     res_sub = await db.execute(stmt_sub)
@@ -163,10 +214,20 @@ async def get_student_analytics(
             frequent_weak_topics=[],
             problematic_letters=[],
             history=[],
-            handwriting_quality_pct=100.0,
-            handwriting_status="EXCELLENT",
+            handwriting_quality_pct=None,
+            handwriting_status="NO_DATA",
             handwriting_metrics=None,
         )
+
+    assignment_ids = {s.assignment_id for s in submissions}
+    title_rows = (
+        await db.execute(
+            select(AssembledTestModel.test_id, AssembledTestModel.title).where(
+                AssembledTestModel.test_id.in_(assignment_ids)
+            )
+        )
+    ).all()
+    title_map = {row[0]: row[1] for row in title_rows}
 
     total_tests = len(submissions)
     pcts = []
@@ -186,12 +247,12 @@ async def get_student_analytics(
         if g_str in grade_dist:
             grade_dist[g_str] += 1
 
-        date_str = s.checked_at.strftime("%Y-%m-%dT%H:%M:%SZ") if s.checked_at else None
+        date_str = _format_utc_z(s.checked_at)
         history.append(
             StudentHistoryItem(
                 submission_id=s.submission_id,
                 assignment_id=s.assignment_id,
-                assignment_title=s.assignment_id,
+                assignment_title=title_map.get(s.assignment_id, s.assignment_id),
                 date=date_str,
                 score=s.overall_score,
                 max_score=s.max_score,
@@ -212,17 +273,14 @@ async def get_student_analytics(
 
             for c in q.get("cells", []):
                 all_student_cells.append(c)
-                exp = c.get("expected_char", "").strip().upper()
-                pred = c.get("predicted_char", "").strip().upper()
-                status_cell = c.get("status", "MATCH")
-                override = c.get("teacher_override")
+                exp = normalize_char(c.get("expected_char", ""))
+                pred = normalize_char(c.get("predicted_char", ""))
 
-                if exp and exp.isalpha():
+                if exp != " " and exp.isalpha():
                     letter_stats[exp]["total"] += 1
-                    is_wrong = (status_cell != "MATCH") or (pred != exp) or (override == "WRONG")
-                    if is_wrong:
+                    if is_cell_error(c):
                         letter_stats[exp]["wrong"] += 1
-                        if pred and pred != exp and pred.isalpha():
+                        if pred != " " and pred != exp and pred.isalpha():
                             letter_stats[exp]["confusions"].add(pred)
 
     avg_score_pct = round(sum(pcts) / total_tests, 1) if total_tests else 0.0
@@ -230,16 +288,17 @@ async def get_student_analytics(
 
     weak_topics = []
     for code, st in topic_stats.items():
-        acc = round((st["total"] - st["wrong"]) / st["total"] * 100.0, 1) if st["total"] > 0 else 100.0
-        weak_topics.append(
-            FrequentWeakTopic(
-                topic_code=code,
-                topic_name_tt=TOPIC_NAMES.get(code, code),
-                total_questions=st["total"],
-                wrong_count=st["wrong"],
-                accuracy_pct=acc,
+        if st["wrong"] > 0:
+            acc = round((st["total"] - st["wrong"]) / st["total"] * 100.0, 1) if st["total"] > 0 else 100.0
+            weak_topics.append(
+                FrequentWeakTopic(
+                    topic_code=code,
+                    topic_name_tt=TOPIC_NAMES.get(code, code),
+                    total_questions=st["total"],
+                    wrong_count=st["wrong"],
+                    accuracy_pct=acc,
+                )
             )
-        )
     weak_topics.sort(key=lambda x: (x.accuracy_pct, -x.wrong_count))
 
     prob_letters = []
@@ -257,8 +316,8 @@ async def get_student_analytics(
             )
     prob_letters.sort(key=lambda x: (x.accuracy_pct, -x.misrecognized_or_wrong))
 
-    hw = compute_handwriting_metrics(all_student_cells)
-    hw_metrics = HandwritingMetrics(**hw)
+    hw = compute_handwriting_metrics(all_student_cells, low_conf_threshold=low_conf_threshold)
+    hw_metrics = HandwritingMetrics(**hw) if hw["total_characters_analyzed"] > 0 else None
 
     return StudentAnalyticsResponse(
         student_id=student_id,
@@ -286,8 +345,16 @@ async def get_class_analytics(
     stmt_cls = select(ClassModel).where(ClassModel.class_id == class_id)
     res_cls = await db.execute(stmt_cls)
     cls_obj = res_cls.scalar_one_or_none()
+    if not cls_obj:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Class '{class_id}' not found.",
+        )
 
-    class_name = cls_obj.name if cls_obj else class_id
+    teacher_uuid = normalize_teacher_uuid(x_teacher_uuid)
+    assert_class_access(cls_obj, teacher_uuid)
+    class_name = cls_obj.name
+    low_conf_threshold = await _get_teacher_flag_threshold(db, teacher_uuid or cls_obj.teacher_uuid)
 
     stmt_stu = select(StudentModel).where(StudentModel.class_id == class_id)
     res_stu = await db.execute(stmt_stu)
@@ -304,7 +371,7 @@ async def get_class_analytics(
             class_name=class_name,
             students_count=students_count,
             average_class_score_pct=0.0,
-            average_handwriting_quality_pct=100.0,
+            average_handwriting_quality_pct=None,
             grade_distribution={"5": 0, "4": 0, "3": 0, "2": 0},
             top_class_mistakes=[],
             difficult_characters_across_class=[],
@@ -315,8 +382,8 @@ async def get_class_analytics(
                     average_score_pct=0.0,
                     average_grade=0.0,
                     tests_completed=0,
-                    handwriting_quality_pct=100.0,
-                    handwriting_status="EXCELLENT",
+                    handwriting_quality_pct=None,
+                    handwriting_status="NO_DATA",
                 )
                 for s in all_students
             ],
@@ -357,30 +424,26 @@ async def get_class_analytics(
                 student_records[s.student_id]["cells"].append(c)
                 all_class_cells.append(c)
 
-                exp = c.get("expected_char", "").strip().upper()
-                pred = c.get("predicted_char", "").strip().upper()
-                status_cell = c.get("status", "MATCH")
-                override = c.get("teacher_override")
-
-                if exp and exp.isalpha():
+                exp = normalize_char(c.get("expected_char", ""))
+                if exp != " " and exp.isalpha():
                     char_errors[exp]["total"] += 1
-                    is_wrong = (status_cell != "MATCH") or (pred != exp) or (override == "WRONG")
-                    if is_wrong:
+                    if is_cell_error(c):
                         char_errors[exp]["wrong"] += 1
 
     avg_class_score_pct = round(sum(pcts) / len(pcts), 1) if pcts else 0.0
 
     top_mistakes = []
     for tag, tm in topic_mistakes.items():
-        fail_pct = round(tm["wrong"] / tm["total"] * 100.0, 1) if tm["total"] > 0 else 0.0
-        top_mistakes.append(
-            TopClassMistake(
-                topic_code=tag,
-                topic_name_tt=TOPIC_NAMES.get(tag, tag),
-                failure_rate_pct=fail_pct,
-                affected_students_count=len(tm["affected_students"]),
+        if tm["wrong"] > 0:
+            fail_pct = round(tm["wrong"] / tm["total"] * 100.0, 1) if tm["total"] > 0 else 0.0
+            top_mistakes.append(
+                TopClassMistake(
+                    topic_code=tag,
+                    topic_name_tt=TOPIC_NAMES.get(tag, tag),
+                    failure_rate_pct=fail_pct,
+                    affected_students_count=len(tm["affected_students"]),
+                )
             )
-        )
     top_mistakes.sort(key=lambda x: -x.failure_rate_pct)
 
     difficult_chars = []
@@ -391,7 +454,6 @@ async def get_class_analytics(
     difficult_chars.sort(key=lambda x: -x.error_rate_pct)
 
     perf_table = []
-    # Include all known students
     student_ids_set = {s.student_id for s in all_students} | set(student_records.keys())
     name_map = {s.student_id: s.full_name for s in all_students}
 
@@ -403,7 +465,7 @@ async def get_class_analytics(
 
         avg_pct = round(sum(s_pcts) / len(s_pcts), 1) if s_pcts else 0.0
         avg_g = round(sum(s_grades) / len(s_grades), 1) if s_grades else 0.0
-        stu_hw = compute_handwriting_metrics(rec.get("cells", []))
+        stu_hw = compute_handwriting_metrics(rec.get("cells", []), low_conf_threshold=low_conf_threshold)
 
         perf_table.append(
             StudentPerformanceRow(
@@ -418,7 +480,7 @@ async def get_class_analytics(
         )
     perf_table.sort(key=lambda x: (-x.average_score_pct, -x.average_grade, x.full_name))
 
-    class_hw = compute_handwriting_metrics(all_class_cells)
+    class_hw = compute_handwriting_metrics(all_class_cells, low_conf_threshold=low_conf_threshold)
     needing_attention = [
         row.full_name for row in perf_table
         if row.handwriting_status in ("NEEDS_ATTENTION", "POOR")
@@ -427,7 +489,7 @@ async def get_class_analytics(
     return ClassAnalyticsResponse(
         class_id=class_id,
         class_name=class_name,
-        students_count=max(students_count, len(perf_table)),
+        students_count=students_count,
         average_class_score_pct=avg_class_score_pct,
         average_handwriting_quality_pct=class_hw["quality_pct"],
         grade_distribution=grade_dist,
@@ -447,27 +509,38 @@ async def get_assignment_analytics(
     stmt_test = select(AssembledTestModel).where(AssembledTestModel.test_id == assignment_id)
     res_test = await db.execute(stmt_test)
     test_obj = res_test.scalar_one_or_none()
+    if not test_obj:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Assignment '{assignment_id}' not found.",
+        )
 
-    title = test_obj.title if test_obj else f"Контрольная работа {assignment_id}"
+    title = test_obj.title
 
-    # Extract questions metadata from bundle if available
-    bundle_questions = {}
-    if test_obj:
-        try:
-            b_dict = json.loads(test_obj.bundle_json)
-            for v in b_dict.get("variants", []):
-                for q in v.get("questions", []):
-                    q_num = q.get("question_number")
-                    if q_num not in bundle_questions:
-                        bundle_questions[q_num] = {
-                            "marker_id": q.get("marker_id", 10 + q_num),
-                            "prompt": q.get("prompt", ""),
-                            "expected_answer": q.get("expected_answer", ""),
-                        }
-        except Exception:
-            pass
+    bundle_questions: Dict[Tuple[int, int], Dict[str, Any]] = {}
+    try:
+        b_dict = json.loads(test_obj.bundle_json)
+        for v in b_dict.get("variants", []):
+            v_id = int(v.get("variant_id") or 1)
+            for q in v.get("questions", []):
+                q_num = q.get("question_number")
+                if q_num is None:
+                    continue
+                q_num_int = int(q_num)
+                bundle_questions[(v_id, q_num_int)] = {
+                    "marker_id": q.get("marker_id", 10 + q_num_int),
+                    "prompt": q.get("prompt", ""),
+                    "expected_answer": q.get("expected_answer", ""),
+                }
+    except Exception:
+        pass
 
+    teacher_uuid = normalize_teacher_uuid(x_teacher_uuid)
     stmt_sub = select(SubmissionModel).where(SubmissionModel.assignment_id == assignment_id)
+    if teacher_uuid:
+        stmt_sub = stmt_sub.join(ClassModel, SubmissionModel.class_id == ClassModel.class_id).where(
+            (ClassModel.teacher_uuid == teacher_uuid) | (ClassModel.teacher_uuid.is_(None))
+        )
     res_sub = await db.execute(stmt_sub)
     submissions = res_sub.scalars().all()
 
@@ -482,11 +555,14 @@ async def get_assignment_analytics(
         )
 
     pcts = []
-    q_stats = defaultdict(lambda: {"total": 0, "correct": 0, "marker_id": 0, "prompt": "", "expected_answer": "", "wrong": []})
+    q_stats = defaultdict(
+        lambda: {"total": 0, "correct": 0, "marker_id": 0, "prompt": "", "expected_answer": "", "wrong": []}
+    )
 
     for s in submissions:
         pct = (s.overall_score / s.max_score * 100.0) if s.max_score > 0 else 0.0
         pcts.append(pct)
+        v_id = int(s.variant or 1)
 
         try:
             q_results = json.loads(s.questions_results_json)
@@ -494,25 +570,26 @@ async def get_assignment_analytics(
             q_results = []
 
         for q in q_results:
-            q_num = q.get("question_number", 1)
-            b_info = bundle_questions.get(q_num, {})
+            q_num = int(q.get("question_number", 1))
+            key = (v_id, q_num)
+            b_info = bundle_questions.get(key, {})
             m_id = q.get("marker_id") or b_info.get("marker_id", 10 + q_num)
             p_text = b_info.get("prompt", f"Сорау №{q_num}")
             e_ans = b_info.get("expected_answer", "")
 
-            q_stats[q_num]["marker_id"] = m_id
-            q_stats[q_num]["prompt"] = p_text
-            q_stats[q_num]["expected_answer"] = e_ans
-            q_stats[q_num]["total"] += 1
+            q_stats[key]["marker_id"] = m_id
+            q_stats[key]["prompt"] = p_text
+            q_stats[key]["expected_answer"] = e_ans
+            q_stats[key]["total"] += 1
 
             is_corr = bool(q.get("is_correct", False))
             if is_corr:
-                q_stats[q_num]["correct"] += 1
+                q_stats[key]["correct"] += 1
             else:
-                # Reconstruct student written answer from cells
-                chars = [c.get("predicted_char", "") for c in q.get("cells", [])]
+                sorted_cells = sorted(q.get("cells", []), key=lambda c: c.get("cell_index", 0))
+                chars = [c.get("predicted_char", "") for c in sorted_cells]
                 written = "".join(chars).strip()
-                q_stats[q_num]["wrong"].append(
+                q_stats[key]["wrong"].append(
                     WrongSubmissionItem(
                         student_id=s.student_id,
                         student_name=s.student_name,
@@ -523,11 +600,12 @@ async def get_assignment_analytics(
     avg_score_pct = round(sum(pcts) / total_submissions, 1)
 
     questions_out = []
-    for q_num in sorted(q_stats.keys()):
-        stat = q_stats[q_num]
+    for v_id, q_num in sorted(q_stats.keys()):
+        stat = q_stats[(v_id, q_num)]
         acc_pct = round(stat["correct"] / stat["total"] * 100.0, 1) if stat["total"] > 0 else 0.0
         questions_out.append(
             QuestionAnalyticsItem(
+                variant_id=v_id,
                 question_number=q_num,
                 marker_id=stat["marker_id"],
                 prompt=stat["prompt"],

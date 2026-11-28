@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Literal
 from pydantic import BaseModel, Field
 
 class ClassItem(BaseModel):
@@ -39,7 +39,7 @@ class BulkImportStudentsResponse(BaseModel):
 class AssignTestToClassRequest(BaseModel):
     assignment_id: str
     due_date: Optional[str] = None
-    status: Optional[str] = "active"
+    status: Literal["active", "completed", "archived"] = "active"
 
 
 class ClassAssignmentItem(BaseModel):

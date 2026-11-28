@@ -1,5 +1,5 @@
 import random
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Tuple
 from app.generators.base import BaseTaskGenerator, TaskDraft
 from app.generators.phonetics import (
     CASE_NAMES,
@@ -23,6 +23,14 @@ PERSON_LABELS = {
     2: "II зат (синең)",
     3: "III зат (аның)",
 }
+
+_VALID_POSSESSIVE_CASE_COMBOS: List[Tuple[str, int, str]] = [
+    (stem, p, c)
+    for stem in NOUN_STEMS
+    for p in (1, 2, 3)
+    for c in CASE_NAMES.keys()
+    if len(inflect_possessive_case(stem, person=p, case_code=c)) <= 12
+]
 
 
 class PossessiveAffixesGenerator(BaseTaskGenerator):
@@ -137,11 +145,21 @@ class PossessiveCaseGenerator(BaseTaskGenerator):
         **kwargs: Any,
     ) -> TaskDraft:
         rng = random.Random(seed) if seed is not None else random.Random()
-        stem_pool = stems or NOUN_STEMS
-        chosen_person = person if person in (1, 2, 3) else rng.choice([1, 2, 3])
-        available_cases = list(CASE_NAMES.keys())
-        chosen_case = case_code if case_code in CASE_NAMES else rng.choice(available_cases)
-        chosen_stem = rng.choice(stem_pool)
+        if case_code is not None and case_code not in CASE_NAMES:
+            raise ValueError(f"Unknown case_code '{case_code}'. Must be one of: {list(CASE_NAMES.keys())}")
+
+        if stems is None:
+            candidates = [
+                (s, p, c)
+                for s, p, c in _VALID_POSSESSIVE_CASE_COMBOS
+                if (person not in (1, 2, 3) or p == person)
+                and (case_code is None or c == case_code)
+            ]
+            chosen_stem, chosen_person, chosen_case = rng.choice(candidates)
+        else:
+            chosen_person = person if person in (1, 2, 3) else rng.choice([1, 2, 3])
+            chosen_case = case_code if case_code is not None else rng.choice(list(CASE_NAMES.keys()))
+            chosen_stem = rng.choice(stems)
 
         expected_answer = inflect_possessive_case(chosen_stem, person=chosen_person, case_code=chosen_case)
         person_lbl = PERSON_LABELS[chosen_person]
@@ -154,8 +172,8 @@ class PossessiveCaseGenerator(BaseTaskGenerator):
 
         return TaskDraft(
             task_type=self.task_type,
-            topic_tag="possessive_case",
-            topic_name_tt="Тартым һәм килеш",
+            topic_tag=self.default_topic_tag,
+            topic_name_tt=self.topic_name_tt,
             prompt_tt=prompt,
             expected_answer=expected_answer,
             cell_count=cell_count,
@@ -178,12 +196,32 @@ class PossessiveCaseGenerator(BaseTaskGenerator):
         **kwargs: Any,
     ) -> List[TaskDraft]:
         rng = random.Random(seed) if seed is not None else random.Random()
-        stem_pool = list(stems or NOUN_STEMS)
+        if case_code is not None and case_code not in CASE_NAMES:
+            raise ValueError(f"Unknown case_code '{case_code}'. Must be one of: {list(CASE_NAMES.keys())}")
+
+        if stems is None:
+            candidates = [
+                (s, p, c)
+                for s, p, c in _VALID_POSSESSIVE_CASE_COMBOS
+                if (person not in (1, 2, 3) or p == person)
+                and (case_code is None or c == case_code)
+            ]
+            rng.shuffle(candidates)
+            drafts: List[TaskDraft] = []
+            for i in range(count):
+                item_seed = rng.randint(0, 10_000_000)
+                stem, p, c = candidates[i % len(candidates)]
+                drafts.append(
+                    self.generate(seed=item_seed, person=p, case_code=c, stems=[stem], grade_level=grade_level)
+                )
+            return drafts
+
+        stem_pool = list(stems)
         rng.shuffle(stem_pool)
         persons = [person] if person in (1, 2, 3) else [1, 2, 3]
-        cases = [case_code] if case_code in CASE_NAMES else list(CASE_NAMES.keys())
+        cases = [case_code] if case_code is not None else list(CASE_NAMES.keys())
 
-        drafts: List[TaskDraft] = []
+        drafts = []
         for i in range(count):
             item_seed = rng.randint(0, 10_000_000)
             stem = stem_pool[i % len(stem_pool)]
@@ -202,10 +240,12 @@ class PossessiveCaseGenerator(BaseTaskGenerator):
         case_name = CASE_NAMES.get(case_code, "килеш")
         prompt = f"Тиешле кушымчаларны ялгагыз: {clean_s} + {person_lbl} + {case_name.lower()} ->"
         cell_count = max(8, len(expected_answer))
+        if cell_count > 12:
+            raise ValueError(f"Generated answer '{expected_answer}' exceeds maximum A4 cell limit (12).")
         return TaskDraft(
             task_type=self.task_type,
-            topic_tag="possessive_case",
-            topic_name_tt="Тартым һәм килеш",
+            topic_tag=self.default_topic_tag,
+            topic_name_tt=self.topic_name_tt,
             prompt_tt=prompt,
             expected_answer=expected_answer,
             cell_count=cell_count,
