@@ -1,8 +1,10 @@
+import base64
+import binascii
 import json
 import uuid
 from typing import Optional, List
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, Header, Query, status
+from fastapi import APIRouter, Depends, File, Header, HTTPException, Query, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -11,11 +13,24 @@ from app.models.submission import SubmissionModel
 from app.schemas.submission import (
     BatchSyncSubmissionsRequest,
     BatchSyncSubmissionsResponse,
+    RecognizeBlankRequestBase64,
+    RecognizeBlankResponse,
     SingleSubmissionSaveRequest,
     SingleSubmissionSaveResponse,
     SubmissionItem,
     SubmissionQuestionResult,
     SubmissionCellResult,
+)
+from app.services.blank_recognition_service import (
+    BlankAssignmentNotFoundError,
+    BlankAutoSaveError,
+    BlankImageValidationError,
+    BlankRecognitionService,
+    get_blank_recognition_service,
+)
+from app.services.blank_scanner_bridge import (
+    InvalidBlankImageError,
+    NativeScannerUnavailableError,
 )
 
 router = APIRouter(prefix="/submissions", tags=["Submissions Ingestion"])
@@ -211,3 +226,115 @@ async def query_submissions(
     submissions = res.scalars().all()
 
     return [parse_submission_item(s) for s in submissions]
+
+
+async def _run_blank_recognition(
+    service: BlankRecognitionService,
+    db: AsyncSession,
+    image_bytes: bytes,
+    mime_type: Optional[str],
+    assignment_id: Optional[str],
+    variant: Optional[int],
+    student_id: Optional[str],
+    class_id: Optional[str],
+    confidence_threshold: Optional[float],
+    auto_save: bool,
+    x_teacher_uuid: Optional[str],
+) -> RecognizeBlankResponse:
+    try:
+        return await service.recognize_and_verify(
+            db=db,
+            image_bytes=image_bytes,
+            mime_type=mime_type,
+            assignment_id=assignment_id,
+            variant=variant,
+            student_id=student_id,
+            class_id=class_id,
+            confidence_threshold=confidence_threshold,
+            auto_save=auto_save,
+            x_teacher_uuid=x_teacher_uuid,
+        )
+    except BlankImageValidationError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+    except InvalidBlankImageError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except BlankAssignmentNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except BlankAutoSaveError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)) from exc
+    except NativeScannerUnavailableError as exc:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
+
+
+@router.post(
+    "/recognize",
+    response_model=RecognizeBlankResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Recognize & Verify Blank Photo via C++20 OCR Pipeline",
+    description=(
+        "Accepts a photographed A4 blank in RAM (never stored on disk or in DB), runs the C++20 "
+        "tatar_ocr_native pipeline, decodes header QR metadata, verifies answers against the "
+        "assignment key, and returns full local-parity recognition + grading results."
+    ),
+)
+async def recognize_blank_photo(
+    file: UploadFile = File(..., description="Photo of a filled A4 test blank (JPEG, PNG, WEBP)"),
+    assignment_id: Optional[str] = Query(None, description="Optional assignment ID overriding QR code"),
+    variant: Optional[int] = Query(None, ge=1, le=10, description="Optional variant overriding QR code"),
+    student_id: Optional[str] = Query(None, description="Optional student ID"),
+    class_id: Optional[str] = Query(None, description="Optional class ID (required when auto_save=true without student link)"),
+    confidence_threshold: Optional[float] = Query(None, ge=0.0, le=100.0, description="Optional review threshold (0-100%)"),
+    auto_save: bool = Query(False, description="Persist verified submission immediately into DB"),
+    x_teacher_uuid: Optional[str] = Header(None, alias="X-Teacher-UUID"),
+    db: AsyncSession = Depends(get_db),
+    service: BlankRecognitionService = Depends(get_blank_recognition_service),
+):
+    image_bytes = await file.read()
+    return await _run_blank_recognition(
+        service=service,
+        db=db,
+        image_bytes=image_bytes,
+        mime_type=file.content_type or "",
+        assignment_id=assignment_id,
+        variant=variant,
+        student_id=student_id,
+        class_id=class_id,
+        confidence_threshold=confidence_threshold,
+        auto_save=auto_save,
+        x_teacher_uuid=x_teacher_uuid,
+    )
+
+
+@router.post(
+    "/recognize-base64",
+    response_model=RecognizeBlankResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Recognize & Verify Base64 Blank Photo via C++20 OCR Pipeline",
+)
+async def recognize_blank_photo_base64(
+    payload: RecognizeBlankRequestBase64,
+    x_teacher_uuid: Optional[str] = Header(None, alias="X-Teacher-UUID"),
+    db: AsyncSession = Depends(get_db),
+    service: BlankRecognitionService = Depends(get_blank_recognition_service),
+):
+    try:
+        image_bytes = base64.b64decode(payload.image_base64, validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid base64 payload: {exc}",
+        ) from exc
+
+    return await _run_blank_recognition(
+        service=service,
+        db=db,
+        image_bytes=image_bytes,
+        mime_type=payload.mime_type,
+        assignment_id=payload.assignment_id,
+        variant=payload.variant,
+        student_id=payload.student_id,
+        class_id=payload.class_id,
+        confidence_threshold=payload.confidence_threshold,
+        auto_save=payload.auto_save,
+        x_teacher_uuid=x_teacher_uuid,
+    )

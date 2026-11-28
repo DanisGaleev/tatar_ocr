@@ -1,4 +1,5 @@
 import json
+import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
@@ -15,6 +16,8 @@ from app.models.school import ClassModel, StudentModel, ClassAssignmentModel
 from app.routers import constructor, assignments, auth, classes, submissions, analytics, reports, model
 from app.generators.registry import registry
 from app.generators.phonetics import build_expected_cells
+
+logger = logging.getLogger(__name__)
 
 INITIAL_BANK_TASKS = [
     {

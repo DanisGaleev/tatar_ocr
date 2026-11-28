@@ -829,6 +829,230 @@ components:
           type: string
           example: "sub_8f23a"
 
+    TopPredictionItem:
+      type: object
+      properties:
+        char:
+          type: string
+          example: "К"
+        confidence:
+          type: number
+          format: float
+          example: 99.2
+
+    RecognizedCellItem:
+      type: object
+      properties:
+        cell_idx:
+          type: integer
+          example: 1
+        char:
+          type: string
+          example: "К"
+        confidence:
+          type: number
+          format: float
+          example: 99.2
+        is_empty:
+          type: boolean
+          example: false
+        review_required:
+          type: boolean
+          example: false
+        top3:
+          type: array
+          items:
+            $ref: '#/components/schemas/TopPredictionItem'
+        bbox:
+          type: array
+          items:
+            type: integer
+          example: [220, 496, 100, 99]
+
+    RecognizedQuestionItem:
+      type: object
+      properties:
+        q_num:
+          type: integer
+          example: 1
+        marker_id:
+          type: integer
+          example: 11
+        text:
+          type: string
+          example: "КИТАПКА"
+        prompt:
+          type: string
+          nullable: true
+        topic_tag:
+          type: string
+          nullable: true
+        expected_answer:
+          type: string
+          nullable: true
+        is_correct:
+          type: boolean
+          nullable: true
+        points_earned:
+          type: number
+          format: float
+          nullable: true
+        cells:
+          type: array
+          items:
+            $ref: '#/components/schemas/RecognizedCellItem'
+
+    RecognizedBlankStats:
+      type: object
+      properties:
+        total_letters:
+          type: integer
+          example: 55
+        avg_confidence:
+          type: number
+          format: float
+          example: 99.4
+        questions_count:
+          type: integer
+          example: 8
+        uncertain_cells_count:
+          type: integer
+          example: 0
+        zero_touch:
+          type: boolean
+          example: true
+
+    QRMetadataItem:
+      type: object
+      properties:
+        raw:
+          type: string
+        assignment_id:
+          type: string
+          nullable: true
+        variant:
+          type: integer
+          nullable: true
+        page:
+          type: integer
+          nullable: true
+        total_pages:
+          type: integer
+          nullable: true
+        questions_count:
+          type: integer
+          nullable: true
+        student_id:
+          type: string
+          nullable: true
+
+    RecognizeBlankRequestBase64:
+      type: object
+      required:
+        - image_base64
+      properties:
+        image_base64:
+          type: string
+        mime_type:
+          type: string
+          default: "image/jpeg"
+        assignment_id:
+          type: string
+          nullable: true
+        variant:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 10
+        student_id:
+          type: string
+          nullable: true
+        class_id:
+          type: string
+          nullable: true
+        confidence_threshold:
+          type: number
+          format: float
+          nullable: true
+          minimum: 0.0
+          maximum: 100.0
+        auto_save:
+          type: boolean
+          default: false
+
+    RecognizeBlankResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "success"
+        rectification_method:
+          type: string
+          example: "ArUco 4-Point Geometry"
+        qr_metadata:
+          $ref: '#/components/schemas/QRMetadataItem'
+          nullable: true
+        assignment_id:
+          type: string
+          nullable: true
+        variant:
+          type: integer
+          example: 1
+        student_id:
+          type: string
+          nullable: true
+        class_id:
+          type: string
+          nullable: true
+        student_name:
+          type: string
+        student_name_cells:
+          type: array
+          items:
+            $ref: '#/components/schemas/RecognizedCellItem'
+        questions:
+          type: array
+          items:
+            $ref: '#/components/schemas/RecognizedQuestionItem'
+        stats:
+          $ref: '#/components/schemas/RecognizedBlankStats'
+        confidence_threshold_pct:
+          type: number
+          format: float
+          example: 85.0
+        is_verified:
+          type: boolean
+        verification_warning:
+          type: string
+          nullable: true
+        overall_score:
+          type: number
+          format: float
+          nullable: true
+        max_score:
+          type: number
+          format: float
+          nullable: true
+        score_percentage:
+          type: number
+          format: float
+          nullable: true
+        final_grade:
+          type: integer
+          nullable: true
+        teacher_reviewed_flags:
+          type: integer
+        questions_results:
+          type: array
+          items:
+            $ref: '#/components/schemas/SubmissionQuestionResult'
+        submission_draft:
+          $ref: '#/components/schemas/SubmissionItem'
+          nullable: true
+        saved_submission_id:
+          type: string
+          nullable: true
+
     FrequentWeakTopic:
       type: object
       properties:
@@ -1655,6 +1879,114 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SingleSubmissionSaveResponse'
+
+  /api/v1/submissions/recognize:
+    post:
+      tags:
+        - Submissions Ingestion
+      summary: Recognize & Verify Blank Photo via C++20 OCR Pipeline
+      description: |
+        Accepts a photographed A4 blank in RAM (never stored on disk or in DB), runs the C++20
+        tatar_ocr_native pipeline, decodes header QR metadata, verifies answers against the
+        assignment key, and returns full local-parity recognition and grading results.
+      parameters:
+        - $ref: '#/components/parameters/HeaderTeacherUUID'
+        - name: assignment_id
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: variant
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 10
+        - name: student_id
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: class_id
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: confidence_threshold
+          in: query
+          required: false
+          schema:
+            type: number
+            format: float
+            minimum: 0.0
+            maximum: 100.0
+        - name: auto_save
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecognizeBlankResponse'
+        '400':
+          description: Invalid image format or empty payload
+        '404':
+          description: Explicit assignment or variant not found
+        '413':
+          description: Image size exceeds limit
+        '422':
+          description: Auto-save requested without resolvable assignment/class
+        '503':
+          description: Native C++ OCR module unavailable
+
+  /api/v1/submissions/recognize-base64:
+    post:
+      tags:
+        - Submissions Ingestion
+      summary: Recognize & Verify Base64 Blank Photo via C++20 OCR Pipeline
+      parameters:
+        - $ref: '#/components/parameters/HeaderTeacherUUID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecognizeBlankRequestBase64'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecognizeBlankResponse'
+        '400':
+          description: Invalid base64 or image payload
+        '404':
+          description: Explicit assignment or variant not found
+        '413':
+          description: Image size exceeds limit
+        '422':
+          description: Auto-save requested without resolvable assignment/class
+        '503':
+          description: Native C++ OCR module unavailable
 
   /api/v1/analytics/students/{student_id}:
     get:

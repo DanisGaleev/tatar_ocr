@@ -18,10 +18,10 @@ Compact system map for quick context loading. Do not duplicate deep algorithmic 
 - `schemas/` — Pydantic request/response contracts.
 - `routers/` — `auth.py`, `classes.py`, `constructor.py`, `assignments.py`, `submissions.py`, `analytics.py`, `reports.py`, `model.py`.
 - `generators/` — deterministic Tatar task generators + `phonetics.py` (`build_expected_cells`).
-- `services/` — business logic, PDF blank generation, answer checking, textbook task extractor.
+- `services/` — business logic, C++20 native OCR bridge (`blank_scanner_bridge.py`), transient blank recognition & grading (`blank_recognition_service.py`), textbook task extractor (`task_extractor/`).
 
 ## 3. Cross-Repo Contract with `kara_kuyan_frontend`
 
 - **Shared C++20 submodule:** `kara_kuyan_frontend` compiles `native/src/tatar_ocr.cpp` with `TATAR_OCR_BUILD_PYTHON=OFF` against OpenCV 5 + `onnxruntime-android`. Breaking changes to `NativeBlankScanner` signatures or `pipeline_spec.json` schema break the mobile build.
 - **Shared HTTP API:** Mobile client targets `/api/v1/*` documented in `api_specification.md` and `openapi_specification.yaml`.
-- **Zero-Photo boundary:** Student worksheet photos are never persisted on disk or transmitted to `backend/`. Only `constructor.py` textbook-photo task import handles an image upload transiently.
+- **Zero-Photo boundary:** Student worksheet photos are never persisted on disk, database, or logs. Opt-in server-side recognition (`POST /api/v1/submissions/recognize*`) and `constructor.py` textbook-photo task import process image bytes strictly in RAM.
