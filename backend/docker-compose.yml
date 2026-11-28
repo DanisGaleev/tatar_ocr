@@ -11,6 +11,12 @@ services:
       - "8000:8000"
     environment:
       - DATABASE_URL=sqlite+aiosqlite:////data/tatar_ocr.db
+      - YANDEX_API_KEY=${YANDEX_API_KEY:-}
+      - YANDEX_FOLDER_ID=${YANDEX_FOLDER_ID:-}
+      - YANDEX_GPT_MODEL_URI=${YANDEX_GPT_MODEL_URI:-}
+      - YANDEX_OCR_URL=${YANDEX_OCR_URL:-https://ocr.api.cloud.yandex.net/ocr/v1/recognizeText}
+      - YANDEX_GPT_URL=${YANDEX_GPT_URL:-https://llm.api.cloud.yandex.net/foundationModels/v1/completion}
+      - TASK_EXTRACTOR_MOCK_MODE=${TASK_EXTRACTOR_MOCK_MODE:-false}
     volumes:
       - tatar_ocr_data:/data
     healthcheck:
