@@ -1,0 +1,38 @@
+{
+  "change_id": "local-backend-deployment",
+  "default_policy": "FAIL_UNTIL_EVIDENCE",
+  "checks": [
+    {
+      "id": "AC-1",
+      "description": "backend/app/main.py defines logger and unhandled_exception_handler returns 500 JSON cleanly",
+      "status": "PASS",
+      "command": "C:\\Users\\galee\\PycharmProjects\\tatar_ocr\\.venv\\Scripts\\python.exe -c \"import sys; sys.path.insert(0, 'backend'); from starlette.testclient import TestClient; from app.main import app; app.add_api_route('/__boom_test', lambda: (_ for _ in ()).throw(RuntimeError('boom'))); r = TestClient(app, raise_server_exceptions=False).get('/__boom_test'); assert r.status_code == 500 and r.json()['detail'] == 'Internal server error', r.text; print('500_HANDLER_OK', r.json())\"",
+      "evidence": "500_HANDLER_OK {'detail': 'Internal server error', 'status_code': 500} (logged Traceback via logger.exception without NameError)",
+      "verified_at": "2026-11-28T15:16:32+03:00"
+    },
+    {
+      "id": "AC-2",
+      "description": ".dockerignore, backend/requirements.txt, and backend/Dockerfile exclude PyTorch/ML weights, cover all backend/app imports, and configure non-root appuser",
+      "status": "PASS",
+      "command": "docker build -f backend/Dockerfile -t tatar-ocr-backend:verify . && docker run --rm tatar-ocr-backend:verify python -c \"import cv2, numpy ...\" && Invoke-RestMethod /health, /api/v1/constructor/task-types, /api/v1/assignments/TAT-2026-Q1/blank.pdf?variant=1",
+      "evidence": "Build context 6.74MB; CV2_NUMPY_OK 4.10.0 2.5.3; HEALTH_OK; TASK_TYPES_OK count=24; PDF_OK status=200 bytes=73614",
+      "verified_at": "2026-11-28T16:30:38+03:00"
+    },
+    {
+      "id": "AC-3",
+      "description": "Full backend pytest suite passes after final edit",
+      "status": "PASS",
+      "command": "C:\\Users\\galee\\PycharmProjects\\tatar_ocr\\.venv\\Scripts\\python.exe -m pytest backend\\tests -q",
+      "evidence": "139 passed, 3 warnings in 14.77s",
+      "verified_at": "2026-11-28T15:16:15+03:00"
+    },
+    {
+      "id": "GATE-SPECS",
+      "description": "Living specs check (N/A — no API/pipeline/config contract changes)",
+      "status": "PASS",
+      "command": "Review of spec.md Non-goals and docs/specs/README.md",
+      "evidence": "No changes to api_specification.md, openapi_specification.yaml, pipeline_spec.json, or backend/app/core/config.py",
+      "verified_at": "2026-11-28T15:16:47+03:00"
+    }
+  ]
+}

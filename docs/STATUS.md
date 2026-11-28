@@ -25,3 +25,4 @@
 | Change | Outcome | Evidence |
 |---|---|---|
 | *(harness bootstrap)* | Installed unified ECL + OpenSpec + Anthropic Harness + ADR scaffolding | `AGENTS.md`, `docs/ECL.md`, `backend/tests` (`139 passed`) |
+| `local-backend-deployment` | Fixed missing `logger` in `backend/app/main.py`; slimmed `backend/Dockerfile` via `backend/requirements.txt` & `.dockerignore` with non-root `appuser` | `backend/tests` (`139 passed`), `docker build` + container smoke (`CV2_NUMPY_OK 4.10.0 2.5.3`, `/health`, PDF `73614` B) |
