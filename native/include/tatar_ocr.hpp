@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <cstdint>
 #include <map>
 #include <memory>
 #include <string>
@@ -18,6 +19,7 @@ namespace tatar_ocr {
 struct PipelineSpec {
     // Model & alphabet
     std::vector<std::string> alphabet;
+    std::map<std::string, std::vector<std::string>> alphabets;
 
     // Canvas & ArUco
     int canvas_w = 2100;
@@ -243,8 +245,12 @@ public:
                              double margin_trim_pct = -1.0,
                              int top_k = 3,
                              bool force_predict = false,
-                             bool debug = false);
-    BlankResult process_blank(const cv::Mat& img_bgr);
+                             bool debug = false,
+                             const std::string& language = "tt");
+    BlankResult process_blank(const cv::Mat& img_bgr, const std::string& language = "tt");
+
+    std::vector<std::string> alphabet_for_language(const std::string& language) const;
+    std::vector<uint8_t> build_language_mask(const std::string& language) const;
 
     const PipelineSpec& spec() const { return spec_; }
 
@@ -259,7 +265,9 @@ private:
     cv::aruco::Dictionary aruco_dict_;
     std::array<cv::aruco::ArucoDetector, 2> detectors_;
 
-    std::vector<std::vector<float>> run_batch(const std::vector<float>& batch_data, int batch_size);
+    std::vector<std::vector<float>> run_batch(const std::vector<float>& batch_data,
+                                              int batch_size,
+                                              const std::vector<uint8_t>& allowed_mask = {});
 };
 
 }  // namespace tatar_ocr

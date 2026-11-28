@@ -382,6 +382,7 @@ async def get_class_batch_blanks_pdf(
         title=test_obj.title,
         variants=variants,
         students=[{"student_id": s.student_id, "full_name": s.full_name} for s in students],
+        language=test_obj.language or "tt",
     )
 
     safe_cls = re.sub(r"[^A-Za-z0-9._-]", "_", class_id)

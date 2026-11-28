@@ -16,6 +16,7 @@ router = APIRouter(prefix="/assignments", tags=["Assignment Delivery"])
 async def list_assignments(
     class_id: Optional[str] = Query(None, description="Filter assignments by class ID"),
     status: Optional[str] = Query(None, description="Filter assignments by status"),
+    language: Optional[str] = Query(None, pattern="^(tt|ru)$", description="Filter assignments by language ('tt' or 'ru')"),
     x_teacher_uuid: Optional[str] = Header(None, alias="X-Teacher-UUID"),
     db: AsyncSession = Depends(get_db),
 ):
@@ -24,7 +25,10 @@ async def list_assignments(
     from sqlalchemy import func
 
     teacher_uuid = normalize_teacher_uuid(x_teacher_uuid)
-    stmt = select(AssembledTestModel).order_by(AssembledTestModel.created_at.desc())
+    stmt = select(AssembledTestModel)
+    if language:
+        stmt = stmt.where(AssembledTestModel.language == language)
+    stmt = stmt.order_by(AssembledTestModel.created_at.desc())
     res = await db.execute(stmt)
     tests = res.scalars().all()
 
@@ -72,6 +76,7 @@ async def list_assignments(
 
         results.append({
             "assignment_id": t.test_id,
+            "language": t.language or "tt",
             "title": t.title,
             "grade_level": t.grade_level,
             "total_variants": t.total_variants,
@@ -125,6 +130,9 @@ async def get_offline_bundle(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Corrupted test bundle JSON for '{assignment_id}'.",
         ) from exc
+    lang = bundle_dict.get("language") or test_obj.language or "tt"
+    bundle_dict["language"] = lang
+    bundle_dict.setdefault("alphabet_mask", "russian_33" if lang == "ru" else "tatar_39")
     if variant is not None:
         filtered_variants = [v for v in bundle_dict.get("variants", []) if v.get("variant_id") == variant]
         if not filtered_variants:
@@ -154,6 +162,7 @@ async def get_assignment_metadata(
         
     return {
         "assignment_id": test_obj.test_id,
+        "language": test_obj.language or "tt",
         "title": test_obj.title,
         "grade_level": test_obj.grade_level,
         "total_variants": test_obj.total_variants,
@@ -235,6 +244,7 @@ async def get_blank_pdf(
         questions=questions,
         student_name=student_name,
         student_id=student_id,
+        language=test_obj.language or "tt",
     )
 
     safe_asm = re.sub(r"[^A-Za-z0-9._-]", "_", assignment_id)

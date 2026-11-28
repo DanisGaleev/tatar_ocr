@@ -1,3 +1,4 @@
+import inspect
 import uuid
 import logging
 from typing import Optional, List, Dict
@@ -34,6 +35,7 @@ class TaskExtractorService:
         self,
         image_bytes: bytes,
         mime_type: str = "image/jpeg",
+        language: str = "tt",
         grade_hint: Optional[int] = None,
         save_to_bank: bool = False,
         db: Optional[AsyncSession] = None,
@@ -45,25 +47,45 @@ class TaskExtractorService:
             raise ValueError(f"Image size ({len(image_bytes)} bytes) exceeds 10 MB limit.")
 
         # 2. OCR Stage
-        logger.info("Executing OCR on %d bytes (mime: %s)...", len(image_bytes), mime_type)
-        raw_ocr_text = await self.ocr_client.recognize_text(image_bytes, mime_type=mime_type)
+        logger.info("Executing OCR on %d bytes (mime: %s, lang: %s)...", len(image_bytes), mime_type, language)
+        ocr_sig = inspect.signature(self.ocr_client.recognize_text)
+        if "language" in ocr_sig.parameters or any(
+            p.kind == inspect.Parameter.VAR_KEYWORD for p in ocr_sig.parameters.values()
+        ):
+            raw_ocr_text = await self.ocr_client.recognize_text(
+                image_bytes, mime_type=mime_type, language=language
+            )
+        else:
+            raw_ocr_text = await self.ocr_client.recognize_text(image_bytes, mime_type=mime_type)
         if not raw_ocr_text or not raw_ocr_text.strip():
             return ScanTaskResponse(
                 is_supported=False,
                 unsupported_reason="Текст на изображении не обнаружен или не удалось распознать (OCR вернул пустой результат).",
+                language=language,
                 raw_ocr_text="",
                 confidence=0.0,
                 saved_to_bank=False,
             )
 
         # 3. LLM Classification & Structuring Stage
-        supported_types = registry.list_supported_types()
-        logger.info("Classifying task with LLM against %d supported types...", len(supported_types))
-        extracted: ExtractedTaskResult = await self.llm_classifier.classify_and_extract(
-            ocr_text=raw_ocr_text,
-            supported_types=supported_types,
-            grade_hint=grade_hint,
-        )
+        supported_types = registry.list_supported_types(language=language)
+        logger.info("Classifying task with LLM against %d supported types (lang=%s)...", len(supported_types), language)
+        llm_sig = inspect.signature(self.llm_classifier.classify_and_extract)
+        if "language" in llm_sig.parameters or any(
+            p.kind == inspect.Parameter.VAR_KEYWORD for p in llm_sig.parameters.values()
+        ):
+            extracted: ExtractedTaskResult = await self.llm_classifier.classify_and_extract(
+                ocr_text=raw_ocr_text,
+                supported_types=supported_types,
+                grade_hint=grade_hint,
+                language=language,
+            )
+        else:
+            extracted = await self.llm_classifier.classify_and_extract(
+                ocr_text=raw_ocr_text,
+                supported_types=supported_types,
+                grade_hint=grade_hint,
+            )
 
         # 4. Check if LLM marked as unsupported or returned no items
         candidate_items = extracted.items
@@ -85,6 +107,7 @@ class TaskExtractorService:
             return ScanTaskResponse(
                 is_supported=False,
                 unsupported_reason=extracted.unsupported_reason or "Данный тип задания не поддерживается бланковой системой.",
+                language=language,
                 raw_ocr_text=raw_ocr_text,
                 task_type=extracted.task_type,
                 confidence=extracted.confidence,
@@ -94,6 +117,8 @@ class TaskExtractorService:
         # 5. Process and validate all sub-tasks
         valid_tasks: List[TaskBankItem] = []
         validation_errors: List[str] = []
+        default_grade = 3 if language == "ru" else 7
+        default_topic_name = "Задание учителя" if language == "ru" else "Үзләштерү биреме"
 
         for idx, item in enumerate(candidate_items, start=1):
             raw_ans = (item.expected_answer or "").strip().strip(".,;:!?\"'«»()[]-")
@@ -106,9 +131,9 @@ class TaskExtractorService:
                 validation_errors.append(f"Пункт {idx}: ответ '{raw_ans}' содержит несколько слов или знаки препинания.")
                 continue
 
-            # Strict 39-letter Tatar OCR alphabet validation
+            # Strict language-specific OCR Cyrillic validation (no digits/Latin)
             try:
-                clean_ans = validate_ocr_answer(raw_ans)
+                clean_ans = validate_ocr_answer(raw_ans, language=language)
             except Exception as err:
                 validation_errors.append(f"Пункт {idx}: ответ '{raw_ans}' содержит недопустимые символы: {err}")
                 continue
@@ -123,11 +148,11 @@ class TaskExtractorService:
             if len(clean_ans) > cell_count:
                 cell_count = len(clean_ans)
 
-            grade_level = grade_hint or item.grade_level or extracted.grade_level or 7
-            grade_level = max(5, min(9, grade_level))
+            grade_level = grade_hint or item.grade_level or extracted.grade_level or default_grade
+            grade_level = max(1, min(9, grade_level))
 
             topic_tag = item.topic_tag or extracted.topic_tag or "custom"
-            topic_name_tt = item.topic_name_tt or extracted.topic_name_tt or "Үзләштерү биреме"
+            topic_name_tt = item.topic_name_tt or extracted.topic_name_tt or default_topic_name
             prompt_tt = (item.prompt_tt or raw_ocr_text).strip()[:512]
             item_task_type = item.task_type or extracted.task_type or "custom"
 
@@ -135,6 +160,7 @@ class TaskExtractorService:
 
             task_item = TaskBankItem(
                 task_id=task_id,
+                language=language,
                 prompt_tt=prompt_tt,
                 expected_answer=clean_ans,
                 cell_count=cell_count,
@@ -149,6 +175,7 @@ class TaskExtractorService:
             if save_to_bank and db is not None:
                 db_task = TaskBankModel(
                     task_id=task_id,
+                    language=language,
                     prompt_tt=prompt_tt,
                     expected_answer=clean_ans,
                     cell_count=cell_count,
@@ -162,7 +189,7 @@ class TaskExtractorService:
 
         if save_to_bank and db is not None and valid_tasks:
             await db.commit()
-            logger.info("Persisted %d scanned sub-tasks into task bank.", len(valid_tasks))
+            logger.info("Persisted %d scanned sub-tasks (lang=%s) into task bank.", len(valid_tasks), language)
 
         if validation_errors and valid_tasks:
             logger.warning("Some extracted sub-tasks were skipped: %s", "; ".join(validation_errors))
@@ -172,6 +199,7 @@ class TaskExtractorService:
             return ScanTaskResponse(
                 is_supported=False,
                 unsupported_reason=f"Ни один пункт упражнения не подошел для бланка А4: {reasons}",
+                language=language,
                 raw_ocr_text=raw_ocr_text,
                 task_type=extracted.task_type,
                 confidence=extracted.confidence,
@@ -181,6 +209,7 @@ class TaskExtractorService:
         return ScanTaskResponse(
             is_supported=True,
             unsupported_reason=None,
+            language=language,
             task_type=valid_tasks[0].task_type or extracted.task_type,
             task=valid_tasks[0],
             tasks=valid_tasks,

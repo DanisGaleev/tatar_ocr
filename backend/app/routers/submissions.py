@@ -1,8 +1,10 @@
+import base64
+import binascii
 import json
 import uuid
 from typing import Optional, List, Dict, Any, Tuple
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, Header, HTTPException, Query, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -16,11 +18,24 @@ from app.models.test import AssembledTestModel
 from app.schemas.submission import (
     BatchSyncSubmissionsRequest,
     BatchSyncSubmissionsResponse,
+    RecognizeBlankRequestBase64,
+    RecognizeBlankResponse,
     SingleSubmissionSaveRequest,
     SingleSubmissionSaveResponse,
     SubmissionItem,
     SubmissionQuestionResult,
     SubmissionCellResult,
+)
+from app.services.blank_recognition_service import (
+    BlankAssignmentNotFoundError,
+    BlankAutoSaveError,
+    BlankImageValidationError,
+    BlankRecognitionService,
+    get_blank_recognition_service,
+)
+from app.services.blank_scanner_bridge import (
+    InvalidBlankImageError,
+    NativeScannerUnavailableError,
 )
 
 router = APIRouter(prefix="/submissions", tags=["Submissions Ingestion"])
@@ -83,7 +98,7 @@ async def _load_submission_context(
     assignment_id: str,
     class_id: str,
     x_teacher_uuid: Optional[str],
-) -> Tuple[Dict[int, Dict[str, Any]], Dict[str, StudentModel], GradingScale]:
+) -> Tuple[Dict[int, Dict[str, Any]], Dict[str, StudentModel], GradingScale, str]:
     test_obj = (
         await db.execute(select(AssembledTestModel).where(AssembledTestModel.test_id == assignment_id))
     ).scalar_one_or_none()
@@ -137,13 +152,15 @@ async def _load_submission_context(
                 grade_3_min_pct=teacher_obj.grade_3_min_pct,
             )
 
-    return variants_by_id, student_map, grading_scale
+    language = bundle_dict.get("language") or test_obj.language or "tt"
+    return variants_by_id, student_map, grading_scale, language
 
 
 def _recalculate_submission(
     item: SubmissionItem,
     variants_by_id: Dict[int, Dict[str, Any]],
     grading_scale: GradingScale,
+    language: str = "tt",
 ) -> Tuple[float, float, int, int, str]:
     variant_dict = variants_by_id.get(item.variant)
     if not variant_dict:
@@ -162,7 +179,12 @@ def _recalculate_submission(
             for q in item.questions_results
         ]
         try:
-            verified = verify_test_submission(variant_questions, sub_payload, grading_scale=grading_scale)
+            verified = verify_test_submission(
+                variant_questions,
+                sub_payload,
+                grading_scale=grading_scale,
+                language=language,
+            )
         except ValueError as exc:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -207,6 +229,7 @@ async def _upsert_verified_submission(
     variants_by_id: Dict[int, Dict[str, Any]],
     student_map: Dict[str, StudentModel],
     grading_scale: GradingScale,
+    language: str = "tt",
     batch_by_uuid: Optional[Dict[str, SubmissionModel]] = None,
     batch_by_student: Optional[Dict[Tuple[str, str, str], SubmissionModel]] = None,
 ) -> Tuple[SubmissionModel, bool]:
@@ -218,7 +241,7 @@ async def _upsert_verified_submission(
         )
 
     overall_score, max_score, final_grade, reviewed_flags, questions_json = _recalculate_submission(
-        item, variants_by_id, grading_scale
+        item, variants_by_id, grading_scale, language=language
     )
     checked_time = _normalize_utc_naive(item.checked_at)
     raw_uuid = (item.client_submission_uuid or "").strip()
@@ -306,7 +329,7 @@ async def batch_sync_submissions(
     x_teacher_uuid: Optional[str] = Header(None, alias="X-Teacher-UUID"),
     db: AsyncSession = Depends(get_db),
 ):
-    variants_by_id, student_map, grading_scale = await _load_submission_context(
+    variants_by_id, student_map, grading_scale, language = await _load_submission_context(
         db, payload.assignment_id, payload.class_id, x_teacher_uuid
     )
 
@@ -324,6 +347,7 @@ async def batch_sync_submissions(
             variants_by_id=variants_by_id,
             student_map=student_map,
             grading_scale=grading_scale,
+            language=language,
             batch_by_uuid=batch_by_uuid,
             batch_by_student=batch_by_student,
         )
@@ -354,7 +378,7 @@ async def save_single_submission(
     x_teacher_uuid: Optional[str] = Header(None, alias="X-Teacher-UUID"),
     db: AsyncSession = Depends(get_db),
 ):
-    variants_by_id, student_map, grading_scale = await _load_submission_context(
+    variants_by_id, student_map, grading_scale, language = await _load_submission_context(
         db, payload.assignment_id, payload.class_id, x_teacher_uuid
     )
 
@@ -366,6 +390,7 @@ async def save_single_submission(
         variants_by_id=variants_by_id,
         student_map=student_map,
         grading_scale=grading_scale,
+        language=language,
     )
     await db.commit()
 
@@ -408,3 +433,115 @@ async def query_submissions(
     submissions = res.scalars().all()
 
     return [parse_submission_item(s) for s in submissions]
+
+
+async def _run_blank_recognition(
+    service: BlankRecognitionService,
+    db: AsyncSession,
+    image_bytes: bytes,
+    mime_type: Optional[str],
+    assignment_id: Optional[str],
+    variant: Optional[int],
+    student_id: Optional[str],
+    class_id: Optional[str],
+    confidence_threshold: Optional[float],
+    auto_save: bool,
+    x_teacher_uuid: Optional[str],
+) -> RecognizeBlankResponse:
+    try:
+        return await service.recognize_and_verify(
+            db=db,
+            image_bytes=image_bytes,
+            mime_type=mime_type,
+            assignment_id=assignment_id,
+            variant=variant,
+            student_id=student_id,
+            class_id=class_id,
+            confidence_threshold=confidence_threshold,
+            auto_save=auto_save,
+            x_teacher_uuid=x_teacher_uuid,
+        )
+    except BlankImageValidationError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+    except InvalidBlankImageError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except BlankAssignmentNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except BlankAutoSaveError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)) from exc
+    except NativeScannerUnavailableError as exc:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
+
+
+@router.post(
+    "/recognize",
+    response_model=RecognizeBlankResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Recognize & Verify Blank Photo via C++20 OCR Pipeline",
+    description=(
+        "Accepts a photographed A4 blank in RAM (never stored on disk or in DB), runs the C++20 "
+        "tatar_ocr_native pipeline, decodes header QR metadata, verifies answers against the "
+        "assignment key, and returns full local-parity recognition + grading results."
+    ),
+)
+async def recognize_blank_photo(
+    file: UploadFile = File(..., description="Photo of a filled A4 test blank (JPEG, PNG, WEBP)"),
+    assignment_id: Optional[str] = Query(None, description="Optional assignment ID overriding QR code"),
+    variant: Optional[int] = Query(None, ge=1, le=10, description="Optional variant overriding QR code"),
+    student_id: Optional[str] = Query(None, description="Optional student ID"),
+    class_id: Optional[str] = Query(None, description="Optional class ID (required when auto_save=true without student link)"),
+    confidence_threshold: Optional[float] = Query(None, ge=0.0, le=100.0, description="Optional review threshold (0-100%)"),
+    auto_save: bool = Query(False, description="Persist verified submission immediately into DB"),
+    x_teacher_uuid: Optional[str] = Header(None, alias="X-Teacher-UUID"),
+    db: AsyncSession = Depends(get_db),
+    service: BlankRecognitionService = Depends(get_blank_recognition_service),
+):
+    image_bytes = await file.read()
+    return await _run_blank_recognition(
+        service=service,
+        db=db,
+        image_bytes=image_bytes,
+        mime_type=file.content_type or "",
+        assignment_id=assignment_id,
+        variant=variant,
+        student_id=student_id,
+        class_id=class_id,
+        confidence_threshold=confidence_threshold,
+        auto_save=auto_save,
+        x_teacher_uuid=x_teacher_uuid,
+    )
+
+
+@router.post(
+    "/recognize-base64",
+    response_model=RecognizeBlankResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Recognize & Verify Base64 Blank Photo via C++20 OCR Pipeline",
+)
+async def recognize_blank_photo_base64(
+    payload: RecognizeBlankRequestBase64,
+    x_teacher_uuid: Optional[str] = Header(None, alias="X-Teacher-UUID"),
+    db: AsyncSession = Depends(get_db),
+    service: BlankRecognitionService = Depends(get_blank_recognition_service),
+):
+    try:
+        image_bytes = base64.b64decode(payload.image_base64, validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid base64 payload: {exc}",
+        ) from exc
+
+    return await _run_blank_recognition(
+        service=service,
+        db=db,
+        image_bytes=image_bytes,
+        mime_type=payload.mime_type,
+        assignment_id=payload.assignment_id,
+        variant=payload.variant,
+        student_id=payload.student_id,
+        class_id=payload.class_id,
+        confidence_threshold=payload.confidence_threshold,
+        auto_save=payload.auto_save,
+        x_teacher_uuid=x_teacher_uuid,
+    )

@@ -52,18 +52,30 @@ def clean_word(word: str) -> str:
     return cleaned
 
 
-def validate_ocr_answer(answer: str) -> str:
+RUSSIAN_OCR_ALPHABET = frozenset("АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ")
+
+
+def validate_ocr_answer(answer: str, language: str = "tt") -> str:
     cleaned = unicodedata.normalize("NFC", answer or "").strip().upper()
     if not cleaned:
         raise PhoneticsError("Answer cannot be empty or whitespace only.")
-    invalid = [ch for ch in cleaned if ch not in OCR_ALPHABET]
+    alphabet = RUSSIAN_OCR_ALPHABET if language == "ru" else OCR_ALPHABET
+    invalid = [ch for ch in cleaned if ch not in alphabet]
     if invalid:
         uniq = "".join(dict.fromkeys(invalid))
-        raise PhoneticsError(
-            f"Answer '{answer}' contains characters outside the 39-letter Tatar OCR alphabet: {uniq}"
-        )
+        label = "33-letter Russian OCR alphabet" if language == "ru" else "39-letter Tatar OCR alphabet"
+        raise PhoneticsError(f"Answer '{answer}' contains characters outside the {label}: {uniq}")
     return cleaned
 
+
+def clean_word_for_language(word: str, language: str = "tt") -> str:
+    """Validate and trim a word according to the target language ('tt' or 'ru')."""
+    if language == "ru":
+        from app.generators.russian.phonetics import clean_russian_word
+        return clean_russian_word(word)
+    if language == "tt":
+        return clean_word(word)
+    raise PhoneticsError(f"Unsupported language '{language}'.")
 
 def get_last_vowel(word: str) -> str:
     cleaned = clean_word(word).lower()

@@ -30,12 +30,18 @@ class YandexOCRClient(BaseOCRClient):
             return "PDF"
         return "JPEG"
 
-    async def recognize_text(self, image_bytes: bytes, mime_type: str = "image/jpeg") -> str:
+    async def recognize_text(
+        self,
+        image_bytes: bytes,
+        mime_type: str = "image/jpeg",
+        language: str = "tt",
+    ) -> str:
         if not self.api_key:
             raise ValueError("Yandex API key is not configured for OCR service.")
 
         encoded_content = base64.b64encode(image_bytes).decode("utf-8")
         normalized_mime = self._normalize_mime_type(mime_type)
+        lang_codes = ["ru"] if language == "ru" else ["tt", "ru", "en"]
 
         headers = {
             "Authorization": f"Api-Key {self.api_key}",
@@ -46,7 +52,7 @@ class YandexOCRClient(BaseOCRClient):
 
         payload = {
             "mimeType": normalized_mime,
-            "languageCodes": ["tt", "ru", "en"],
+            "languageCodes": lang_codes,
             "model": "page",
             "content": encoded_content,
         }

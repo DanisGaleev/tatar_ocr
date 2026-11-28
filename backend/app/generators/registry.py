@@ -38,11 +38,28 @@ from app.generators.reading_tasks import (
     TextComprehensionGenerator,
     TextTitleMainIdeaGenerator,
 )
+from app.generators.russian import (
+    RuOrthogramCombinationsGenerator,
+    RuUnstressedVowelGenerator,
+    RuPairedConsonantGenerator,
+    RuUnpronounceableConsonantGenerator,
+    RuSoftHardSignGenerator,
+    RuDictionaryWordsGenerator,
+    RuNounGenderGenerator,
+    RuNounNumberGenerator,
+    RuPartsOfSpeechGenerator,
+    RuNounCaseGenerator,
+    RuAntonymsGenerator,
+    RuSynonymsGenerator,
+    RuPhoneticsGenerator,
+    RuOddOneOutGenerator,
+)
 from app.core.config import settings
 
 class GeneratorRegistry:
     def __init__(self) -> None:
         self._generators: Dict[str, BaseTaskGenerator] = {
+            # --- Tatar Language (tt, Grades 5-9) ---
             # 1. Basic & Existing
             "case_inflection": CaseInflectionGenerator(),
             "plural_affixes": PluralAffixesGenerator(),
@@ -74,30 +91,59 @@ class GeneratorRegistry:
             # 7. Reading
             "text_comprehension": TextComprehensionGenerator(),
             "text_title_main_idea": TextTitleMainIdeaGenerator(),
+            # --- Russian Language (ru, Grades 1-4) ---
+            # 1. Orthography
+            "ru_orthogram_combinations": RuOrthogramCombinationsGenerator(),
+            "ru_unstressed_vowel": RuUnstressedVowelGenerator(),
+            "ru_paired_consonant": RuPairedConsonantGenerator(),
+            "ru_unpronounceable_consonant": RuUnpronounceableConsonantGenerator(),
+            "ru_soft_hard_sign": RuSoftHardSignGenerator(),
+            "ru_dictionary_words": RuDictionaryWordsGenerator(),
+            # 2. Morphology
+            "ru_noun_gender": RuNounGenderGenerator(),
+            "ru_noun_number": RuNounNumberGenerator(),
+            "ru_parts_of_speech": RuPartsOfSpeechGenerator(),
+            "ru_noun_case": RuNounCaseGenerator(),
+            # 3. Lexicon
+            "ru_antonyms": RuAntonymsGenerator(),
+            "ru_synonyms": RuSynonymsGenerator(),
+            # 4. Phonetics & Classification
+            "ru_phonetics": RuPhoneticsGenerator(),
+            "ru_odd_one_out": RuOddOneOutGenerator(),
         }
 
-    def get_generator(self, task_type: str) -> BaseTaskGenerator:
+    def get_generator(self, task_type: str, language: Optional[str] = None) -> BaseTaskGenerator:
         if task_type not in self._generators:
             raise ValueError(f"Unknown task type '{task_type}'. Available types: {list(self._generators.keys())}")
-        return self._generators[task_type]
+        gen = self._generators[task_type]
+        if language is not None and gen.language != language:
+            raise ValueError(
+                f"Task type '{task_type}' belongs to language '{gen.language}', not '{language}'."
+            )
+        return gen
 
-    def list_supported_types(self) -> List[Dict[str, str]]:
+    def list_supported_types(self, language: Optional[str] = None) -> List[Dict[str, str]]:
         return [
             {
                 "task_type": gen.task_type,
+                "language": gen.language,
+                "category": gen.category,
                 "topic_tag": gen.default_topic_tag,
+                "topic_name": gen.topic_name_tt,
                 "topic_name_tt": gen.topic_name_tt,
             }
             for gen in self._generators.values()
+            if language is None or gen.language == language
         ]
 
     def generate_single(
         self,
         task_type: str,
         seed: Optional[int] = None,
+        language: Optional[str] = None,
         **kwargs: Any,
     ) -> TaskDraft:
-        gen = self.get_generator(task_type)
+        gen = self.get_generator(task_type, language=language)
         return gen.generate(seed=seed, **kwargs)
 
     def assemble_variants(
@@ -110,17 +156,27 @@ class GeneratorRegistry:
         task_types: Optional[List[str]] = None,
         questions_per_variant: int = 8,
         shuffle: bool = True,
+        language: str = "tt",
     ) -> Dict[str, Any]:
         """
         Assembles a full modular test with offline bundle data for mobile grading.
-        Enforces maximum questions limit (A4 physical constraint <= 8).
+        Enforces maximum questions limit (A4 physical constraint <= 8) and strict language isolation.
         """
         if questions_per_variant > settings.MAX_QUESTIONS_PER_PAGE:
             raise ValueError(
                 f"Requested {questions_per_variant} questions per variant exceeds A4 physical page limit ({settings.MAX_QUESTIONS_PER_PAGE})."
             )
 
-        types_to_use = task_types or list(self._generators.keys())
+        if task_types is not None:
+            for t_name in task_types:
+                self.get_generator(t_name, language=language)
+            types_to_use = list(task_types)
+        else:
+            types_to_use = [k for k, g in self._generators.items() if g.language == language]
+
+        if not types_to_use:
+            raise ValueError(f"No generators registered for language '{language}'.")
+
         base_seed = seed if seed is not None else random.randint(1, 10_000_000)
         
         variants_data: List[Dict[str, Any]] = []
@@ -147,7 +203,7 @@ class GeneratorRegistry:
             seen_keys = set()
             for q_idx, q_type in enumerate(chosen_types, start=1):
                 marker_id = 10 + q_idx
-                gen = self.get_generator(q_type)
+                gen = self.get_generator(q_type, language=language)
                 draft = None
                 for _ in range(12):
                     q_seed = rng.randint(1, 10_000_000)
@@ -171,13 +227,16 @@ class GeneratorRegistry:
                     "expected_cells": draft.expected_cells,
                 })
                 
-            qr_signature = json.dumps({
+            qr_payload = {
                 "tid": assignment_id,
                 "var": v_idx,
                 "page": 1,
                 "tot": 1,
                 "n_q": questions_per_variant,
-            }, separators=(',', ':'))
+            }
+            if language != "tt":
+                qr_payload["lang"] = language
+            qr_signature = json.dumps(qr_payload, separators=(',', ':'))
 
             variants_data.append({
                 "variant_id": v_idx,
@@ -197,6 +256,8 @@ class GeneratorRegistry:
         return {
             "assignment_id": assignment_id,
             "title": title,
+            "language": language,
+            "alphabet_mask": "russian_33" if language == "ru" else "tatar_39",
             "total_variants": variants_count,
             "variants": variants_data,
         }

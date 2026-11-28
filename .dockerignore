@@ -1,0 +1,20 @@
+# Exclude everything not required to build/run the backend container
+*
+!backend/
+!fonts/
+
+# Exclude test, cache, local data, and secret files inside backend/
+backend/tests/
+backend/data/
+backend/.mplconfig/
+backend/**/__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+*.db
+*.db-shm
+*.db-wal
+.env
+.env.*
+**/.env
+**/.env.*

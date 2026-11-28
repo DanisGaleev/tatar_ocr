@@ -7,6 +7,7 @@ class AssembledTestModel(Base):
     __tablename__ = "assembled_tests"
 
     test_id = Column(String(64), primary_key=True, index=True, default=lambda: f"TAT-{uuid.uuid4().hex[:6].upper()}")
+    language = Column(String(8), nullable=False, default="tt", index=True)
     title = Column(String(256), nullable=False)
     grade_level = Column(Integer, nullable=False, default=7)
     total_variants = Column(Integer, nullable=False, default=1)

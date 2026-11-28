@@ -10,12 +10,32 @@ paths:
       - Assignment Constructor
       summary: List supported task generator types
       operationId: list_task_types_api_v1_constructor_task_types_get
+      parameters:
+      - name: language
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - enum:
+            - tt
+            - ru
+            type: string
+          - type: 'null'
+          description: Optional language filter ('tt' or 'ru')
+          title: Language
+        description: Optional language filter ('tt' or 'ru')
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/constructor/tasks:
     get:
       tags:
@@ -33,6 +53,19 @@ paths:
           description: Search term in prompt or answer
           title: Query
         description: Search term in prompt or answer
+      - name: language
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - enum:
+            - tt
+            - ru
+            type: string
+          - type: 'null'
+          description: Filter by language ('tt' or 'ru')
+          title: Language
+        description: Filter by language ('tt' or 'ru')
       - name: topic_tag
         in: query
         required: false
@@ -48,7 +81,7 @@ paths:
           anyOf:
           - type: integer
             maximum: 9
-            minimum: 5
+            minimum: 1
           - type: 'null'
           title: Grade Level
       - name: max_cells
@@ -167,16 +200,36 @@ paths:
       - Assignment Constructor
       summary: Browse Ready-Made Complete Tests
       operationId: get_ready_tests_api_v1_constructor_ready_tests_get
+      parameters:
+      - name: language
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - enum:
+            - tt
+            - ru
+            type: string
+          - type: 'null'
+          description: Filter ready tests by language
+          title: Language
+        description: Filter ready tests by language
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
+                type: array
                 items:
                   $ref: '#/components/schemas/ReadyTestItem'
-                type: array
                 title: Response Get Ready Tests Api V1 Constructor Ready Tests Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/constructor/verify-answer:
     post:
       tags:
@@ -227,6 +280,18 @@ paths:
           default: false
           title: Save To Bank
         description: Persist directly into task bank if valid
+      - name: language
+        in: query
+        required: false
+        schema:
+          enum:
+          - tt
+          - ru
+          type: string
+          description: Subject language ('tt' or 'ru')
+          default: tt
+          title: Language
+        description: Subject language ('tt' or 'ru')
       - name: grade_level
         in: query
         required: false
@@ -234,11 +299,11 @@ paths:
           anyOf:
           - type: integer
             maximum: 9
-            minimum: 5
+            minimum: 1
           - type: 'null'
-          description: Optional grade level hint (5..9)
+          description: Optional grade level hint (1..9)
           title: Grade Level
-        description: Optional grade level hint (5..9)
+        description: Optional grade level hint (1..9)
       requestBody:
         required: true
         content:
@@ -311,6 +376,17 @@ paths:
           description: Filter assignments by status
           title: Status
         description: Filter assignments by status
+      - name: language
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            pattern: ^(tt|ru)$
+          - type: 'null'
+          description: Filter assignments by language ('tt' or 'ru')
+          title: Language
+        description: Filter assignments by language ('tt' or 'ru')
       - name: X-Teacher-UUID
         in: header
         required: false
@@ -864,6 +940,140 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/submissions/recognize:
+    post:
+      tags:
+      - Submissions Ingestion
+      summary: Recognize & Verify Blank Photo via C++20 OCR Pipeline
+      description: Accepts a photographed A4 blank in RAM (never stored on disk or in DB), runs the C++20 tatar_ocr_native
+        pipeline, decodes header QR metadata, verifies answers against the assignment key, and returns full local-parity recognition
+        + grading results.
+      operationId: recognize_blank_photo_api_v1_submissions_recognize_post
+      parameters:
+      - name: assignment_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Optional assignment ID overriding QR code
+          title: Assignment Id
+        description: Optional assignment ID overriding QR code
+      - name: variant
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+            maximum: 10
+            minimum: 1
+          - type: 'null'
+          description: Optional variant overriding QR code
+          title: Variant
+        description: Optional variant overriding QR code
+      - name: student_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Optional student ID
+          title: Student Id
+        description: Optional student ID
+      - name: class_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Optional class ID (required when auto_save=true without student link)
+          title: Class Id
+        description: Optional class ID (required when auto_save=true without student link)
+      - name: confidence_threshold
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: number
+            maximum: 100.0
+            minimum: 0.0
+          - type: 'null'
+          description: Optional review threshold (0-100%)
+          title: Confidence Threshold
+        description: Optional review threshold (0-100%)
+      - name: auto_save
+        in: query
+        required: false
+        schema:
+          type: boolean
+          description: Persist verified submission immediately into DB
+          default: false
+          title: Auto Save
+        description: Persist verified submission immediately into DB
+      - name: X-Teacher-UUID
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Teacher-Uuid
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Body_recognize_blank_photo_api_v1_submissions_recognize_post'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecognizeBlankResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/submissions/recognize-base64:
+    post:
+      tags:
+      - Submissions Ingestion
+      summary: Recognize & Verify Base64 Blank Photo via C++20 OCR Pipeline
+      operationId: recognize_blank_photo_base64_api_v1_submissions_recognize_base64_post
+      parameters:
+      - name: X-Teacher-UUID
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Teacher-Uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecognizeBlankRequestBase64'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecognizeBlankResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/analytics/students/{student_id}:
     get:
       tags:
@@ -1053,10 +1263,17 @@ components:
           maxLength: 256
           minLength: 3
           title: Title
+        language:
+          type: string
+          enum:
+          - tt
+          - ru
+          title: Language
+          default: tt
         grade_level:
           type: integer
           maximum: 9.0
-          minimum: 5.0
+          minimum: 1.0
           title: Grade Level
           default: 7
         generate_variants_count:
@@ -1184,6 +1401,17 @@ components:
       - inserted_count
       - updated_count
       title: BatchSyncSubmissionsResponse
+    Body_recognize_blank_photo_api_v1_submissions_recognize_post:
+      properties:
+        file:
+          type: string
+          contentMediaType: application/octet-stream
+          title: File
+          description: Photo of a filled A4 test blank (JPEG, PNG, WEBP)
+      type: object
+      required:
+      - file
+      title: Body_recognize_blank_photo_api_v1_submissions_recognize_post
     Body_scan_task_from_image_api_v1_constructor_scan_task_post:
       properties:
         file:
@@ -1441,6 +1669,13 @@ components:
       title: ConstructorTaskRef
     CreateTaskRequest:
       properties:
+        language:
+          type: string
+          enum:
+          - tt
+          - ru
+          title: Language
+          default: tt
         prompt_tt:
           type: string
           maxLength: 512
@@ -1459,7 +1694,7 @@ components:
         grade_level:
           type: integer
           maximum: 9.0
-          minimum: 5.0
+          minimum: 1.0
           title: Grade Level
         topic_tag:
           type: string
@@ -1616,7 +1851,16 @@ components:
         task_type:
           type: string
           title: Task Type
-          description: Supported generator task type (see GET /api/v1/constructor/task-types)
+          description: Supported generator task type (Tatar or Russian; see GET /api/v1/constructor/task-types)
+        language:
+          anyOf:
+          - type: string
+            enum:
+            - tt
+            - ru
+          - type: 'null'
+          title: Language
+          description: Target language ('tt' or 'ru')
         count:
           type: integer
           maximum: 10.0
@@ -1630,11 +1874,12 @@ components:
           title: Seed
           description: Optional seed for deterministic reproducibility
         grade_level:
-          type: integer
-          maximum: 9.0
-          minimum: 5.0
+          anyOf:
+          - type: integer
+            maximum: 9.0
+            minimum: 1.0
+          - type: 'null'
           title: Grade Level
-          default: 7
         custom_stems:
           anyOf:
           - items:
@@ -1648,7 +1893,7 @@ components:
           - type: string
           - type: 'null'
           title: Case Code
-          description: Specific case code for case_inflection (e.g. case_dative)
+          description: Specific case code for case_inflection or ru_noun_case
         save_to_bank:
           type: boolean
           title: Save To Bank
@@ -1660,6 +1905,10 @@ components:
       title: GenerateTasksRequest
     GenerateTasksResponse:
       properties:
+        language:
+          type: string
+          title: Language
+          default: tt
         task_type:
           type: string
           title: Task Type
@@ -1785,6 +2034,20 @@ components:
             type: string
           type: array
           title: Alphabet Classes
+        language_alphabets:
+          additionalProperties:
+            items:
+              type: string
+            type: array
+          type: object
+          title: Language Alphabets
+        language_masks:
+          additionalProperties:
+            items:
+              type: integer
+            type: array
+          type: object
+          title: Language Masks
         sha256:
           type: string
           title: Sha256
@@ -1843,6 +2106,14 @@ components:
         title:
           type: string
           title: Title
+        language:
+          type: string
+          title: Language
+          default: tt
+        alphabet_mask:
+          type: string
+          title: Alphabet Mask
+          default: tatar_39
         total_variants:
           type: integer
           title: Total Variants
@@ -1959,6 +2230,45 @@ components:
       - accuracy_pct
       - common_confusions
       title: ProblematicLetter
+    QRMetadataItem:
+      properties:
+        raw:
+          type: string
+          title: Raw
+        assignment_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Assignment Id
+        variant:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Variant
+        page:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Page
+        total_pages:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Total Pages
+        questions_count:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Questions Count
+        student_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Student Id
+      type: object
+      required:
+      - raw
+      title: QRMetadataItem
     QuestionAnalyticsItem:
       properties:
         variant_id:
@@ -1999,6 +2309,10 @@ components:
         test_id:
           type: string
           title: Test Id
+        language:
+          type: string
+          title: Language
+          default: tt
         title:
           type: string
           title: Title
@@ -2015,6 +2329,271 @@ components:
       - grade_level
       - questions_count
       title: ReadyTestItem
+    RecognizeBlankRequestBase64:
+      properties:
+        image_base64:
+          type: string
+          title: Image Base64
+          description: Base64 encoded blank photo (JPEG/PNG/WEBP)
+        mime_type:
+          type: string
+          title: Mime Type
+          description: MIME type of the image
+          default: image/jpeg
+        assignment_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Assignment Id
+          description: Optional assignment ID overriding QR code
+        variant:
+          anyOf:
+          - type: integer
+            maximum: 10.0
+            minimum: 1.0
+          - type: 'null'
+          title: Variant
+          description: Optional variant number overriding QR code
+        student_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Student Id
+          description: Optional student ID
+        class_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Class Id
+          description: Optional class ID (required when auto_save=True)
+        confidence_threshold:
+          anyOf:
+          - type: number
+            maximum: 100.0
+            minimum: 0.0
+          - type: 'null'
+          title: Confidence Threshold
+          description: Optional cell review threshold in percent (0-100); defaults to teacher setting or 85.0
+        auto_save:
+          type: boolean
+          title: Auto Save
+          description: Persist verified submission immediately into DB
+          default: false
+      type: object
+      required:
+      - image_base64
+      title: RecognizeBlankRequestBase64
+    RecognizeBlankResponse:
+      properties:
+        status:
+          type: string
+          title: Status
+          default: success
+        rectification_method:
+          type: string
+          title: Rectification Method
+        qr_metadata:
+          anyOf:
+          - $ref: '#/components/schemas/QRMetadataItem'
+          - type: 'null'
+        assignment_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Assignment Id
+        variant:
+          type: integer
+          title: Variant
+          default: 1
+        student_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Student Id
+        class_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Class Id
+        student_name:
+          type: string
+          title: Student Name
+          default: ''
+        student_name_cells:
+          items:
+            $ref: '#/components/schemas/RecognizedCellItem'
+          type: array
+          title: Student Name Cells
+        questions:
+          items:
+            $ref: '#/components/schemas/RecognizedQuestionItem'
+          type: array
+          title: Questions
+        stats:
+          $ref: '#/components/schemas/RecognizedBlankStats'
+        confidence_threshold_pct:
+          type: number
+          title: Confidence Threshold Pct
+          default: 85.0
+        is_verified:
+          type: boolean
+          title: Is Verified
+          default: false
+        verification_warning:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Verification Warning
+        overall_score:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Overall Score
+        max_score:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Max Score
+        score_percentage:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Score Percentage
+        final_grade:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Final Grade
+        teacher_reviewed_flags:
+          type: integer
+          title: Teacher Reviewed Flags
+          default: 0
+        questions_results:
+          items:
+            $ref: '#/components/schemas/SubmissionQuestionResult'
+          type: array
+          title: Questions Results
+        submission_draft:
+          anyOf:
+          - $ref: '#/components/schemas/SubmissionItem'
+          - type: 'null'
+        saved_submission_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Saved Submission Id
+      type: object
+      required:
+      - rectification_method
+      - stats
+      title: RecognizeBlankResponse
+    RecognizedBlankStats:
+      properties:
+        total_letters:
+          type: integer
+          title: Total Letters
+        avg_confidence:
+          type: number
+          title: Avg Confidence
+        questions_count:
+          type: integer
+          title: Questions Count
+        uncertain_cells_count:
+          type: integer
+          title: Uncertain Cells Count
+          default: 0
+        zero_touch:
+          type: boolean
+          title: Zero Touch
+          default: false
+      type: object
+      required:
+      - total_letters
+      - avg_confidence
+      - questions_count
+      title: RecognizedBlankStats
+    RecognizedCellItem:
+      properties:
+        cell_idx:
+          type: integer
+          title: Cell Idx
+        char:
+          type: string
+          title: Char
+        confidence:
+          type: number
+          title: Confidence
+        is_empty:
+          type: boolean
+          title: Is Empty
+        review_required:
+          type: boolean
+          title: Review Required
+          default: false
+        top3:
+          items:
+            $ref: '#/components/schemas/TopPredictionItem'
+          type: array
+          title: Top3
+        bbox:
+          items:
+            type: integer
+          type: array
+          title: Bbox
+      type: object
+      required:
+      - cell_idx
+      - char
+      - confidence
+      - is_empty
+      title: RecognizedCellItem
+    RecognizedQuestionItem:
+      properties:
+        q_num:
+          type: integer
+          title: Q Num
+        marker_id:
+          type: integer
+          title: Marker Id
+        text:
+          type: string
+          title: Text
+        prompt:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Prompt
+        topic_tag:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Topic Tag
+        expected_answer:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Expected Answer
+        is_correct:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Is Correct
+        points_earned:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Points Earned
+        cells:
+          items:
+            $ref: '#/components/schemas/RecognizedCellItem'
+          type: array
+          title: Cells
+      type: object
+      required:
+      - q_num
+      - marker_id
+      - text
+      title: RecognizedQuestionItem
     ScanTaskRequestBase64:
       properties:
         image_base64:
@@ -2026,14 +2605,22 @@ components:
           title: Mime Type
           description: MIME type of the image
           default: image/jpeg
+        language:
+          type: string
+          enum:
+          - tt
+          - ru
+          title: Language
+          description: Subject language ('tt' or 'ru')
+          default: tt
         grade_level:
           anyOf:
           - type: integer
             maximum: 9.0
-            minimum: 5.0
+            minimum: 1.0
           - type: 'null'
           title: Grade Level
-          description: Optional grade level hint
+          description: Optional grade level hint (1..9)
         save_to_bank:
           type: boolean
           title: Save To Bank
@@ -2055,6 +2642,11 @@ components:
           - type: 'null'
           title: Unsupported Reason
           description: Explanation why the task is not supported
+        language:
+          type: string
+          title: Language
+          description: Subject language ('tt' or 'ru')
+          default: tt
         task_type:
           anyOf:
           - type: string
@@ -2423,6 +3015,16 @@ components:
         task_id:
           type: string
           title: Task Id
+        language:
+          type: string
+          title: Language
+          default: tt
+        task_type:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Task Type
+          default: custom
         prompt_tt:
           type: string
           title: Prompt Tt
@@ -2437,7 +3039,7 @@ components:
         grade_level:
           type: integer
           maximum: 9.0
-          minimum: 5.0
+          minimum: 1.0
           title: Grade Level
         topic_tag:
           type: string
@@ -2445,12 +3047,6 @@ components:
         topic_name_tt:
           type: string
           title: Topic Name Tt
-        task_type:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Task Type
-          default: custom
         is_public_in_bank:
           type: boolean
           title: Is Public In Bank
@@ -2534,6 +3130,19 @@ components:
       - failure_rate_pct
       - affected_students_count
       title: TopClassMistake
+    TopPredictionItem:
+      properties:
+        char:
+          type: string
+          title: Char
+        confidence:
+          type: number
+          title: Confidence
+      type: object
+      required:
+      - char
+      - confidence
+      title: TopPredictionItem
     ValidationError:
       properties:
         loc:
@@ -2578,6 +3187,13 @@ components:
           type: string
           title: Topic Tag
           default: general
+        language:
+          type: string
+          enum:
+          - tt
+          - ru
+          title: Language
+          default: tt
       type: object
       required:
       - expected_answer

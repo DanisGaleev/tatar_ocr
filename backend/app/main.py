@@ -87,6 +87,105 @@ INITIAL_BANK_TASKS = [
     },
 ]
 
+INITIAL_RUSSIAN_BANK_TASKS = [
+    {
+        "task_id": "tsk_ru_1001",
+        "language": "ru",
+        "prompt_tt": "Вставьте букву и запишите слово целиком (ЖИ–ШИ): маш_на ->",
+        "expected_answer": "МАШИНА",
+        "cell_count": 8,
+        "grade_level": 1,
+        "topic_tag": "ru_orthogram_combinations",
+        "topic_name_tt": "Правописание ЖИ–ШИ, ЧА–ЩА, ЧУ–ЩУ",
+        "task_type": "ru_orthogram_combinations",
+        "is_public_in_bank": True,
+    },
+    {
+        "task_id": "tsk_ru_1002",
+        "language": "ru",
+        "prompt_tt": "Вставьте безударную гласную (проверочное слово: лес): л_сной ->",
+        "expected_answer": "Е",
+        "cell_count": 1,
+        "grade_level": 2,
+        "topic_tag": "ru_unstressed_vowel",
+        "topic_name_tt": "Безударная гласная в корне слова",
+        "task_type": "ru_unstressed_vowel",
+        "is_public_in_bank": True,
+    },
+    {
+        "task_id": "tsk_ru_1003",
+        "language": "ru",
+        "prompt_tt": "Вставьте парную согласную (проверочное слово: дубы): ду_ ->",
+        "expected_answer": "Б",
+        "cell_count": 1,
+        "grade_level": 2,
+        "topic_tag": "ru_paired_consonant",
+        "topic_name_tt": "Парная согласная в корне слова",
+        "task_type": "ru_paired_consonant",
+        "is_public_in_bank": True,
+    },
+    {
+        "task_id": "tsk_ru_1004",
+        "language": "ru",
+        "prompt_tt": "Вставьте разделительный Ъ или Ь знак: под_езд ->",
+        "expected_answer": "Ъ",
+        "cell_count": 1,
+        "grade_level": 3,
+        "topic_tag": "ru_soft_hard_sign",
+        "topic_name_tt": "Разделительные Ъ и Ь знаки",
+        "task_type": "ru_soft_hard_sign",
+        "is_public_in_bank": True,
+    },
+    {
+        "task_id": "tsk_ru_1005",
+        "language": "ru",
+        "prompt_tt": "Запишите словарное слово полностью: к_рова ->",
+        "expected_answer": "КОРОВА",
+        "cell_count": 8,
+        "grade_level": 1,
+        "topic_tag": "ru_dictionary_words",
+        "topic_name_tt": "Словарные слова",
+        "task_type": "ru_dictionary_words",
+        "is_public_in_bank": True,
+    },
+    {
+        "task_id": "tsk_ru_1006",
+        "language": "ru",
+        "prompt_tt": "Определите род существительного (М — мужской, Ж — женский, С — средний): солнце ->",
+        "expected_answer": "С",
+        "cell_count": 1,
+        "grade_level": 3,
+        "topic_tag": "ru_noun_gender",
+        "topic_name_tt": "Род имён существительных",
+        "task_type": "ru_noun_gender",
+        "is_public_in_bank": True,
+    },
+    {
+        "task_id": "tsk_ru_1007",
+        "language": "ru",
+        "prompt_tt": "Поставьте существительное во множественное число: дерево ->",
+        "expected_answer": "ДЕРЕВЬЯ",
+        "cell_count": 8,
+        "grade_level": 2,
+        "topic_tag": "ru_noun_number",
+        "topic_name_tt": "Число имён существительных",
+        "task_type": "ru_noun_number",
+        "is_public_in_bank": True,
+    },
+    {
+        "task_id": "tsk_ru_1008",
+        "language": "ru",
+        "prompt_tt": "Подберите антоним (противоположное по смыслу слово): день ->",
+        "expected_answer": "НОЧЬ",
+        "cell_count": 8,
+        "grade_level": 2,
+        "topic_tag": "ru_antonyms",
+        "topic_name_tt": "Антонимы (слова с противоположным значением)",
+        "task_type": "ru_antonyms",
+        "is_public_in_bank": True,
+    },
+]
+
 INITIAL_STUDENTS = [
     ("stu_01", "Галиев", "Амир", "Рустемович", "Галиев Амир Рустемович", "Галиев А."),
     ("stu_02", "Закирова", "Ләйсән", "Ильдаровна", "Закирова Ләйсән Ильдаровна", "Закирова Л."),
@@ -97,11 +196,17 @@ INITIAL_STUDENTS = [
 
 async def seed_initial_data():
     async with AsyncSessionLocal() as session:
-        result = await session.execute(select(TaskBankModel).limit(1))
+        result = await session.execute(select(TaskBankModel).where(TaskBankModel.language == "tt").limit(1))
         if not result.scalar_one_or_none():
             for t in INITIAL_BANK_TASKS:
                 task_obj = TaskBankModel(**t)
                 session.add(task_obj)
+            await session.commit()
+
+        ru_result = await session.execute(select(TaskBankModel).where(TaskBankModel.language == "ru").limit(1))
+        if not ru_result.scalar_one_or_none():
+            for t in INITIAL_RUSSIAN_BANK_TASKS:
+                session.add(TaskBankModel(**t))
             await session.commit()
 
         # Seed initial teacher
@@ -223,6 +328,67 @@ async def seed_initial_data():
                 status="active",
             )
             session.add(ca_obj)
+            await session.commit()
+
+        # Seed initial Russian primary-school class (3-A) and ready-made test (RUS-2026-Q1)
+        ru_cls_res = await session.execute(select(ClassModel).where(ClassModel.class_id == "cls_3a_2026"))
+        if not ru_cls_res.scalar_one_or_none():
+            session.add(
+                ClassModel(
+                    class_id="cls_3a_2026",
+                    teacher_uuid="c56a4180-65aa-42ec-a945-5fd21dec0538",
+                    name="3-А",
+                    subject="russian_language",
+                    academic_year="2026-2027",
+                )
+            )
+            await session.commit()
+
+        ru_asm_res = await session.execute(select(AssembledTestModel).where(AssembledTestModel.test_id == "RUS-2026-Q1"))
+        if not ru_asm_res.scalar_one_or_none():
+            ru_v1_questions = [
+                {"question_number": 1, "marker_id": 11, "prompt": "Вставьте букву и запишите слово целиком (ЖИ–ШИ): маш_на ->", "topic_tag": "ru_orthogram_combinations", "topic_name_tt": "Правописание ЖИ–ШИ, ЧА–ЩА, ЧУ–ЩУ", "cell_count": 8, "expected_answer": "МАШИНА", "expected_cells": build_expected_cells("МАШИНА", 8)},
+                {"question_number": 2, "marker_id": 12, "prompt": "Вставьте парную согласную (проверочное слово: дубы): ду_ ->", "topic_tag": "ru_paired_consonant", "topic_name_tt": "Парная согласная в корне слова", "cell_count": 1, "expected_answer": "Б", "expected_cells": build_expected_cells("Б", 1)},
+                {"question_number": 3, "marker_id": 13, "prompt": "Определите род существительного (М — мужской, Ж — женский, С — средний): солнце ->", "topic_tag": "ru_noun_gender", "topic_name_tt": "Род имён существительных", "cell_count": 1, "expected_answer": "С", "expected_cells": build_expected_cells("С", 1)},
+                {"question_number": 4, "marker_id": 14, "prompt": "Подберите антоним (противоположное по смыслу слово): день ->", "topic_tag": "ru_antonyms", "topic_name_tt": "Антонимы (слова с противоположным значением)", "cell_count": 8, "expected_answer": "НОЧЬ", "expected_cells": build_expected_cells("НОЧЬ", 8)},
+            ]
+            ru_v2_questions = [
+                {"question_number": 1, "marker_id": 11, "prompt": "Подберите антоним (противоположное по смыслу слово): день ->", "topic_tag": "ru_antonyms", "topic_name_tt": "Антонимы (слова с противоположным значением)", "cell_count": 8, "expected_answer": "НОЧЬ", "expected_cells": build_expected_cells("НОЧЬ", 8)},
+                {"question_number": 2, "marker_id": 12, "prompt": "Вставьте букву и запишите слово целиком (ЖИ–ШИ): маш_на ->", "topic_tag": "ru_orthogram_combinations", "topic_name_tt": "Правописание ЖИ–ШИ, ЧА–ЩА, ЧУ–ЩУ", "cell_count": 8, "expected_answer": "МАШИНА", "expected_cells": build_expected_cells("МАШИНА", 8)},
+                {"question_number": 3, "marker_id": 13, "prompt": "Определите род существительного (М — мужской, Ж — женский, С — средний): солнце ->", "topic_tag": "ru_noun_gender", "topic_name_tt": "Род имён существительных", "cell_count": 1, "expected_answer": "С", "expected_cells": build_expected_cells("С", 1)},
+                {"question_number": 4, "marker_id": 14, "prompt": "Вставьте парную согласную (проверочное слово: дубы): ду_ ->", "topic_tag": "ru_paired_consonant", "topic_name_tt": "Парная согласная в корне слова", "cell_count": 1, "expected_answer": "Б", "expected_cells": build_expected_cells("Б", 1)},
+            ]
+            ru_bundle = {
+                "assignment_id": "RUS-2026-Q1",
+                "title": "Русский язык. 3 класс. Орфограммы, род и антонимы",
+                "language": "ru",
+                "alphabet_mask": "russian_33",
+                "total_variants": 2,
+                "variants": [
+                    {
+                        "variant_id": 1,
+                        "qr_signature": '{"tid":"RUS-2026-Q1","var":1,"page":1,"tot":1,"n_q":4,"lang":"ru"}',
+                        "template_geometry": template_geometry,
+                        "questions": ru_v1_questions,
+                    },
+                    {
+                        "variant_id": 2,
+                        "qr_signature": '{"tid":"RUS-2026-Q1","var":2,"page":1,"tot":1,"n_q":4,"lang":"ru"}',
+                        "template_geometry": template_geometry,
+                        "questions": ru_v2_questions,
+                    },
+                ],
+            }
+            session.add(
+                AssembledTestModel(
+                    test_id="RUS-2026-Q1",
+                    language="ru",
+                    title="Русский язык. 3 класс. Орфограммы, род и антонимы",
+                    grade_level=3,
+                    total_variants=2,
+                    bundle_json=json.dumps(ru_bundle, ensure_ascii=False),
+                )
+            )
             await session.commit()
 
 @asynccontextmanager

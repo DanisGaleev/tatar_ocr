@@ -298,14 +298,15 @@ Lists all 24 supported linguistic task generator types (`task_type`, `topic_tag`
 
 #### 3.1 Search Task Bank
 `GET /api/v1/constructor/tasks`
-- **Query Params**: `query`, `topic_tag`, `grade_level` (5–9), `max_cells` (`1–12`), `scope` (`all` | `my_tasks`).
+- **Query Params**: `query`, `language` (`tt` | `ru`), `topic_tag`, `grade_level` (1–9: 1–4 for `ru`, 5–9 for `tt`), `max_cells` (`1–12`), `scope` (`all` | `my_tasks`).
 
 #### 3.2 Create Custom Single Task
 `POST /api/v1/constructor/tasks`
-- Enforces the 39-letter Cyrillic Tatar OCR alphabet (`А`–`Я`, `Ә, Ө, Ү, Җ, Ң, Һ`; rejects digits/Latin with `422`) and `len(expected_answer) <= cell_count <= 12`.
-- **Request Body**:
+- Enforces the language-specific Cyrillic OCR alphabet (`39` letters for `tt`, `33` letters for `ru`; rejects digits/Latin with `422`) and `len(expected_answer) <= cell_count <= 12`.
+- **Request Body**: `language` (`"tt"` default, or `"ru"`), `prompt_tt` (or `prompt` alias), `expected_answer`, `cell_count`, `grade_level` (1–9), `topic_tag`, `topic_name_tt` (or `topic_name` alias), `task_type`, `is_public_in_bank`.
 ```json
 {
+  "language": "tt",
   "prompt_tt": "Сүзгә күплек сан кушымчасын ялгагыз: дус ->",
   "expected_answer": "ДУСЛАР",
   "cell_count": 6,
@@ -319,15 +320,15 @@ Lists all 24 supported linguistic task generator types (`task_type`, `topic_tag`
 
 #### 3.3 Generate Deterministic Tasks
 `POST /api/v1/constructor/generate`
-- Deterministically generates tasks using one of the 24 generators (`case_code` / `custom_stems` checked against generator signature, returning `422` when unsupported). Note: `find_error_sentence` and MC tasks use Cyrillic `А`–`Г`.
+- Deterministically generates tasks using one of the 24 Tatar or 14 Russian primary-school generators (`task-types?language=tt|ru`; `case_code` / `custom_stems` checked against generator signature, returning `422` when unsupported). Note: `find_error_sentence` and MC tasks use Cyrillic `А`–`Г`.
 
 #### 3.4 Browse Ready-Made Complete Tests
-`GET /api/v1/constructor/ready-tests`
-- Curated up-to-8-question sheets with dynamic `questions_count`.
+`GET /api/v1/constructor/ready-tests?language=tt|ru`
+- Curated up-to-8-question sheets with dynamic `questions_count` and `language` discriminator.
 
 #### 3.5 Assemble Modular Test
 `POST /api/v1/constructor/tests`
-- Composes a new test from selected task IDs (sorted by `order`, with distinct seeded variants 2–4 when `shuffle_questions_in_variants=true`) or auto-generated `task_types`, enforcing A4 physical limit (`<= 8` questions).
+- Composes a new test from selected task IDs (strictly matching `language`, sorted by `order`, with distinct seeded variants 2–4 when `shuffle_questions_in_variants=true`) or auto-generated questions using the requested language's generators, enforcing A4 physical limit (`<= 8` questions). Offline bundle includes `"language": "tt" | "ru"` and `"alphabet_mask": "tatar_39" | "russian_33"`.
 - **Request Body**:
 ```json
 {
@@ -445,6 +446,23 @@ Used for live upload when checking while online.
 `GET /api/v1/submissions`
 - **Headers**: `X-Teacher-UUID` (optional; scopes rows to teacher's classes, `403` when filtering for another teacher's `class_id`)
 - **Query Params**: `class_id`, `assignment_id`, `student_id`.
+
+#### 4.4 Server-Side Blank Photo Recognition & Verification (Transient In-RAM Fallback)
+`POST /api/v1/submissions/recognize` (`multipart/form-data`) and `POST /api/v1/submissions/recognize-base64` (`application/json`)
+
+Accepts a photographed A4 blank in RAM (never written to disk, DB, or logs), runs the C++20 `tatar_ocr_native` pipeline (`NativeBlankScanner`), decodes the header QR code (`tid`, `var`, `stu_id`), verifies answers against the assignment key (when resolved), and returns full local-parity recognition + grading data (`rectification_method`, `student_name`, `student_name_cells`, `questions` with `top3` & `bbox` & `review_required`, `stats` with `zero_touch`, `overall_score`, `final_grade`, `questions_results`, and `submission_draft` compatible with `POST /api/v1/submissions`).
+
+- **Headers**: `X-Teacher-UUID: <uuid-v4>` (optional; loads teacher's `grading_scale` and `confidence_flag_threshold`)
+- **Multipart Form / Query Params (`/recognize`)**:
+  - `file` (binary image JPEG/PNG/WEBP, required)
+  - `assignment_id` (string, optional — overrides QR `tid`)
+  - `variant` (integer, optional — overrides QR `var`)
+  - `student_id` (string, optional — overrides QR `stu_id`)
+  - `class_id` (string, optional — inferred from `student_id` if registered; required for `auto_save=true` otherwise)
+  - `confidence_threshold` (float `0..100`, optional — overrides teacher threshold / default `85.0`)
+  - `auto_save` (boolean, default `false` — persists `SubmissionModel` immediately when verified)
+- **JSON Body (`/recognize-base64`)**: `image_base64`, `mime_type`, plus the same optional fields above.
+- **Response `200 OK`**: `RecognizeBlankResponse` containing native OCR cells (`confidence` `0..100`, `top3`, `bbox`, `review_required`), `qr_metadata`, `stats`, grading summary (`overall_score`, `max_score`, `score_percentage`, `final_grade`), `questions_results` (`SubmissionQuestionResult[]` with 0-based `cell_index` and normalized `0..1` confidence), `submission_draft`, and `saved_submission_id` (when `auto_save=true`).
 
 ---
 
@@ -626,6 +644,14 @@ Returns the authoritative 39-class alphabet array, model version info, live SHA-
     "Ч", "Ш", "Щ", "Ъ", "Ы", "Ь", "Э", "Ю", "Я"
   ],
   "sha256": "656096ed97d25cfdd07390f292a7b9a9f838481adf126587e40dccae25c9f191",
+  "language_alphabets": {
+    "tt": ["А", "Ә", "...", "Я"],
+    "ru": ["А", "Б", "...", "Я"]
+  },
+  "language_masks": {
+    "tt": [0, 1, 2, "..."],
+    "ru": [0, 2, 3, "..."]
+  },
   "preprocessing": {
     "input_resolution": [64, 64],
     "channels": 1,

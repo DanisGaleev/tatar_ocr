@@ -208,7 +208,7 @@ class TestStage2GeneratorsAndLinguistics:
     """AC-3, AC-4, AC-7: 24-generator dictionary sweep, MC shuffling, phonetics, lexicon."""
 
     def test_exhaustive_24_generators_ocr_alphabet_and_bounds(self):
-        supported = registry.list_supported_types()
+        supported = registry.list_supported_types(language="tt")
         assert len(supported) == 24
 
         for entry in supported:
@@ -241,7 +241,7 @@ class TestStage2GeneratorsAndLinguistics:
             draft = pc_gen.generate(seed=seed)
             assert len(draft.expected_answer) <= 12
 
-        all_types = [t["task_type"] for t in registry.list_supported_types()]
+        all_types = [t["task_type"] for t in registry.list_supported_types(language="tt")]
         bundle = registry.assemble_variants(
             assignment_id="ST2-REG",
             title="Full Registry Coverage",

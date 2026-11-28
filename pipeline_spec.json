@@ -5,7 +5,11 @@
     "fallback_onnx": "models/tatar_ocr_uppercase39_fp32.onnx",
     "fallback_pth": "models/baseline_synthetic_uppercase39.pth",
     "v3_ckpt_markers": [".se.", ".shortcut."],
-    "alphabet": "АӘБВГДЕЁЖҖЗИЙКЛМНҢОӨПРСТУҮФХҺЦЧШЩЪЫЬЭЮЯ"
+    "alphabet": "АӘБВГДЕЁЖҖЗИЙКЛМНҢОӨПРСТУҮФХҺЦЧШЩЪЫЬЭЮЯ",
+    "alphabets": {
+      "tt": "АӘБВГДЕЁЖҖЗИЙКЛМНҢОӨПРСТУҮФХҺЦЧШЩЪЫЬЭЮЯ",
+      "ru": "АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ"
+    }
   },
   "canvas": {
     "width": 2100,

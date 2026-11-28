@@ -17,6 +17,13 @@ class Settings(BaseSettings):
     ARUCO_DICT: str = "DICT_4X4_50"
     CORNER_ARUCO_IDS: list[int] = [0, 1, 2, 3]
 
+    # Server-side Blank Recognition (C++20 native OCR core)
+    BLANK_MAX_IMAGE_SIZE_BYTES: int = 15 * 1024 * 1024
+    OCR_MODEL_PATH: str = "models/tatar_ocr_v4_handwritten39_int8.onnx"
+    OCR_SPEC_PATH: str = "pipeline_spec.json"
+    NATIVE_BUILD_DIR: str | None = None
+    OCR_DEFAULT_CONFIDENCE_THRESHOLD_PCT: float = 85.0
+
     # Yandex Cloud (OCR & YandexGPT)
     YANDEX_API_KEY: str | None = None
     YANDEX_FOLDER_ID: str | None = None

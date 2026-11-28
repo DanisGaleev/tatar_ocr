@@ -9,6 +9,14 @@ HOMOGLYPH_MAP = {
     'X': 'Х', 'Y': 'Ү',
 }
 
+RUSSIAN_HOMOGLYPH_MAP = {
+    'A': 'А', 'B': 'В', 'C': 'С', 'E': 'Е', 'H': 'Н',
+    'K': 'К', 'M': 'М', 'O': 'О', 'P': 'Р', 'T': 'Т',
+    'X': 'Х', 'Y': 'У',
+    'a': 'а', 'c': 'с', 'e': 'е', 'o': 'о', 'p': 'р',
+    'x': 'х', 'y': 'у'
+}
+
 COMMON_TATAR_CONFUSIONS = {
     'Ң': ['Н'],
     'Ә': ['А'],
@@ -18,18 +26,19 @@ COMMON_TATAR_CONFUSIONS = {
     'Һ': ['Х'],
 }
 
-def normalize_char(char: Optional[str]) -> str:
+def normalize_char(char: Optional[str], language: str = "tt") -> str:
     if not char:
         return " "
     c = unicodedata.normalize("NFC", char).strip()
     if not c:
         return " "
     upper_c = c.upper()
-    return HOMOGLYPH_MAP.get(upper_c, upper_c)
+    mapping = RUSSIAN_HOMOGLYPH_MAP if language == "ru" else HOMOGLYPH_MAP
+    return mapping.get(upper_c, upper_c)
 
-def normalize_answer(text: str) -> str:
+def normalize_answer(text: str, language: str = "tt") -> str:
     clean = unicodedata.normalize("NFC", text or "").strip()
-    return "".join(normalize_char(ch) for ch in clean)
+    return "".join(normalize_char(ch, language=language) for ch in clean)
 
 class CellVerificationResult(BaseModel):
     cell_index: int
@@ -68,6 +77,7 @@ def verify_question_cells(
     expected_answer: str,
     cell_count: int,
     student_cells: List[Dict[str, Any]],
+    language: str = "tt",
 ) -> QuestionVerificationResult:
     """
     Evaluates student handwritten character recognitions against the expected answer.
@@ -76,7 +86,7 @@ def verify_question_cells(
     if cell_count < 1:
         raise ValueError("cell_count must be >= 1")
 
-    clean_expected = normalize_answer(expected_answer)
+    clean_expected = normalize_answer(expected_answer, language=language)
     if not clean_expected:
         raise ValueError("expected_answer cannot be empty")
     if len(clean_expected) > cell_count:
@@ -90,7 +100,7 @@ def verify_question_cells(
     for idx, c in enumerate(student_cells):
         c_idx = c.get("cell_index", idx)
         if c_idx < 0 or c_idx >= cell_count:
-            if normalize_char(c.get("predicted_char", " ")) != " ":
+            if normalize_char(c.get("predicted_char", " "), language=language) != " ":
                 has_extra_student_chars = True
         else:
             student_map[c_idx] = c
@@ -104,7 +114,7 @@ def verify_question_cells(
 
         st_data = student_map.get(idx, {})
         pred_raw = st_data.get("predicted_char", " ")
-        pred_norm = normalize_char(pred_raw)
+        pred_norm = normalize_char(pred_raw, language=language)
         raw_conf = st_data.get("confidence")
         confidence = 1.0 if raw_conf is None else float(raw_conf)
         raw_override = st_data.get("teacher_override")
@@ -114,7 +124,6 @@ def verify_question_cells(
             else None
         )
         override = norm_override if norm_override in ("CORRECT", "WRONG") else None
-
         written_chars.append(pred_norm)
 
         if override == "CORRECT":
@@ -183,6 +192,7 @@ def verify_test_submission(
     questions: List[Dict[str, Any]],
     submissions: List[Dict[str, Any]],
     grading_scale: Optional[GradingScale] = None,
+    language: str = "tt",
 ) -> TestVerificationResult:
     """
     Verifies an entire test sheet submission and computes total score and school grade (2-5).
@@ -203,7 +213,7 @@ def verify_test_submission(
         marker_id = q.get("marker_id", 10 + q_num)
         topic_tag = q.get("topic_tag", "general")
         expected_answer = q["expected_answer"]
-        cell_count = q.get("cell_count") or max(1, len(normalize_answer(expected_answer)))
+        cell_count = q.get("cell_count") or max(1, len(normalize_answer(expected_answer, language=language)))
 
         st_sub = sub_map.get(q_num, {})
         student_cells = st_sub.get("cells", [])
@@ -215,6 +225,7 @@ def verify_test_submission(
             expected_answer=expected_answer,
             cell_count=cell_count,
             student_cells=student_cells,
+            language=language,
         )
         total_score += res.points_earned
         q_results.append(res)

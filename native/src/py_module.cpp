@@ -141,15 +141,23 @@ PYBIND11_MODULE(tatar_ocr_native, m) {
             },
             py::arg("rectified_bgr"))
         .def(
+            "alphabet_for_language",
+            &tatar_ocr::NativeBlankScanner::alphabet_for_language,
+            py::arg("language") = "tt")
+        .def(
+            "build_language_mask",
+            &tatar_ocr::NativeBlankScanner::build_language_mask,
+            py::arg("language") = "tt")
+        .def(
             "classify_cell",
             [](tatar_ocr::NativeBlankScanner& self, const py::array& cell_bgr, std::optional<double> margin_trim_pct,
-               int top_k, bool force_predict, bool debug) {
+               int top_k, bool force_predict, bool debug, const std::string& language) {
                 cv::Mat mat = numpy_to_mat(cell_bgr);
                 double trim = margin_trim_pct.value_or(self.spec().default_margin_trim_pct);
                 tatar_ocr::CellResult res;
                 {
                     py::gil_scoped_release release;
-                    res = self.classify_cell(mat, trim, top_k, force_predict, debug);
+                    res = self.classify_cell(mat, trim, top_k, force_predict, debug, language);
                 }
                 py::dict out;
                 out["is_empty"] = res.is_empty;
@@ -175,15 +183,15 @@ PYBIND11_MODULE(tatar_ocr_native, m) {
                 return out;
             },
             py::arg("cell_bgr"), py::arg("margin_trim_pct") = py::none(), py::arg("top_k") = 3,
-            py::arg("force_predict") = false, py::arg("debug") = false)
+            py::arg("force_predict") = false, py::arg("debug") = false, py::arg("language") = "tt")
         .def(
             "process_blank",
-            [](tatar_ocr::NativeBlankScanner& self, const py::array& img_bgr) {
+            [](tatar_ocr::NativeBlankScanner& self, const py::array& img_bgr, const std::string& language) {
                 cv::Mat mat = numpy_to_mat(img_bgr);
                 tatar_ocr::BlankResult res;
                 {
                     py::gil_scoped_release release;
-                    res = self.process_blank(mat);
+                    res = self.process_blank(mat, language);
                 }
                 py::dict out;
                 out["status"] = res.status;
@@ -216,5 +224,5 @@ PYBIND11_MODULE(tatar_ocr_native, m) {
                 out["annotated_bgr"] = py::none();
                 return out;
             },
-            py::arg("img_bgr"));
+            py::arg("img_bgr"), py::arg("language") = "tt");
 }

@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 from fastapi import APIRouter
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger("tatar_ocr.model")
 
@@ -28,6 +28,18 @@ try:
 except Exception:
     TATAR_UPPERCASE_39 = _DEFAULT_ALPHABET
 
+RUSSIAN_UPPERCASE_33: List[str] = [
+    "А", "Б", "В", "Г", "Д", "Е", "Ё", "Ж", "З", "И",
+    "Й", "К", "Л", "М", "Н", "О", "П", "Р", "С", "Т",
+    "У", "Ф", "Х", "Ц", "Ч", "Ш", "Щ", "Ъ", "Ы", "Ь",
+    "Э", "Ю", "Я",
+]
+
+TATAR_ALLOWED_INDICES: List[int] = list(range(len(TATAR_UPPERCASE_39)))
+RUSSIAN_ALLOWED_INDICES: List[int] = [
+    idx for idx, ch in enumerate(TATAR_UPPERCASE_39) if ch in set(RUSSIAN_UPPERCASE_33)
+]
+
 
 class PreprocessingSpec(BaseModel):
     input_resolution: List[int] = [64, 64]
@@ -48,6 +60,8 @@ class ModelManifestResponse(BaseModel):
     model_version: str = "1.0"
     num_classes: int = 39
     alphabet_classes: List[str]
+    language_alphabets: Dict[str, List[str]] = Field(default_factory=dict)
+    language_masks: Dict[str, List[int]] = Field(default_factory=dict)
     sha256: str
     preprocessing: PreprocessingSpec
 
@@ -72,6 +86,7 @@ def _load_manifest_data() -> ModelManifestResponse:
     rel_onnx = model_spec["default_onnx"]
     onnx_path = REPO_ROOT / rel_onnx
     alphabet_classes = list(model_spec["alphabet"])
+    ru_indices = [idx for idx, ch in enumerate(alphabet_classes) if ch in set(RUSSIAN_UPPERCASE_33)]
     canvas_sz = int(cell_spec["canonical_canvas_size"])
 
     preprocessing = PreprocessingSpec(
@@ -89,6 +104,14 @@ def _load_manifest_data() -> ModelManifestResponse:
         model_version=str(spec.get("version", "1.0")),
         num_classes=len(alphabet_classes),
         alphabet_classes=alphabet_classes,
+        language_alphabets={
+            "tt": alphabet_classes,
+            "ru": RUSSIAN_UPPERCASE_33,
+        },
+        language_masks={
+            "tt": list(range(len(alphabet_classes))),
+            "ru": ru_indices,
+        },
         sha256=_compute_file_sha256(onnx_path),
         preprocessing=preprocessing,
     )

@@ -97,6 +97,45 @@ SYSTEM_PROMPT_TEMPLATE = """Ты — интеллектуальный ассис
 
 Отвечай ИСКЛЮЧИТЕЛЬНО валидным JSON без лишних пояснений."""
 
+RUSSIAN_SYSTEM_PROMPT_TEMPLATE = """Ты — интеллектуальный ассистент образовательной платформы для начальной школы (1–4 классы) по русскому языку.
+Твоя задача — проанализировать распознанный OCR-текст школьного задания по русскому языку (из учебника, рабочей тетради или проверочной работы) и структурировать его в строгий JSON-формат для конструктора бланков А4.
+
+### ПОДДЕРЖИВАЕМЫЕ ТИПЫ ЗАДАНИЙ ПО РУССКОМУ ЯЗЫКУ:
+{supported_types_description}
+
+Также поддерживается тип "custom" — если это другое задание по русскому языку, где ответом является ровно одно русское слово (или одна буква/код) длиной от 1 до 12 символов.
+
+### КРИТИЧЕСКИЕ ПРАВИЛА ДЛЯ РУССКОГО ЯЗЫКА (1–4 КЛАССЫ):
+1. Ответ (`expected_answer`) ВСЕГДА ДОЛЖЕН БЫТЬ НА РУССКОМ ЯЗЫКЕ (только русская кириллица А-Я, Ё, без татарских букв Ә, Ө, Ү, Җ, Ң, Һ, без латиницы, без пробелов и знаков препинания) и длиной от 1 до 12 символов.
+2. ИГНОРИРУЙ МУСОРНЫЙ OCR-ТЕКСТ: номера страниц, "(2 балла)", колонтитулы, имена авторов и артефакты сканирования.
+3. Если упражнение содержит несколько слов или пунктов (например: "Вставьте пропущенные буквы: тр_ва, л_сной, гр_бы"):
+   ОБЯЗАТЕЛЬНО РАЗБЕЙ ЕГО НА ОТДЕЛЬНЫЕ САМОСТОЯТЕЛЬНЫЕ ЗАДАНИЯ в массиве `items`!
+   Для заданий на одну пропущенную букву (`ru_unstressed_vowel`, `ru_paired_consonant`, `ru_unpronounceable_consonant`, `ru_soft_hard_sign`) указывай `expected_answer` из 1 буквы и `cell_count: 1`, а для целых слов (`ru_orthogram_combinations`, `ru_dictionary_words`, `ru_noun_number`, `ru_antonyms`) указывай целое слово в `expected_answer` и `cell_count` от 8 до 12 (не меньше длины слова).
+4. Если задание требует написания сочинения, изложения, рисунка или развёрнутого текста без краткой части — установи `is_supported: false` и укажи причину в `unsupported_reason`.
+
+### ФОРМАТ ОТВЕТА (ТОЛЬКО ЧИСТЫЙ JSON):
+```json
+{{
+  "is_supported": true,
+  "unsupported_reason": null,
+  "task_type": "ru_unstressed_vowel",
+  "items": [
+    {{
+      "prompt_tt": "Вставьте безударную гласную (проверочное слово: травы): тр_ва ->",
+      "expected_answer": "А",
+      "cell_count": 1,
+      "grade_level": 2,
+      "task_type": "ru_unstressed_vowel",
+      "topic_tag": "ru_unstressed_vowel",
+      "topic_name_tt": "Безударная гласная в корне слова"
+    }}
+  ],
+  "confidence": 0.95
+}}
+```
+
+Отвечай ИСКЛЮЧИТЕЛЬНО валидным JSON без лишних пояснений."""
+
 class YandexGPTClient(BaseLLMTaskClassifier):
     def __init__(
         self,
@@ -174,6 +213,7 @@ class YandexGPTClient(BaseLLMTaskClassifier):
         ocr_text: str,
         supported_types: List[Dict[str, str]],
         grade_hint: Optional[int] = None,
+        language: str = "tt",
     ) -> ExtractedTaskResult:
         if not self.api_key:
             raise ValueError("Yandex API key is not configured for YandexGPT service.")
@@ -181,7 +221,9 @@ class YandexGPTClient(BaseLLMTaskClassifier):
             raise ValueError("Yandex model URI or folder ID is not configured for YandexGPT service.")
 
         types_desc = self._build_supported_types_desc(supported_types)
-        system_prompt = SYSTEM_PROMPT_TEMPLATE.format(supported_types_description=types_desc)
+        template = RUSSIAN_SYSTEM_PROMPT_TEMPLATE if language == "ru" else SYSTEM_PROMPT_TEMPLATE
+        system_prompt = template.format(supported_types_description=types_desc)
+        default_grade = 3 if language == "ru" else 7
 
         user_content = f"Распознанный текст задания с фото:\n\"\"\"\n{ocr_text}\n\"\"\""
         if grade_hint:
@@ -263,7 +305,7 @@ class YandexGPTClient(BaseLLMTaskClassifier):
                             prompt_tt=str(it.get("prompt_tt")),
                             expected_answer=str(it.get("expected_answer")),
                             cell_count=_safe_int(it.get("cell_count")),
-                            grade_level=_safe_int(it.get("grade_level")),
+                            grade_level=_safe_int(it["grade_level"]) if "grade_level" in it else (grade_hint or default_grade),
                             topic_tag=it.get("topic_tag") or parsed.get("topic_tag"),
                             topic_name_tt=it.get("topic_name_tt") or parsed.get("topic_name_tt"),
                         )
@@ -273,7 +315,7 @@ class YandexGPTClient(BaseLLMTaskClassifier):
         prompt_tt = parsed.get("prompt_tt")
         expected_answer = parsed.get("expected_answer")
         cell_count = _safe_int(parsed.get("cell_count"))
-        grade_level = _safe_int(parsed.get("grade_level"))
+        grade_level = _safe_int(parsed["grade_level"]) if "grade_level" in parsed else (grade_hint or default_grade)
         topic_tag = parsed.get("topic_tag")
         topic_name_tt = parsed.get("topic_name_tt")
 
