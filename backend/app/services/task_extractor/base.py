@@ -27,7 +27,12 @@ class ExtractedTaskResult(BaseModel):
 
 class BaseOCRClient(ABC):
     @abstractmethod
-    async def recognize_text(self, image_bytes: bytes, mime_type: str = "image/jpeg") -> str:
+    async def recognize_text(
+        self,
+        image_bytes: bytes,
+        mime_type: str = "image/jpeg",
+        language: str = "tt",
+    ) -> str:
         """Extract raw text from image bytes."""
         pass
 
@@ -38,6 +43,7 @@ class BaseLLMTaskClassifier(ABC):
         ocr_text: str,
         supported_types: List[Dict[str, str]],
         grade_hint: Optional[int] = None,
+        language: str = "tt",
     ) -> ExtractedTaskResult:
         """Classify task type and extract structured fields using LLM."""
         pass

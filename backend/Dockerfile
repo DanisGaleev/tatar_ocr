@@ -3,32 +3,35 @@ FROM python:3.12-slim
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
-    PYTHONPATH=/app
+    PYTHONPATH=/app \
+    MPLCONFIGDIR=/tmp/mplconfig
 
 WORKDIR /app
 
-# Install system dependencies for headless OpenCV, OpenMP (PyTorch/SciPy/ONNX), and fonts for PDF generation
+# Install system dependencies for headless OpenCV and fonts for PDF generation
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libglib2.0-0 \
-    libgomp1 \
     fontconfig \
     fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 
-# Install uv for fast, reliable package management
+# Install uv for fast, reproducible dependency installation
 RUN pip install --no-cache-dir uv
 
-# Copy project dependencies configuration
-COPY pyproject.toml requirements.txt /app/
+# Install only slim backend runtime dependencies (no PyTorch / ML training packages)
+COPY backend/requirements.txt /app/backend/requirements.txt
+RUN uv pip install --system -r /app/backend/requirements.txt
 
-# Install dependencies into system environment using uv
-RUN uv pip install --system --index-strategy unsafe-best-match --extra-index-url https://download.pytorch.org/whl/cpu -r /app/requirements.txt
-
-# Copy root OCR modules, models, fonts, and backend source code
-COPY blank_pipeline.py tatar_ocr_dataset.py tatar_ocr_augmentation.py /app/
-COPY models /app/models
+# Copy fonts and backend source code
 COPY fonts /app/fonts
 COPY backend/app /app/backend/app
+
+# Run as non-root user with writable /data and /tmp/mplconfig
+RUN useradd --system --uid 10001 --create-home appuser \
+    && mkdir -p /data /tmp/mplconfig \
+    && chown -R appuser:appuser /app /data /tmp/mplconfig
+
+USER appuser
 
 WORKDIR /app/backend
 

@@ -1,6 +1,6 @@
 import json
 import uuid
-from typing import List, Optional
+from typing import List, Optional, Literal
 import base64
 from fastapi import APIRouter, Depends, HTTPException, Query, status, File, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -27,7 +27,7 @@ from app.schemas.test import (
     OfflineBundleResponse,
 )
 from app.generators.registry import registry
-from app.generators.phonetics import clean_word, build_expected_cells, PhoneticsError
+from app.generators.phonetics import clean_word_for_language, build_expected_cells, PhoneticsError
 from app.generators.checker import verify_question_cells
 from app.services.task_extractor import get_task_extractor_service
 
@@ -35,19 +35,24 @@ from app.services.task_extractor import get_task_extractor_service
 router = APIRouter(prefix="/constructor", tags=["Assignment Constructor"])
 
 @router.get("/task-types", summary="List supported task generator types")
-async def list_task_types():
-    return {"task_types": registry.list_supported_types()}
+async def list_task_types(
+    language: Optional[Literal["tt", "ru"]] = Query(None, description="Optional language filter ('tt' or 'ru')"),
+):
+    return {"task_types": registry.list_supported_types(language=language)}
 
 @router.get("/tasks", response_model=List[TaskBankItem], summary="Search Task Bank")
 async def search_task_bank(
     query: Optional[str] = Query(None, description="Search term in prompt or answer"),
+    language: Optional[Literal["tt", "ru"]] = Query(None, description="Filter by language ('tt' or 'ru')"),
     topic_tag: Optional[str] = Query(None),
-    grade_level: Optional[int] = Query(None, ge=5, le=9),
+    grade_level: Optional[int] = Query(None, ge=1, le=9),
     max_cells: Optional[int] = Query(None, le=12),
     scope: Optional[str] = Query("all", pattern="^(all|my_tasks)$"),
     db: AsyncSession = Depends(get_db),
 ):
     stmt = select(TaskBankModel)
+    if language:
+        stmt = stmt.where(TaskBankModel.language == language)
     if scope == "my_tasks":
         stmt = stmt.where(TaskBankModel.task_type == "custom")
     if topic_tag:
@@ -78,7 +83,7 @@ async def create_custom_task(
         clean_ans = raw_ans
     else:
         try:
-            clean_ans = clean_word(raw_ans).upper()
+            clean_ans = clean_word_for_language(raw_ans, payload.language).upper()
         except PhoneticsError as exc:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -92,6 +97,7 @@ async def create_custom_task(
         
     task_obj = TaskBankModel(
         task_id=f"tsk_{uuid.uuid4().hex[:8]}",
+        language=payload.language,
         prompt_tt=payload.prompt_tt.strip(),
         expected_answer=clean_ans,
         cell_count=payload.cell_count,
@@ -112,15 +118,17 @@ async def generate_tasks(
     db: AsyncSession = Depends(get_db),
 ):
     try:
-        gen = registry.get_generator(payload.task_type)
+        gen = registry.get_generator(payload.task_type, language=payload.language)
     except ValueError as err:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(err))
+
+    effective_grade = payload.grade_level if payload.grade_level is not None else (3 if gen.language == "ru" else 7)
 
     try:
         drafts = gen.generate_batch(
             count=payload.count,
             seed=payload.seed,
-            grade_level=payload.grade_level,
+            grade_level=effective_grade,
             stems=payload.custom_stems,
             case_code=payload.case_code,
         )
@@ -132,6 +140,8 @@ async def generate_tasks(
         task_id = f"tsk_{uuid.uuid4().hex[:8]}"
         task_item = TaskBankItem(
             task_id=task_id,
+            language=gen.language,
+            task_type=draft.task_type,
             prompt_tt=draft.prompt_tt,
             expected_answer=draft.expected_answer,
             cell_count=draft.cell_count,
@@ -145,6 +155,7 @@ async def generate_tasks(
         if payload.save_to_bank:
             db_task = TaskBankModel(
                 task_id=task_id,
+                language=gen.language,
                 prompt_tt=draft.prompt_tt,
                 expected_answer=draft.expected_answer,
                 cell_count=draft.cell_count,
@@ -160,6 +171,7 @@ async def generate_tasks(
         await db.commit()
 
     return GenerateTasksResponse(
+        language=gen.language,
         task_type=payload.task_type,
         seed=payload.seed,
         count=len(tasks_out),
@@ -171,7 +183,8 @@ async def assemble_modular_test(
     payload: AssembleTestRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    assignment_id = f"TAT-2026-Q{uuid.uuid4().hex[:4].upper()}"
+    prefix = "RUS" if payload.language == "ru" else "TAT"
+    assignment_id = f"{prefix}-2026-Q{uuid.uuid4().hex[:4].upper()}"
 
     if payload.task_items:
         if len(payload.task_items) > settings.MAX_QUESTIONS_PER_PAGE:
@@ -190,6 +203,15 @@ async def assemble_modular_test(
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Tasks not found in bank: {missing_ids}",
+            )
+
+        mismatched_lang_ids = [
+            t_id for t_id in task_ids if (found_tasks[t_id].language or "tt") != payload.language
+        ]
+        if mismatched_lang_ids:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Tasks {mismatched_lang_ids} do not match requested test language '{payload.language}'.",
             )
             
         # Build variants from selected tasks
@@ -213,14 +235,17 @@ async def assemble_modular_test(
                     "expected_answer": t_obj.expected_answer,
                     "expected_cells": build_expected_cells(t_obj.expected_answer, t_obj.cell_count),
                 })
-                
-            qr_signature = json.dumps({
+
+            qr_payload = {
                 "tid": assignment_id,
                 "var": v_idx,
                 "page": 1,
                 "tot": 1,
                 "n_q": len(questions),
-            }, separators=(',', ':'))
+            }
+            if payload.language != "tt":
+                qr_payload["lang"] = payload.language
+            qr_signature = json.dumps(qr_payload, separators=(',', ':'))
             
             variants_data.append({
                 "variant_id": v_idx,
@@ -240,11 +265,13 @@ async def assemble_modular_test(
         bundle_data = {
             "assignment_id": assignment_id,
             "title": payload.title,
+            "language": payload.language,
+            "alphabet_mask": "russian_33" if payload.language == "ru" else "tatar_39",
             "total_variants": payload.generate_variants_count,
             "variants": variants_data,
         }
     else:
-        # Generate automatically using linguistic generators
+        # Generate automatically using linguistic generators for the requested language
         bundle_data = registry.assemble_variants(
             assignment_id=assignment_id,
             title=payload.title,
@@ -253,6 +280,7 @@ async def assemble_modular_test(
             seed=payload.seed,
             questions_per_variant=8,
             shuffle=payload.shuffle_questions_in_variants,
+            language=payload.language,
         )
 
     bundle_data["test_id"] = assignment_id
@@ -260,6 +288,7 @@ async def assemble_modular_test(
 
     test_record = AssembledTestModel(
         test_id=assignment_id,
+        language=payload.language,
         title=payload.title,
         grade_level=payload.grade_level,
         total_variants=payload.generate_variants_count,
@@ -271,8 +300,14 @@ async def assemble_modular_test(
     return bundle_data
 
 @router.get("/ready-tests", response_model=List[ReadyTestItem], summary="Browse Ready-Made Complete Tests")
-async def get_ready_tests(db: AsyncSession = Depends(get_db)):
-    stmt = select(AssembledTestModel).order_by(AssembledTestModel.created_at.desc()).limit(20)
+async def get_ready_tests(
+    language: Optional[Literal["tt", "ru"]] = Query(None, description="Filter ready tests by language"),
+    db: AsyncSession = Depends(get_db),
+):
+    stmt = select(AssembledTestModel)
+    if language:
+        stmt = stmt.where(AssembledTestModel.language == language)
+    stmt = stmt.order_by(AssembledTestModel.created_at.desc()).limit(20)
     res = await db.execute(stmt)
     records = res.scalars().all()
     
@@ -290,6 +325,7 @@ async def get_ready_tests(db: AsyncSession = Depends(get_db)):
         result.append(
             ReadyTestItem(
                 test_id=rec.test_id,
+                language=rec.language or "tt",
                 title=rec.title,
                 grade_level=rec.grade_level,
                 questions_count=q_count,
@@ -311,6 +347,7 @@ async def verify_student_answer(payload: VerifyAnswerRequest):
         expected_answer=payload.expected_answer,
         cell_count=payload.cell_count,
         student_cells=student_cells,
+        language=payload.language,
     )
     return VerifyAnswerResponse(
         is_correct=res.is_correct,
@@ -332,7 +369,8 @@ async def verify_student_answer(payload: VerifyAnswerRequest):
 async def scan_task_from_image(
     file: UploadFile = File(..., description="Image file (photo or screenshot) of textbook/workbook exercise"),
     save_to_bank: bool = Query(False, description="Persist directly into task bank if valid"),
-    grade_level: Optional[int] = Query(None, ge=5, le=9, description="Optional grade level hint (5..9)"),
+    language: Literal["tt", "ru"] = Query("tt", description="Subject language ('tt' or 'ru')"),
+    grade_level: Optional[int] = Query(None, ge=1, le=9, description="Optional grade level hint (1..9)"),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -360,6 +398,7 @@ async def scan_task_from_image(
         result = await service.extract_from_image(
             image_bytes=image_bytes,
             mime_type=file.content_type,
+            language=language,
             grade_hint=grade_level,
             save_to_bank=save_to_bank,
             db=db,
@@ -395,6 +434,7 @@ async def scan_task_from_base64(
         result = await service.extract_from_image(
             image_bytes=image_bytes,
             mime_type=payload.mime_type,
+            language=payload.language,
             grade_hint=payload.grade_level,
             save_to_bank=payload.save_to_bank,
             db=db,

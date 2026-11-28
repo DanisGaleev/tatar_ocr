@@ -6,12 +6,21 @@ logger = logging.getLogger(__name__)
 
 class MockOCRClient(BaseOCRClient):
     def __init__(self, default_text: Optional[str] = None):
-        self.default_text = default_text or "1-нче күнегү. Куегыз сүзне юнәлеш килешендә: китап ->"
+        self.default_text = default_text
 
-    async def recognize_text(self, image_bytes: bytes, mime_type: str = "image/jpeg") -> str:
+    async def recognize_text(
+        self,
+        image_bytes: bytes,
+        mime_type: str = "image/jpeg",
+        language: str = "tt",
+    ) -> str:
         if image_bytes.startswith(b"TEXT:"):
             return image_bytes[5:].decode("utf-8", errors="replace")
-        return self.default_text
+        if self.default_text is not None:
+            return self.default_text
+        if language == "ru":
+            return "Упражнение 1. Вставьте безударную гласную (проверочное слово: лес): л_сной ->"
+        return "1-нче күнегү. Куегыз сүзне юнәлеш килешендә: китап ->"
 
 
 class MockLLMTaskClassifier(BaseLLMTaskClassifier):
@@ -20,16 +29,83 @@ class MockLLMTaskClassifier(BaseLLMTaskClassifier):
         ocr_text: str,
         supported_types: List[Dict[str, str]],
         grade_hint: Optional[int] = None,
+        language: str = "tt",
     ) -> ExtractedTaskResult:
         text_lower = ocr_text.lower()
 
         # 1. Check for unsupported tasks (essay, long text, drawings)
-        if any(w in text_lower for w in ["инша", "сочинение", "изложение", "рәсем ясагыз", "текст языгыз", "хикәя"]):
+        if any(w in text_lower for w in ["инша", "сочинение", "изложение", "рәсем ясагыз", "текст языгыз", "хикәя", "нарисуйте"]):
             return ExtractedTaskResult(
                 is_supported=False,
                 unsupported_reason="Задание требует написания развернутого сочинения/изложения, что не поддерживается бланками с ячейками (максимум 12 букв)",
                 task_type=None,
                 confidence=0.95,
+                raw_ocr_text=ocr_text,
+            )
+
+        if language == "ru":
+            if "безударн" in text_lower or "л_с" in text_lower:
+                return ExtractedTaskResult(
+                    is_supported=True,
+                    task_type="ru_unstressed_vowel",
+                    prompt_tt="Вставьте безударную гласную (проверочное слово: лес): л_сной ->",
+                    expected_answer="Е",
+                    cell_count=1,
+                    grade_level=grade_hint or 2,
+                    topic_tag="ru_unstressed_vowel",
+                    topic_name_tt="Безударная гласная в корне слова",
+                    confidence=0.94,
+                    raw_ocr_text=ocr_text,
+                )
+            if any(w in text_lower for w in ["жи", "ши", "ча", "ща", "чу", "щу", "маш_на"]):
+                return ExtractedTaskResult(
+                    is_supported=True,
+                    task_type="ru_orthogram_combinations",
+                    prompt_tt="Вставьте букву и запишите слово целиком (ЖИ–ШИ): маш_на ->",
+                    expected_answer="МАШИНА",
+                    cell_count=8,
+                    grade_level=grade_hint or 1,
+                    topic_tag="ru_orthogram_combinations",
+                    topic_name_tt="Правописание ЖИ–ШИ, ЧА–ЩА, ЧУ–ЩУ",
+                    confidence=0.93,
+                    raw_ocr_text=ocr_text,
+                )
+            if "род" in text_lower:
+                return ExtractedTaskResult(
+                    is_supported=True,
+                    task_type="ru_noun_gender",
+                    prompt_tt="Определите род существительного (М — мужской, Ж — женский, С — средний): солнце ->",
+                    expected_answer="С",
+                    cell_count=1,
+                    grade_level=grade_hint or 3,
+                    topic_tag="ru_noun_gender",
+                    topic_name_tt="Род имён существительных",
+                    confidence=0.92,
+                    raw_ocr_text=ocr_text,
+                )
+            if "антоним" in text_lower:
+                return ExtractedTaskResult(
+                    is_supported=True,
+                    task_type="ru_antonyms",
+                    prompt_tt="Подберите антоним (противоположное по смыслу слово): день ->",
+                    expected_answer="НОЧЬ",
+                    cell_count=8,
+                    grade_level=grade_hint or 2,
+                    topic_tag="ru_antonyms",
+                    topic_name_tt="Антонимы (слова с противоположным значением)",
+                    confidence=0.91,
+                    raw_ocr_text=ocr_text,
+                )
+            return ExtractedTaskResult(
+                is_supported=True,
+                task_type="custom",
+                prompt_tt=ocr_text.strip()[:200],
+                expected_answer="СЛОВО",
+                cell_count=8,
+                grade_level=grade_hint or 3,
+                topic_tag="custom_task",
+                topic_name_tt="Задание учителя",
+                confidence=0.80,
                 raw_ocr_text=ocr_text,
             )
 

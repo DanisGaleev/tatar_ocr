@@ -68,9 +68,10 @@ def _draw_blank_page(
     variant_id: int,
     questions: List[Dict[str, Any]],
     student_name: Optional[str] = None,
+    language: str = "tt",
 ):
     """
-    Renders elements of an official A4 (210 x 297 mm) Tatar OCR test blank onto given Axes.
+    Renders elements of an official A4 (210 x 297 mm) OCR test blank onto given Axes.
     """
     page_w_mm, page_h_mm = 210.0, 297.0
 
@@ -94,13 +95,16 @@ def _draw_blank_page(
     header_left_x = 23.0
 
     # QR Code with Test Metadata
-    qr_payload = json.dumps({
+    qr_dict = {
         "tid": assignment_id,
         "var": variant_id,
         "page": 1,
         "tot": 1,
         "n_q": len(questions),
-    }, separators=(',', ':'))
+    }
+    if language != "tt":
+        qr_dict["lang"] = language
+    qr_payload = json.dumps(qr_dict, separators=(',', ':'))
 
     qr_img = generate_qr_img(qr_payload)
     qr_size_mm = 18.0
@@ -172,7 +176,8 @@ def _draw_blank_page(
 
         # Question Prompt Text & Dynamic Layout
         import textwrap
-        prompt_text = q.get("prompt", q.get("prompt_tt", f"Сорау №{idx+1}"))
+        default_q_label = f"Вопрос №{idx+1}" if language == "ru" else f"Сорау №{idx+1}"
+        prompt_text = q.get("prompt", q.get("prompt_tt", default_q_label))
         q_prefix = f"{idx+1}) "
 
         text_x = 22.0
@@ -204,7 +209,8 @@ def _draw_blank_page(
         cell_count = max(1, min(q.get("cell_count", 8), 12))
 
         if cell_count == 1:
-            ax.text(cells_x - 1.5, cells_y + cell_h_mm / 2.0, "Җавап:",
+            single_lbl = "Ответ:" if language == "ru" else "Җавап:"
+            ax.text(cells_x - 1.5, cells_y + cell_h_mm / 2.0, single_lbl,
                     fontsize=6.5, fontname=_FONT_NAME, ha='right', va='center', color='#64748b')
 
         for c in range(cell_count):
@@ -218,14 +224,20 @@ def _draw_blank_page(
             sep_y = block_y + q_pitch_y - 2.5
             ax.plot([20.0, page_w_mm - 10.0], [sep_y, sep_y], color='#e2e8f0', linewidth=0.6, linestyle='--')
 
-    # 4. Footer Instructions (Russian warnings only)
+    # 4. Footer Instructions
     footer_y = 267.0
     ax.plot([margin_corner_mm, page_w_mm - margin_corner_mm], [footer_y, footer_y], color='#cbd5e1', linewidth=0.8)
 
-    inst_text = (
-        "Внимание: бланк не сгибать. Пишите печатными заглавными буквами строго внутри клеток.\n"
-        "Татарские буквы: Ә, Җ, Ң, Ө, Ү, Һ. Не закрашивать маркеры ArUco и QR-код."
-    )
+    if language == "ru":
+        inst_text = (
+            "Внимание: бланк не сгибать. Пишите печатными заглавными буквами строго внутри клеток.\n"
+            "Русский алфавит: А–Я, Ё. Не закрашивать маркеры ArUco и QR-код."
+        )
+    else:
+        inst_text = (
+            "Внимание: бланк не сгибать. Пишите печатными заглавными буквами строго внутри клеток.\n"
+            "Татарские буквы: Ә, Җ, Ң, Ө, Ү, Һ. Не закрашивать маркеры ArUco и QR-код."
+        )
     ax.text(page_w_mm / 2.0, footer_y + 2.5, inst_text,
             fontsize=7.0, fontname=_FONT_NAME, ha='center', va='top', color='#475569', multialignment='center')
 
@@ -236,9 +248,10 @@ def render_blank_pdf(
     variant_id: int,
     questions: List[Dict[str, Any]],
     student_name: Optional[str] = None,
+    language: str = "tt",
 ) -> bytes:
     """
-    Renders an official A4 (210 x 297 mm) Tatar OCR test blank with ArUco markers,
+    Renders an official A4 (210 x 297 mm) OCR test blank with ArUco markers,
     QR code, student name header, and 10x10 mm answer boxes.
     """
     page_w_mm, page_h_mm = 210.0, 297.0
@@ -251,7 +264,7 @@ def render_blank_pdf(
     ax.invert_yaxis()
     ax.axis('off')
 
-    _draw_blank_page(ax, assignment_id, title, variant_id, questions, student_name)
+    _draw_blank_page(ax, assignment_id, title, variant_id, questions, student_name, language=language)
 
     # Render to PDF in-memory buffer
     buf = io.BytesIO()
@@ -265,6 +278,7 @@ def render_batch_blanks_pdf(
     title: str,
     variants: List[Dict[str, Any]],
     students: List[Dict[str, str]],
+    language: str = "tt",
 ) -> bytes:
     """
     Renders a multi-page PDF with one pre-named test blank per student in the class,
@@ -294,7 +308,7 @@ def render_batch_blanks_pdf(
             ax.invert_yaxis()
             ax.axis('off')
 
-            _draw_blank_page(ax, assignment_id, title, variant_id, questions, stu_name)
+            _draw_blank_page(ax, assignment_id, title, variant_id, questions, stu_name, language=language)
 
             pdf.savefig(fig, dpi=300, bbox_inches=None)
 
