@@ -411,6 +411,23 @@ Used for live upload when checking while online.
 `GET /api/v1/submissions`
 - **Query Params**: `class_id`, `assignment_id`, `student_id`.
 
+#### 4.4 Server-Side Blank Photo Recognition & Verification (Transient In-RAM Fallback)
+`POST /api/v1/submissions/recognize` (`multipart/form-data`) and `POST /api/v1/submissions/recognize-base64` (`application/json`)
+
+Accepts a photographed A4 blank in RAM (never written to disk, DB, or logs), runs the C++20 `tatar_ocr_native` pipeline (`NativeBlankScanner`), decodes the header QR code (`tid`, `var`, `stu_id`), verifies answers against the assignment key (when resolved), and returns full local-parity recognition + grading data (`rectification_method`, `student_name`, `student_name_cells`, `questions` with `top3` & `bbox` & `review_required`, `stats` with `zero_touch`, `overall_score`, `final_grade`, `questions_results`, and `submission_draft` compatible with `POST /api/v1/submissions`).
+
+- **Headers**: `X-Teacher-UUID: <uuid-v4>` (optional; loads teacher's `grading_scale` and `confidence_flag_threshold`)
+- **Multipart Form / Query Params (`/recognize`)**:
+  - `file` (binary image JPEG/PNG/WEBP, required)
+  - `assignment_id` (string, optional — overrides QR `tid`)
+  - `variant` (integer, optional — overrides QR `var`)
+  - `student_id` (string, optional — overrides QR `stu_id`)
+  - `class_id` (string, optional — inferred from `student_id` if registered; required for `auto_save=true` otherwise)
+  - `confidence_threshold` (float `0..100`, optional — overrides teacher threshold / default `85.0`)
+  - `auto_save` (boolean, default `false` — persists `SubmissionModel` immediately when verified)
+- **JSON Body (`/recognize-base64`)**: `image_base64`, `mime_type`, plus the same optional fields above.
+- **Response `200 OK`**: `RecognizeBlankResponse` containing native OCR cells (`confidence` `0..100`, `top3`, `bbox`, `review_required`), `qr_metadata`, `stats`, grading summary (`overall_score`, `max_score`, `score_percentage`, `final_grade`), `questions_results` (`SubmissionQuestionResult[]` with 0-based `cell_index` and normalized `0..1` confidence), `submission_draft`, and `saved_submission_id` (when `auto_save=true`).
+
 ---
 
 ### Router 5: Backend Analytics Engine (`/api/v1/analytics`)

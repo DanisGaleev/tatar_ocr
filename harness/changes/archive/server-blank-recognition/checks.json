@@ -1,0 +1,62 @@
+{
+  "change_id": "server-blank-recognition",
+  "default_policy": "FAIL_UNTIL_EVIDENCE",
+  "checks": [
+    {
+      "id": "AC-1",
+      "description": "C++20 bridge layer (blank_scanner_bridge.py) loads tatar_ocr_native, decodes image bytes in RAM, extracts QR metadata, and returns typed raw OCR results.",
+      "status": "PASS",
+      "command": "$env:TATAR_OCR_NATIVE_DIR=\"C:\\Users\\galee\\PycharmProjects\\tatar_ocr\\native\\build\"; C:\\Users\\galee\\PycharmProjects\\tatar_ocr\\.venv\\Scripts\\python.exe -m pytest backend\\tests\\test_blank_recognition.py -v",
+      "evidence": "TestBlankScannerBridgeUnit (3/3 passed) + TestRealBlankPhotoRecognitionE2E (2/2 passed) in 4.82s",
+      "verified_at": "2026-11-27T21:28:15+03:00"
+    },
+    {
+      "id": "AC-2",
+      "description": "Blank recognition service validates image bytes in RAM without persistence, runs C++ scan via threadpool, verifies against test key, computes HITL flags, and builds submission_draft.",
+      "status": "PASS",
+      "command": "$env:TATAR_OCR_NATIVE_DIR=\"C:\\Users\\galee\\PycharmProjects\\tatar_ocr\\native\\build\"; C:\\Users\\galee\\PycharmProjects\\tatar_ocr\\.venv\\Scripts\\python.exe -m pytest backend\\tests\\test_blank_recognition.py -v",
+      "evidence": "TestBlankRecognitionServiceAndAPI (3/3 passed): multipart, base64, teacher threshold/grading scale, 0-based cell_index mapping, submission_draft, auto_save, and zero-persistence validation.",
+      "verified_at": "2026-11-27T21:28:15+03:00"
+    },
+    {
+      "id": "AC-3",
+      "description": "Endpoints POST /api/v1/submissions/recognize and /recognize-base64 accept photos, enforce validation/404/auto_save, and return full local-parity JSON.",
+      "status": "PASS",
+      "command": "$env:TATAR_OCR_NATIVE_DIR=\"C:\\Users\\galee\\PycharmProjects\\tatar_ocr\\native\\build\"; C:\\Users\\galee\\PycharmProjects\\tatar_ocr\\.venv\\Scripts\\python.exe -m pytest backend\\tests\\test_blank_recognition.py -v",
+      "evidence": "All HTTP status codes (200, 400, 404, 413, 422, 503) and local-parity payload verified in test_blank_recognition.py.",
+      "verified_at": "2026-11-27T21:28:15+03:00"
+    },
+    {
+      "id": "AC-4",
+      "description": "Unit and API integration tests in backend/tests/test_blank_recognition.py pass.",
+      "status": "PASS",
+      "command": "$env:TATAR_OCR_NATIVE_DIR=\"C:\\Users\\galee\\PycharmProjects\\tatar_ocr\\native\\build\"; C:\\Users\\galee\\PycharmProjects\\tatar_ocr\\.venv\\Scripts\\python.exe -m pytest backend\\tests\\test_blank_recognition.py -v",
+      "evidence": "8 passed in 4.82s",
+      "verified_at": "2026-11-27T21:28:15+03:00"
+    },
+    {
+      "id": "AC-5",
+      "description": "End-to-end test on real blank photos (samples/test_blank_phone_photo.jpg and benchmark/images/blank_01.jpg) passes through FastAPI + C++20 native core.",
+      "status": "PASS",
+      "command": "$env:TATAR_OCR_NATIVE_DIR=\"C:\\Users\\galee\\PycharmProjects\\tatar_ocr\\native\\build\"; C:\\Users\\galee\\PycharmProjects\\tatar_ocr\\.venv\\Scripts\\python.exe -m pytest backend\\tests\\test_blank_recognition.py -k RealBlankPhoto -v",
+      "evidence": "samples/test_blank_phone_photo.jpg: ArUco 4-Point Geometry, QR TAT-2026-Q1 var=1, 8/8 questions (55 chars), 8.0/8.0 grade 5, zero_touch=True, auto_save persisted. benchmark/images/blank_01.jpg: 4 questions, 32 chars, top3+bbox returned.",
+      "verified_at": "2026-11-27T21:28:15+03:00"
+    },
+    {
+      "id": "AC-6",
+      "description": "Full backend pytest suite passes after final edit.",
+      "status": "PASS",
+      "command": "$env:TATAR_OCR_NATIVE_DIR=\"C:\\Users\\galee\\PycharmProjects\\tatar_ocr\\native\\build\"; C:\\Users\\galee\\PycharmProjects\\tatar_ocr\\.venv\\Scripts\\python.exe -m pytest backend\\tests -q",
+      "evidence": "147 passed, 3 warnings in 11.96s",
+      "verified_at": "2026-11-27T21:29:13+03:00"
+    },
+    {
+      "id": "AC-7",
+      "description": "Living specs (api_specification.md, openapi_specification.yaml, ADR-0004, ARCHITECTURE.md, STATUS.md) synced and Fresh-Context Evaluator verdict is accept.",
+      "status": "PASS",
+      "command": "Independent Fresh-Context Evaluator subagent + yaml.safe_load + pytest backend\\tests -q",
+      "evidence": "reviews/review.md verdict: accept; OpenAPI YAML valid (20 paths, 49 schemas); 147 passed in 9.75s",
+      "verified_at": "2026-11-27T21:30:58+03:00"
+    }
+  ]
+}
